@@ -281,6 +281,20 @@ table{border-collapse:collapse}
 .jside p{margin:0 0 8px}
 .jside .big{font:500 13.5px/1.6 var(--f-ui);color:var(--ink)}
 .sweep{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.rec{display:block;white-space:nowrap}
+.rec .rl{display:inline-block;vertical-align:top;width:52%;white-space:normal;padding-right:14px;box-sizing:border-box}
+.rec .rr{display:inline-block;vertical-align:top;width:48%;white-space:normal}
+.rec .rrun{display:block;padding:6px 0 8px}
+.rec .rrun+.rrun{border-top:1px solid var(--grid)}
+.rec .rrun .key{margin-right:6px}
+.rec .rh{display:block;font-size:12px;color:var(--ink-2)}
+.rec .rv{display:inline-block;width:37%;margin:6px 0 0;vertical-align:top}
+.rec .rv.hc{width:23%}
+.rec .rv.hc .d{white-space:normal}
+.rec .rv .l{display:block;font-size:11px;color:var(--ink-3)}
+.rec .rv .v{display:block;font:600 15px var(--f-num);white-space:nowrap}
+.rec .rv .v small{font:500 11.5px var(--f-num);color:var(--ink-2);margin-left:4px}
+.rec .rv .d{display:block;font:11px var(--f-num);color:var(--ink-3);white-space:nowrap}
 .sw h3,.sm h3{font:600 12.5px var(--f-ui);margin:0 0 4px}
 .sw h3 .info{width:15px;height:15px;line-height:13px;vertical-align:top}
 .smile{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
@@ -425,6 +439,18 @@ details.notes li{margin:4px 0}
     <div class="ph"><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the chosen target moves, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the current settings.">i</span><span class="lgd" id="sw-lgd"></span>
       <span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span></span></div>
     <div class="sweep" id="sweep"></div>
+  </section>
+
+  <section class="panel" id="p-rec">
+    <div class="ph"><h2>Recovery dynamics</h2><span class="info" tabindex="0" data-tip="How many cycles of normal compounding one bad hit is worth. Recovery: the hit lands in the first cycle, then the account compounds back to its starting NAV. Buffer: the account compounds first, until the same hit would leave it at or above the starting NAV. A cycle is one roll of the same tenor; real time is cycles × days, and whole cycles are what you can actually trade.">i</span>
+      <span class="tools"><span class="ctl"><span class="lbl">Hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span>
+        <details class="menu" id="m-rd"><summary>Basis</summary><span class="mb" style="width:330px">
+          <span class="mt">How the hit and the growth are measured</span>
+          <span class="mrow"><span class="lbl">The hit is a % of</span><span class="seg" id="c-rdbase"></span></span>
+          <span class="mrow"><span class="lbl">Capital per position</span><span class="seg" id="c-rdcap"></span></span>
+          <span class="mrow"><span class="lbl">Growth per cycle</span><span class="seg" id="c-rdg"></span> <span id="rd-gc"><input type="number" id="c-rdgc" step="0.1" style="width:56px">% a cycle</span></span>
+          <span class="cap">With the hit as a % of NAV when it lands, recovery and buffer take the same number of cycles at a constant growth rate. Measured against the starting capital they split: recovery needs ln(1/(1−L)) of log-growth, the buffer only ln(1+L).</span></span></details></span></div>
+    <div class="rec" id="rec"></div>
   </section>
 
   <section class="panel" id="p-smile">

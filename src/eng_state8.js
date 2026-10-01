@@ -10,7 +10,8 @@ const DEF = {
   ovm: "cr", ovv: "chart",
   gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7,
   gl: false, ct: "zero", cts: 5, ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true,
-  cs: "comp", cr: "auto", crx: 20, shared: true, sweep: "both", jday: -1, pins: [], dock: true, theme: "auto"
+  cs: "comp", cr: "auto", crx: 20, shared: true, sweep: "both", jday: -1, pins: [], dock: true, theme: "auto",
+  rdHit: "move", rdK: 2, rdDir: "worse", rdL: 60, rdBase: "nav", rdCap: "margin", rdG: "ev", rdGc: 2
 };
 const ENUMS = {
   along: ["st", "tk", "exp", "k", "fill", "free"], unit: ["sig", "pct", "pts"], wl: ["view", "own"], dist: ["rn", "hv"],
@@ -18,6 +19,7 @@ const ENUMS = {
   ovm: ["cr", "crs", "crd", "ev", "pop", "worst", "capc", "capp", "rom"], ovv: ["chart", "table"],
   gview: ["heat", "num"], gval: ["pnl", "contrib"], gtab: ["A", "B", "D"], ct: ["zero", "lev"], cs: ["comp", "lin"], cr: ["auto", "fix"],
   sweep: ["both", "pd", "cd", "capd"], theme: ["auto", "light", "dark"],
+  rdHit: ["move", "fixed"], rdDir: ["worse", "down", "up"], rdBase: ["nav", "start"], rdCap: ["margin", "notional"], rdG: ["ev", "custom"],
   nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20]
 };
 function sanP(p, d) {

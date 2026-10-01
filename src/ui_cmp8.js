@@ -898,10 +898,78 @@ function cmpWire() {
   $("#pins").addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if (b) { st.pins.splice(+b.dataset.k, 1); refresh(); } if (e.target.id === "pinclr") { st.pins = []; refresh(); } });
   $("#p-joint").addEventListener("click", e => { if (e.target.id === "jgo") { setAlong("tk"); refresh(); } });
   $("#p-joint").addEventListener("input", e => { if (e.target.id === "c-jday") { st.jday = +e.target.value; refresh(); } });
+  wireRecovery();
   seg("#c-sweep", [["both", "Both short legs"], ["pd", "Put"], ["cd", "Call"], ["capd", "Cap"]], () => st.sweep, v => st.sweep = v);
 }
 function setDock(off) { document.body.classList.toggle("dock-off", off); st.dock = !off; setTimeout(refresh, 30); }
 // renders the comparer only; theme and the tab strip are app-level (app8.js). Stays global for the v7 interaction scripts.
+// ============================================================ recovery dynamics: how many cycles one bad hit is worth
+function recFor(b, who) {
+  if (!b || b.na) return null;
+  const capPS = st.rdCap === "margin" ? b.margin : b.S;   // capital per share of the position
+  const ev = statsHV(b).ev, g = st.rdG === "custom" ? st.rdGc / 100 : ev / capPS;
+  let L, xMove = null;
+  if (st.rdHit === "fixed") L = st.rdL / 100;
+  else {
+    const sg = D.u[b.tk].exps[b.exp].atm * Math.sqrt(b.T), dn = b.S * Math.exp(-st.rdK * sg), up = b.S * Math.exp(st.rdK * sg);
+    const lDn = -payoff(b, dn) / capPS, lUp = -payoff(b, up) / capPS;
+    if (st.rdDir === "down") { L = lDn; xMove = dn; } else if (st.rdDir === "up") { L = lUp; xMove = up; } else { L = Math.max(lDn, lUp); xMove = lDn >= lUp ? dn : up; }
+  }
+  return { b, who, g, L, xMove, days: b.dte, ev, capPS };
+}
+// cycles needed; Infinity when growth cannot get there
+function recCycles(L, g, kind) {
+  if (!(L > 0)) return 0;
+  if (!(g > 0)) return Infinity;
+  const lg = Math.log(1 + g);
+  if (st.rdBase === "nav" || kind === "rec") return L >= 1 ? Infinity : -Math.log(1 - L) / lg;
+  return Math.log(1 + L) / lg;   // buffer against a hit measured on the starting capital
+}
+function renderRecovery() {
+  const host = $("#rec"); if (!host) return;
+  const runs = [recFor(C.A, "A"), recFor(C.B, "B")].filter(Boolean);
+  const at = String(D.meta && D.meta.asof || "2026-10-01"), t0 = Date.UTC(+at.slice(0, 4), +at.slice(5, 7) - 1, +at.slice(8, 10));
+  const dstr = days => { const d = new Date(t0 + days * 864e5); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]}${d.getUTCFullYear() !== 2026 ? " " + String(d.getUTCFullYear()).slice(2) : ""}`; };
+  const fmtT = (n, days, L) => L >= 1 ? { v: "wiped out", s: "", d: "the hit exceeds the capital" } : !Number.isFinite(n) ? { v: "never", s: "", d: "growth can't get there" } : n === 0 ? { v: "none needed", s: "", d: "" } : { v: `${(n * days / 7).toFixed(1)} wk`, s: `${Math.ceil(n - 1e-9)} cycle${Math.ceil(n - 1e-9) === 1 ? "" : "s"}`, d: `${Math.ceil(n - 1e-9)} × ${days}d → ${dstr(Math.ceil(n - 1e-9) * days)}` };
+  const hitTxt = st.rdHit === "fixed" ? `a fixed ${st.rdL}% hit` : `a ${st.rdK}σ move ${st.rdDir === "worse" ? "(worse side)" : st.rdDir}`;
+  let L = `<span class="rl">` + runs.map(r => { const rc = recCycles(r.L, r.g, "rec"), bf = recCycles(r.L, r.g, "buf"), a = fmtT(rc, r.days, r.L), c = fmtT(bf, r.days, st.rdBase === "nav" ? r.L : 0);
+    return `<span class="rrun"><span class="key ${r.who.toLowerCase()}">${r.who}</span><span class="rh">${posShort(r.b.P)} · ${r.days}-day cycles · growth ${r.g > 0 ? "+" : ""}${(r.g * 100).toFixed(2)}% a cycle${st.rdG === "ev" ? " (EV at HV30 odds" + (st.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>
+      <span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${r.L > 0 ? "−" + (r.L * 100).toFixed(0) + "%" : "no loss"}<small>${r.xMove ? "at " + fPx2(r.xMove) : ""}</small></span><span class="d">of ${st.rdBase === "nav" ? "NAV when it lands" : "starting capital"}</span></span>
+      <span class="rv"><span class="l">Recovery (hit first)</span><span class="v">${a.v}<small>${a.s}</small></span><span class="d">${a.d}</span></span>
+      <span class="rv"><span class="l">Buffer (climb first)</span><span class="v">${c.v}<small>${c.s}</small></span><span class="d">${c.d}</span></span></span>`; }).join("") + `<span class="cap" style="display:block;margin-top:4px">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle can't be traded.${st.rdBase === "nav" ? " Measured against NAV when it lands, the two times are equal at a constant growth rate." : ""}</span></span>`;
+  host.innerHTML = L + `<span class="rr" id="rec-ch"></span>`;
+  // curve: cycles needed against hit size, recovery solid, buffer dashed
+  const box = $("#rec-ch"), W = Math.max(320, box.getBoundingClientRect().width), H = 230, m = { l: 48, r: 60, t: 18, b: 28 }, pw = W - m.l - m.r;
+  const hs = []; for (let h = 0.05; h <= 0.951; h += 0.01) hs.push(h);
+  let ymax = 1; for (const r of runs) for (const h of hs) for (const k of ["rec", "buf"]) { const n = recCycles(h, r.g, k); if (Number.isFinite(n)) ymax = Math.max(ymax, Math.min(n, 60)); }
+  ymax = Math.min(ymax, 60) * 1.05; const X = h => m.l + (h - 0.05) / 0.9 * pw, Y = n => m.t + (1 - Math.min(n, ymax) / ymax) * (H - m.t - m.b);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "cycles needed against hit size" }, box), ax = el("g", { class: "ax" }, svg);
+  for (const t of ticks(0, ymax, 4)) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 5, Y(t) + 3.5, String(t), { "text-anchor": "end" }); }
+  for (const t of [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) txt(ax, X(t), H - 10, "−" + Math.round(t * 100) + "%", { "text-anchor": "middle" });
+  txt(svg, m.l, 9, `cycles needed (capped at 60) · ${st.rdBase === "nav" ? "recovery = buffer when the hit is a % of NAV" : "solid: recovery, dashed: buffer"}`, { fill: "var(--ink-3)", "font-size": 10 });
+  for (const r of runs) { const cv = r.who.toLowerCase();
+    for (const [k, dash] of [["rec", ""], ["buf", "5 4"]]) { const pts = hs.map(h => [h, recCycles(h, r.g, k)]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax);
+      if (pts.length > 1) el("path", { d: pathOf(pts, X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": dash ? 1.4 : 2, "stroke-dasharray": dash }, svg); }
+    if (r.L > 0.05 && r.L < 0.95) for (const k of ["rec", "buf"]) { const n = recCycles(r.L, r.g, k); if (Number.isFinite(n) && n <= ymax) el("circle", { cx: X(r.L), cy: Y(n), r: 3.5, fill: k === "rec" ? `var(--${cv})` : "var(--surface)", stroke: `var(--${cv})`, "stroke-width": 1.5 }, svg); }
+    const last = hs.map(h => [h, recCycles(h, r.g, "rec")]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax).pop(); if (last) txt(svg, Math.min(X(last[0]) + 4, W - m.r + 4), Y(last[1]) + 4, r.who, { fill: `var(--${cv})`, "font-weight": 600, "font-size": 11 }); }
+  txt(svg, W - 4, H - 10, "hit", { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 });
+  const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg), hit = el("rect", { x: m.l, y: m.t, width: pw, height: H - m.t - m.b, fill: "transparent" }, svg);
+  hit.addEventListener("pointermove", ev => { const rr = svg.getBoundingClientRect(), h = clamp(0.05 + ((ev.clientX - rr.left) * W / rr.width - m.l) / pw * 0.9, 0.05, 0.95); cross.setAttribute("x1", X(h)); cross.setAttribute("x2", X(h)); cross.setAttribute("visibility", "visible");
+    showTip(`<span class="h">Hit −${Math.round(h * 100)}%</span>` + runs.map(r => { const a = fmtT(recCycles(h, r.g, "rec"), r.days, h), c = fmtT(recCycles(h, r.g, "buf"), r.days, 0); return krow(`<i class="sw" style="background:var(--${r.who.toLowerCase()})"></i>${r.who} recovery`, `${a.v} ${a.s}`) + krow(`${r.who} buffer`, `${c.v} ${c.s}`); }).join(""), ev.clientX, ev.clientY); });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+}
+function wireRecovery() {
+  seg("#c-rdhit", [["move", "From a move"], ["fixed", "Fixed %"]], () => st.rdHit, v => st.rdHit = v);
+  seg("#c-rdbase", [["nav", "NAV when it lands"], ["start", "starting capital"]], () => st.rdBase, v => st.rdBase = v);
+  seg("#c-rdcap", [["margin", "Margin"], ["notional", "Notional"]], () => st.rdCap, v => st.rdCap = v);
+  seg("#c-rdg", [["ev", "EV · HV30"], ["custom", "Typed"]], () => st.rdG, v => st.rdG = v);
+  const hin = $("#rd-hitin");
+  hin.innerHTML = `<span id="rd-mv"><input type="number" id="c-rdk" min="0.25" max="6" step="0.25" style="width:52px">σ <span class="seg" id="c-rddir"></span></span><span id="rd-fx"><input type="number" id="c-rdl" min="1" max="99" step="1" style="width:52px">%</span>`;
+  seg("#c-rddir", [["worse", "worse side"], ["down", "down"], ["up", "up"]], () => st.rdDir, v => st.rdDir = v);
+  const num = (id, key, lo, hi) => { const i = $(id); i.addEventListener("change", () => { const v = parseFloat(i.value); if (Number.isFinite(v)) st[key] = clamp(v, lo, hi); refresh(); }); SYNC.push(() => { if (document.activeElement !== i) i.value = st[key]; }); };
+  num("#c-rdk", "rdK", 0.25, 6); num("#c-rdl", "rdL", 1, 99); num("#c-rdgc", "rdGc", -20, 50);
+  SYNC.push(() => { $("#rd-mv").hidden = st.rdHit !== "move"; $("#rd-fx").hidden = st.rdHit !== "fixed"; $("#rd-gc").style.visibility = st.rdG === "custom" ? "visible" : "hidden"; });
+}
 function renderAll() {
   ensureUnit(); context();
   if (unitNote) { toast(unitNote); unitNote = ""; } else if (C.clampNote) toast(C.clampNote);
@@ -910,6 +978,6 @@ function renderAll() {
   for (const ed of EDITORS) if (ed.id === "a" || (ed.id === "bk" && st.along === "k") || (ed.id === "bf" && st.along === "free")) syncEditor(ed);
   const safe = (f, n) => { try { f(); } catch (e) { console.error(n, e); } };
   safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "cmp");
-  safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderSweep, "sweep"); safe(renderSmile, "smile");
+  safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderSweep, "sweep"); safe(renderRecovery, "recovery"); safe(renderSmile, "smile");
   appSave();
 }
