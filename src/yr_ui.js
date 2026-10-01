@@ -17,13 +17,13 @@ const YR = ((YRE, YRS) => {
 
   // ---------------------------------------------------------- formats
   const f$ = v => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + "$" + (Math.abs(v) >= 1e9 ? (Math.abs(v) / 1e9).toFixed(2) + "B" : Math.abs(v) >= 1e6 ? (Math.abs(v) / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? (Math.abs(v) / 1e3).toFixed(1) + "k" : Math.round(Math.abs(v)).toLocaleString("en-US"));
-  const fP = (v, d = 1) => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + Math.abs(v * 100).toFixed(d) + "%";
+  const fPc = (v, d = 1) => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + Math.abs(v * 100).toFixed(d) + "%";
   const fPs = (v, d = 1) => !Number.isFinite(v) ? "–" : (v > 0 ? "+" : v < 0 ? MIN : "") + Math.abs(v * 100).toFixed(d) + "%";
   const fX = v => "×" + (v >= 10 ? v.toFixed(1) : v.toFixed(2));
-  const fK = K => "$" + (+(+K).toFixed(2));
+  const fKs = K => "$" + (+(+K).toFixed(2));
   const fInt = v => Math.round(v).toLocaleString("en-US");
-  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const fD = d => `${d.getUTCDate()} ${MON[d.getUTCMonth()]}${d.getUTCFullYear() !== 2026 ? " " + String(d.getUTCFullYear()).slice(2) : ""}`;
+  const MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fD = d => `${d.getUTCDate()} ${MONS[d.getUTCMonth()]}${d.getUTCFullYear() !== 2026 ? " " + String(d.getUTCFullYear()).slice(2) : ""}`;
 
   // ---------------------------------------------------------- state
   const MODUS0 = { credit: "reinvest", call: "ibkr", target: 1.0, move: "keep" };
@@ -83,7 +83,7 @@ const YR = ((YRE, YRS) => {
   function normPts() { const p = ys.sc.path, notes = {}; const by = new Map();
     for (const [w, m] of p.pts) { const ww = Math.round(w); if (!(ww >= 1)) continue; by.set(ww, Math.max(m, 0.01)); }
     const arr = [...by.entries()].sort((a, b) => a[0] - b[0]); let prev = 1;
-    for (const a of arr) { if (a[1] < prev - 1e-9) { notes[a[0]] = `held at ${fK(prev * ys.sc.S0[ys.A.tk])}: the path cannot fall`; a[1] = prev; } prev = a[1]; }
+    for (const a of arr) { if (a[1] < prev - 1e-9) { notes[a[0]] = `held at ${fKs(prev * ys.sc.S0[ys.A.tk])}: the path cannot fall`; a[1] = prev; } prev = a[1]; }
     p.pts = arr; return notes; }
   const costsOf = () => ({ ...YRE.COSTS, ...ys.costs, hsPct: 0.07, hsMin: 0.025, hsSh: 0.005 });
   const ratesOf = () => ({ tiered: ys.rates.tiered, bm: ys.rates.bm / 100, loan: ys.rates.loan / 100, cash: ys.rates.cash / 100 });
@@ -207,7 +207,7 @@ const YR = ((YRE, YRS) => {
     const e = q("#y-pend"); if (e && document.activeElement !== e) e.value = (p.end * S0).toFixed(2);
     const g = q("#y-pg"); if (g && document.activeElement !== g) g.value = p.gUnit === "yr" ? +(p.g * 100).toFixed(2) : +(+p.g).toFixed(3);
     const gu = q("#y-pgu"); if (gu) gu.value = p.gUnit;
-    const inf = q("#y-pinfo"); if (inf) { const m = mult(); inf.textContent = p.mode === "flat" ? `at ${fK(S0)}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"}, ends ${fK(m[m.length - 1] * S0)}`; }
+    const inf = q("#y-pinfo"); if (inf) { const m = mult(); inf.textContent = p.mode === "flat" ? `at ${fKs(S0)}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"}, ends ${fKs(m[m.length - 1] * S0)}`; }
     q("#y-pmode").value = p.mode;
     const mb = q("#y-pmb");
     if (!mb.dataset.built) {
@@ -296,11 +296,11 @@ const YR = ((YRE, YRS) => {
     const res = RES && RES[who] ? RES[who].main : null, row = res ? res.rows[0] : null, id = s => q(`#y-${who}-${s}`);
     const S0 = ys.sc.S0[r.tk], v = volOf(r, who === "B"), cy = YRE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
     const legTxt = (cp, d) => { const K = YRE.pickStrike(S0, T, v.iv, cp, d, g), D_ = YRE.deltaOf(S0, K, T, v.iv, cp) * 100, p = YRE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
-      return `${fK(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fK(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fK(tv)}` : ""}`; };
+      return `${fKs(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fKs(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fKs(tv)}` : ""}`; };
     if (id("cdr")) id("cdr").textContent = "Week 1: " + legTxt("C", r.cd);
     if (id("pdr")) id("pdr").textContent = "Week 1: " + legTxt("P", r.pd);
     const m = ys.costs.mOvr[r.tk];
-    if (id("levr")) { const lam = r.lev, d = (1 / lam - m) / (1 - m); id("levr").textContent = `margin call after a ${fP(Math.max(0, d), 0)} drop` + (row && row.cush < 1 ? ` (${fP(row.cush, 0)} with this week's credit)` : "") + (lam >= 1 / m - 1e-6 ? " · at the ceiling: the first tick down is a margin call" : "");
+    if (id("levr")) { const lam = r.lev, d = (1 / lam - m) / (1 - m); id("levr").textContent = `margin call after a ${fPc(Math.max(0, d), 0)} drop` + (row && row.cush < 1 ? ` (${fPc(row.cush, 0)} with this week's credit)` : "") + (lam >= 1 / m - 1e-6 ? " · at the ceiling: the first tick down is a margin call" : "");
       id("levr").classList.toggle("warn", lam > 1.25 * 0.999); }
     if (id("user") && row) id("user").textContent = `${Math.round(r.use * 100)}% · margin call on ${Number.isFinite(row.cushUp) ? fPs(row.cushUp, 0) : "no rally"} or ${row.cush < 1 ? fPs(-row.cush, 0) : "no drop"} (week 1)`;
   }
@@ -316,21 +316,21 @@ const YR = ((YRE, YRS) => {
       <span class="cap" style="display:block;margin:-2px 0 8px">Share requirement, initial = maintenance (IBKR: 25% × leverage factor). Raise it to test a house increase.</span>
       <span class="row"><span class="lbl">Rates</span><span class="seg" id="y-crt"></span> benchmark <input type="number" id="y-cbm" min="0" max="15" step="0.25" style="width:50px">%</span>
       <span class="row" id="y-cflat"><span class="lbl"></span>loan <input type="number" id="y-cloan" step="0.25" style="width:50px">% · cash <input type="number" id="y-ccash" step="0.25" style="width:50px">%</span>`;
-    const C = ys.costs, Rt = ys.rates;
-    numY(q("#y-cgive"), () => C.give, v => C.give = v, { min: 0, max: 1 });
-    numY(q("#y-ccomm"), () => C.comm, v => C.comm = v, { min: 0 });
-    numY(q("#y-csh"), () => C.commSh, v => C.commSh = v, { min: 0 });
-    numY(q("#y-cliq"), () => C.liq, v => C.liq = Math.round(v), { min: 0 });
-    const w = q("#y-cwhole"); w.onchange = () => { C.whole = w.checked; schedule(30); }; SY.push(() => { w.checked = C.whole; });
-    segY(q("#y-cgK"), [["1", "$1"], ["0.5", "$0.50"]], () => String(C.grid.KORU), v => C.grid.KORU = +v);
-    segY(q("#y-cgR"), [["1", "$1"], ["0.5", "$0.50"]], () => String(C.grid.RAM), v => C.grid.RAM = +v);
-    numY(q("#y-cmK"), () => C.mOvr.KORU, v => C.mOvr.KORU = v, { min: 0.25, max: 1 });
-    numY(q("#y-cmR"), () => C.mOvr.RAM, v => C.mOvr.RAM = v, { min: 0.25, max: 1 });
+    const CO = ys.costs, Rt = ys.rates;
+    numY(q("#y-cgive"), () => CO.give, v => CO.give = v, { min: 0, max: 1 });
+    numY(q("#y-ccomm"), () => CO.comm, v => CO.comm = v, { min: 0 });
+    numY(q("#y-csh"), () => CO.commSh, v => CO.commSh = v, { min: 0 });
+    numY(q("#y-cliq"), () => CO.liq, v => CO.liq = Math.round(v), { min: 0 });
+    const w = q("#y-cwhole"); w.onchange = () => { CO.whole = w.checked; schedule(30); }; SY.push(() => { w.checked = CO.whole; });
+    segY(q("#y-cgK"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.KORU), v => CO.grid.KORU = +v);
+    segY(q("#y-cgR"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.RAM), v => CO.grid.RAM = +v);
+    numY(q("#y-cmK"), () => CO.mOvr.KORU, v => CO.mOvr.KORU = v, { min: 0.25, max: 1 });
+    numY(q("#y-cmR"), () => CO.mOvr.RAM, v => CO.mOvr.RAM = v, { min: 0.25, max: 1 });
     segY(q("#y-crt"), [["1", "IBKR tiered"], ["0", "flat"]], () => Rt.tiered ? "1" : "0", v => Rt.tiered = v === "1");
     numY(q("#y-cbm"), () => Rt.bm, v => Rt.bm = v, { min: 0 });
     numY(q("#y-cloan"), () => Rt.loan, v => Rt.loan = v, { min: 0 });
     numY(q("#y-ccash"), () => Rt.cash, v => Rt.cash = v, { min: 0 });
-    SY.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${C.comm}/contract · ${C.grid.KORU === 1 && C.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => C.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
+    SY.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
   }
 
   // ---------------------------------------------------------- result strip
@@ -340,7 +340,7 @@ const YR = ((YRE, YRS) => {
     host.innerHTML = rows.map(([who, R]) => {
       const z = R.main.end, ex = R.exact.end, cap0 = ys.sc.cap0, cc = R.run.fam === "cc";
       const big = ys.view.reading === "typ" ? z.med : z.avg;
-      const callTxt = z.called > 0.0005 ? `${fP(z.called, 0)}<small>${cc ? "on drops" : "either way"}</small>` : "none";
+      const callTxt = z.called > 0.0005 ? `${fPc(z.called, 0)}<small>${cc ? "on drops" : "either way"}</small>` : "none";
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
         <span class="cell big"><span class="l">${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
         <span class="cell c2"><span class="l">10%–90%</span><span class="v" style="font-size:14px">${f$(z.c10)} – ${f$(z.c90)}</span></span>
@@ -468,13 +468,13 @@ const YR = ((YRE, YRS) => {
   const weekTicks = (W, px = 800) => { const raw = W * 74 / Math.max(200, px), step = [1, 2, 4, 8, 13, 26, 52].find(k => k >= raw) || 52; const out = []; for (let w = 0; w <= W; w += step) out.push(w); if (out[out.length - 1] !== W && W - out[out.length - 1] > step / 2) out.push(W); return out; };
   function rowAt(R, w) { const rs = R.main.rows; return rs.find(r => w > r.w0 && w <= r.w1) || rs.find(r => w >= r.w0 && w <= r.w1) || rs[rs.length - 1]; }
   function stackTip(w) {
-    const m = RES.mult, tkA = RES.A.run.tk; let h = `<span class="h">Week ${w} · ${fD(YRE.weekDate(w))}</span><span class="s">${tkA} ${fK(m[w] * ys.sc.S0[tkA])}${RES.B && RES.B.run.tk !== tkA ? ` · ${RES.B.run.tk} ${fK(m[w] * ys.sc.S0[RES.B.run.tk])}` : ""} · path ${fPs(m[w] - 1)}</span>`;
+    const m = RES.mult, tkA = RES.A.run.tk; let h = `<span class="h">Week ${w} · ${fD(YRE.weekDate(w))}</span><span class="s">${tkA} ${fKs(m[w] * ys.sc.S0[tkA])}${RES.B && RES.B.run.tk !== tkA ? ` · ${RES.B.run.tk} ${fKs(m[w] * ys.sc.S0[RES.B.run.tk])}` : ""} · path ${fPs(m[w] - 1)}</span>`;
     for (const [who, R] of [["A", RES.A], ["B", RES.B]]) { if (!R) continue; const r = rowAt(R, Math.max(1, w)), cc = R.run.fam === "cc";
       h += `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who} typical NAV</span><span class="v">${f$(w === 0 ? ys.sc.cap0 : r.med)}</span></span>`;
       if (w) h += `<span class="r"><span class="k">10%–90%</span><span class="v">${f$(r.c10)} – ${f$(r.c90)}</span></span>`;
-      h += `<span class="r"><span class="k">strikes this cycle</span><span class="v">${[r.Kp ? fK(r.Kp) + "P" : "", r.Kc ? fK(r.Kc) + "C" : ""].filter(Boolean).join(" / ")}</span></span>`;
+      h += `<span class="r"><span class="k">strikes this cycle</span><span class="v">${[r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")}</span></span>`;
       h += `<span class="r"><span class="k">${cc ? "shares (typical)" : "contracts (typical)"}</span><span class="v">${cc ? fInt(r.shMed) : Math.floor(r.kMed)}</span></span>`;
-      if (r.called > 0.0005) h += `<span class="r"><span class="k">margin call so far</span><span class="v">${fP(r.called, 0)}</span></span>`; }
+      if (r.called > 0.0005) h += `<span class="r"><span class="k">margin call so far</span><span class="v">${fPc(r.called, 0)}</span></span>`; }
     return h + `<span class="s" style="margin:4px 0 0">click to pin this week in the growth card</span>`;
   }
   // points editor: anchors on the price chart + a table in the right margin
@@ -487,14 +487,14 @@ const YR = ((YRE, YRS) => {
       c.addEventListener("pointerdown", ev => { ev.preventDefault(); c.setPointerCapture(ev.pointerId); const rc = s1.getBoundingClientRect();
         const prev = i ? P.pts[i - 1][1] : 1;
         const mv = e => { let v = fromY(e.clientY - rc.top); const held = v < prev; v = Math.max(prev, v); p[1] = v; c.setAttribute("cy", toY(v)); c.setAttribute("stroke", held ? "var(--warn)" : "var(--ink)");
-          const mm = mult(); let d = ""; for (let w = 0; w <= ys.sc.W; w++) d += (w ? "L" : "M") + G.x(w) + "," + toY(mm[w]); s1.querySelector("#y-pathline").setAttribute("d", d); showTip(`<span class="h">Week ${p[0]}: ${fK(v * S0)}</span>${held ? `<span class="s">held at ${fK(prev * S0)}: the path cannot fall</span>` : ""}`, e.clientX, e.clientY); };
+          const mm = mult(); let d = ""; for (let w = 0; w <= ys.sc.W; w++) d += (w ? "L" : "M") + G.x(w) + "," + toY(mm[w]); s1.querySelector("#y-pathline").setAttribute("d", d); showTip(`<span class="h">Week ${p[0]}: ${fKs(v * S0)}</span>${held ? `<span class="s">held at ${fKs(prev * S0)}: the path cannot fall</span>` : ""}`, e.clientX, e.clientY); };
         const up = () => { c.removeEventListener("pointermove", mv); c.removeEventListener("pointerup", up); hideTip(); schedule(10); };
         c.addEventListener("pointermove", mv); c.addEventListener("pointerup", up); });
-      c.addEventListener("keydown", ev => { if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return; ev.preventDefault(); const st = (ev.shiftKey ? 1 : 0.1) / S0; p[1] = Math.max(i ? P.pts[i - 1][1] : 1, p[1] + (ev.key === "ArrowUp" ? st : -st)); schedule(60); });
+      c.addEventListener("keydown", ev => { if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return; ev.preventDefault(); const stp = (ev.shiftKey ? 1 : 0.1) / S0; p[1] = Math.max(i ? P.pts[i - 1][1] : 1, p[1] + (ev.key === "ArrowUp" ? stp : -stp)); schedule(60); });
     });
     // table
     const t = document.createElement("span"); t.className = "ypts";
-    t.innerHTML = `<table><tr><th style="text-align:left">week</th><th>price</th><th>from start</th><th></th></tr><tr><td style="text-align:left">0</td><td>${fK(S0)}</td><td></td><td></td></tr>${P.pts.map((p, i) => `<tr><td style="text-align:left"><input type="number" data-i="${i}" data-f="w" value="${p[0]}" min="1" max="104" step="1" style="width:44px"${p[0] > ys.sc.W ? ' class="muted"' : ""}></td><td><input type="number" data-i="${i}" data-f="p" value="${(p[1] * S0).toFixed(2)}" step="0.5"></td><td>${fPs(p[1] - 1, 0)}</td><td><button type="button" class="btn" data-del="${i}" style="padding:0 6px">×</button></td></tr>${lastPtsNotes[p[0]] ? `<tr><td colspan="4" class="held">${lastPtsNotes[p[0]]}</td></tr>` : ""}${p[0] > ys.sc.W ? `<tr><td colspan="4" class="held">after week ${ys.sc.W}, not used</td></tr>` : ""}`).join("")}</table><button type="button" class="btn" id="y-addpt" style="margin-top:4px">+ point</button> <span class="cap">drag a dot, or double-click the chart</span>`;
+    t.innerHTML = `<table><tr><th style="text-align:left">week</th><th>price</th><th>from start</th><th></th></tr><tr><td style="text-align:left">0</td><td>${fKs(S0)}</td><td></td><td></td></tr>${P.pts.map((p, i) => `<tr><td style="text-align:left"><input type="number" data-i="${i}" data-f="w" value="${p[0]}" min="1" max="104" step="1" style="width:44px"${p[0] > ys.sc.W ? ' class="muted"' : ""}></td><td><input type="number" data-i="${i}" data-f="p" value="${(p[1] * S0).toFixed(2)}" step="0.5"></td><td>${fPs(p[1] - 1, 0)}</td><td><button type="button" class="btn" data-del="${i}" style="padding:0 6px">×</button></td></tr>${lastPtsNotes[p[0]] ? `<tr><td colspan="4" class="held">${lastPtsNotes[p[0]]}</td></tr>` : ""}${p[0] > ys.sc.W ? `<tr><td colspan="4" class="held">after week ${ys.sc.W}, not used</td></tr>` : ""}`).join("")}</table><button type="button" class="btn" id="y-addpt" style="margin-top:4px">+ point</button> <span class="cap">drag a dot, or double-click the chart</span>`;
     q("#y-stack").appendChild(t);
     t.onchange = e => { const i = e.target.dataset.i; if (i === undefined) return; const v = parseFloat(e.target.value); if (!Number.isFinite(v)) return; if (e.target.dataset.f === "w") P.pts[+i][0] = Math.round(v); else P.pts[+i][1] = v / S0; schedule(10); };
     t.onclick = e => { const d = e.target.dataset && e.target.dataset.del; if (d !== undefined) { P.pts.splice(+d, 1); schedule(10); } if (e.target.id === "y-addpt") { const last = P.pts.length ? P.pts[P.pts.length - 1] : [0, 1]; const w = Math.min(ys.sc.W, last[0] + 8); P.pts.push([w, last[1]]); schedule(10); } };
@@ -519,17 +519,17 @@ const YR = ((YRE, YRS) => {
       const cred = lots * 100 * r.pc, buy = x => Math.floor(cred * x / S0);
       body = `<span class="f">R = λ·(g + c·(y − e)) + (1 − λ)·r·T
 λ ${lam.toFixed(2)} (typical leverage)   c ${c.toFixed(2)} (calls / shares)
-y ${fP(y, 2)} (premium, ${fK(r.Kc)}C really ${(r.dc * 100).toFixed(0)}Δ, ${fPs(a)} away)
-g ${fPs(g, 2)} (path)   e ${fP(e, 2)} (average payout over the realized moves)
-r ${fP(loanR, 2)} × T ${(T * 52).toFixed(2)} wk
+y ${fPc(y, 2)} (premium, ${fKs(r.Kc)}C really ${(r.dc * 100).toFixed(0)}Δ, ${fPs(a)} away)
+g ${fPs(g, 2)} (path)   e ${fPc(e, 2)} (average payout over the realized moves)
+r ${fPc(loanR, 2)} × T ${(T * 52).toFixed(2)} wk
 → exactly on the path R ${fPs(Rex, 2)} · on average R ${fPs(Ravg, 2)}</span>
-        <span class="kv">Edge kept <b>${fP(edge, 0)}</b> of the premium</span><span class="kv">Odds the call ends in the money <b>${fP(r.pitm, 0)}</b></span>
+        <span class="kv">Edge kept <b>${fPc(edge, 0)}</b> of the premium</span><span class="kv">Odds the call ends in the money <b>${fPc(r.pitm, 0)}</b></span>
         <p style="margin:6px 0 0">This cycle's credit on the typical account: <b>${f$(cred)}</b> (${lots} calls). Kept in full it buys ${fInt(buy(lam))} ${run.tk} at ${lam.toFixed(2)}x, ${fInt(buy(1 / m))} at the ${(1 / m).toFixed(2)}x ceiling, ${fInt(buy(1))} with no loan${cred > 0 ? `: a new 100-share lot every ${(100 * S0 / (cred * lam)).toFixed(1)} cycles exactly on the path` : ""}.</p>
         <p class="cap" style="margin:4px 0 0">The same credit in SPY buys 2× overnight (Reg T 50%); 4× is intraday buying power only. ${run.tk} at IBKR: ${(1 / m).toFixed(2)}× at most, and initial = maintenance, so the last dollar of buying power has no cushion. The engine reinvests only after expiry, never the day the premium is received.</p>`;
     } else {
       const k = prev ? Math.floor(prev.kMed) : r.k, cred = k * 100 * (r.pc + r.pp);
-      body = `<span class="f">Strangle ${fK(r.Kp)}P (really ${(r.dp * 100).toFixed(0)}Δ) / ${fK(r.Kc)}C (really ${(r.dc * 100).toFixed(0)}Δ)${r.Kp > r.Kc ? "  · short guts: the put sits above the call" : ""}
-premium ${fP((r.pc + r.pp) / S0, 2)} of spot${(r.tvc + r.tvp) < r.pc + r.pp - 1e-6 ? ` · time value ${fP((r.tvc + r.tvp) / S0, 2)}` : ""}
+      body = `<span class="f">Strangle ${fKs(r.Kp)}P (really ${(r.dp * 100).toFixed(0)}Δ) / ${fKs(r.Kc)}C (really ${(r.dc * 100).toFixed(0)}Δ)${r.Kp > r.Kc ? "  · short guts: the put sits above the call" : ""}
+premium ${fPc((r.pc + r.pp) / S0, 2)} of spot${(r.tvc + r.tvp) < r.pc + r.pp - 1e-6 ? ` · time value ${fPc((r.tvc + r.tvp) / S0, 2)}` : ""}
 contracts ${k} (${Math.round(run.use * 100)}% of the margin the account allows)
 margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or ${r.cush < 1 ? fPs(-r.cush, 0) : "no drop"} from the cycle start</span>
         <p style="margin:6px 0 0">This cycle's credit on the typical account: <b>${f$(cred)}</b>.</p>`;
@@ -566,7 +566,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const meds = data.map(d => d.med), lo = Math.min(...meds, ys.sc.cap0) * 0.95, hi = Math.max(...meds) * 1.05, Y = yLin(lo, hi, 6, H - 18), Yc = yLin(0, 1, H + 10, H2 - 4);
     const ax = sv("g", { class: "yax" }, s);
     for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
-    for (const t of [0, 0.5, 1]) { sv("line", { x1: l, x2: l + pw, y1: Yc(t), y2: Yc(t) }, ax); st_(ax, l - 6, Yc(t) + 3.5, fP(t, 0), { "text-anchor": "end" }); }
+    for (const t of [0, 0.5, 1]) { sv("line", { x1: l, x2: l + pw, y1: Yc(t), y2: Yc(t) }, ax); st_(ax, l - 6, Yc(t) + 3.5, fPc(t, 0), { "text-anchor": "end" }); }
     let lastX = -1e9; for (const x of S.xs) { if (X(x) - lastX < 38 && x !== S.xs[S.xs.length - 1]) continue; if (x === S.xs[S.xs.length - 1] && X(x) - lastX < 38) continue; lastX = X(x); st_(ax, X(x), H + H2 + 24, S.kind === "lev" ? x.toFixed(2) + "x" : Math.round(x * 100) + "%", { "text-anchor": "middle" }); }
     const cls = S.who.toLowerCase();
     S.pols.forEach((pol, k) => { const pts = data.filter(d => d.pol === pol).sort((a, b) => a.x - b.x), mine = pol === S.run.modus.credit || S.pols.length === 1;
@@ -575,7 +575,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       sv("path", { d: dc, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 1.6 : 1.1, "stroke-dasharray": mine ? "" : "5 4" }, s);
       
       for (const p of pts) { const c = sv("circle", { cx: X(p.x), cy: Y(p.med), r: Math.abs(p.x - (S.kind === "lev" ? S.run.lev : S.run.use)) < 1e-6 && mine ? 5 : 2.5, fill: `var(--${cls})` }, s);
-        c.addEventListener("pointerenter", ev => showTip(`<span class="h">${S.kind === "lev" ? p.x.toFixed(2) + "x" : Math.round(p.x * 100) + "% of margin"} · ${pol}</span><span class="r"><span class="k">typical NAV</span><span class="v">${f$(p.med)}</span></span><span class="r"><span class="k">margin call in the year</span><span class="v">${fP(p.called, 1)}</span></span>${p.sh ? `<span class="r"><span class="k">shares at the end</span><span class="v">${fInt(p.sh)}</span></span>` : ""}`, ev.clientX, ev.clientY));
+        c.addEventListener("pointerenter", ev => showTip(`<span class="h">${S.kind === "lev" ? p.x.toFixed(2) + "x" : Math.round(p.x * 100) + "% of margin"} · ${pol}</span><span class="r"><span class="k">typical NAV</span><span class="v">${f$(p.med)}</span></span><span class="r"><span class="k">margin call in the year</span><span class="v">${fPc(p.called, 1)}</span></span>${p.sh ? `<span class="r"><span class="k">shares at the end</span><span class="v">${fInt(p.sh)}</span></span>` : ""}`, ev.clientX, ev.clientY));
         c.addEventListener("pointerleave", hideTip); } });
     if (S.kind === "lev") { const top = S.xs[S.xs.length - 1]; sv("line", { x1: X(top), x2: X(top), y1: 6, y2: H + H2 + 8, stroke: "var(--warn)", "stroke-dasharray": "2 3" }, s); st_(s, X(top) - 3, H - 16, "ceiling", { "text-anchor": "end", class: "yhalo", fill: "var(--warn)", "font-size": 10.5 }); }
   }
@@ -596,7 +596,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
   function renderCreditMargin() {
     const runs = [["a", RES.A], RES.B ? ["b", RES.B] : null].filter(Boolean), W = ys.sc.W;
     lineChart(q("#y-credit"), "Credit collected", "cumulative, averaged over the years the model spans", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.cumCredit])] })), f$);
-    lineChart(q("#y-margin"), "Margin call so far", "share of years with at least one margin call by that week", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.called])] })), v => fP(v, 0), 0, 1);
+    lineChart(q("#y-margin"), "Margin call so far", "share of years with at least one margin call by that week", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.called])] })), v => fPc(v, 0), 0, 1);
   }
 
   // ---------------------------------------------------------- table
@@ -604,8 +604,8 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const who = RES.B && ys.view.tableRun === "B" ? "B" : "A", R = RES[who], cc = R.run.fam === "cc";
     q("#y-tablesub").textContent = `run ${who} · ${R.main.rows.length} cycles · click a row to pin its week`;
     q("#y-tabletools").innerHTML = RES.B ? `<span class="seg" id="y-trun"><button type="button" data-v="A" class="${who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${who === "B" ? "on" : ""}">B</button></span> <button type="button" class="btn" id="y-csv">Copy CSV</button>` : `<button type="button" class="btn" id="y-csv">Copy CSV</button>`;
-    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => fK(r.S0)], ["Strikes", r => [r.Kp ? fK(r.Kp) + "P" : "", r.Kc ? fK(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
-      ["Premium", r => fP((r.pc + r.pp) / r.S0, 2)], ["Time value", r => fP((r.tvc + r.tvp) / r.S0, 2)], [cc ? "Shares" : "Contracts", r => cc ? fInt(r.shMed) : Math.floor(r.kMed)], ...(cc ? [["Lots", r => r.lots]] : []), ["NAV typical", r => f$(r.med)], ["10%", r => f$(r.c10)], ["90%", r => f$(r.c90)], ["Average", r => f$(r.avg)], ["Credit", r => f$(r.credit)], ["Margin call so far", r => fP(r.called, 1)], ["Cushion", r => r.cush < 1 ? fPs(-r.cush, 0) : "–"], ...(cc ? [["Typical λ", r => r.lamTyp.toFixed(2)]] : [])];
+    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => fKs(r.S0)], ["Strikes", r => [r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
+      ["Premium", r => fPc((r.pc + r.pp) / r.S0, 2)], ["Time value", r => fPc((r.tvc + r.tvp) / r.S0, 2)], [cc ? "Shares" : "Contracts", r => cc ? fInt(r.shMed) : Math.floor(r.kMed)], ...(cc ? [["Lots", r => r.lots]] : []), ["NAV typical", r => f$(r.med)], ["10%", r => f$(r.c10)], ["90%", r => f$(r.c90)], ["Average", r => f$(r.avg)], ["Credit", r => f$(r.credit)], ["Margin call so far", r => fPc(r.called, 1)], ["Cushion", r => r.cush < 1 ? fPs(-r.cush, 0) : "–"], ...(cc ? [["Typical λ", r => r.lamTyp.toFixed(2)]] : [])];
     const pinR = rowAt(R, ys.view.pin);
     q("#y-table").innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${R.main.rows.map(r => `<tr data-w="${Math.min(r.w1, ys.sc.W)}" class="${r === pinR ? "pin" : ""}">${cols.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     q("#y-table").onclick = e => { const tr = e.target.closest("tr[data-w]"); if (!tr) return; ys.view.pin = +tr.dataset.w; renderGrowth(); renderStackPin(); renderTable(); };
@@ -701,24 +701,24 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     q("#y-sstrip").innerHTML = runs.map(([who, o]) => { const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
       const used = YRS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter), lev = cc ? sn.n * sn.S / Math.max(1, nb) : null;
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
-        <span class="cell big"><span class="l">Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fP(used.req / Math.max(1, used.elv), 0)} of margin</span><span class="v">${f$(nb)}</span></span>
+        <span class="cell big"><span class="l">Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin</span><span class="v">${f$(nb)}</span></span>
         <span class="cell c2"><span class="l">At the low</span><span class="v" style="font-size:14px" class="${r.lossLow > 0 ? "neg" : ""}">${fPs(-r.lossLow / nb)} <small>${f$(-r.lossLow)}</small></span></span>
         <span class="cell c2"><span class="l">End of the move</span><span class="v ${r.lossEnd > 0 ? "neg" : "pos"}" style="font-size:14px">${fPs(-r.lossEnd / nb)} <small>${f$(-r.lossEnd)}</small></span></span>
-        <span class="cell c3" style="width:200px"><span class="l">Margin call</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fK(c.x)}, sold ${fP(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
+        <span class="cell c3" style="width:200px"><span class="l">Margin call</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
         ${r.ev.deficit > 0 ? `<span class="cell"><span class="l">Deficit</span><span class="v neg" style="font-size:14px">you owe IBKR ${f$(r.ev.deficit)}</span></span>` : ""}
         ${o.given > 1 ? `<span class="cell"><span class="l">Upside given up (not a loss)</span><span class="v" style="font-size:14px">${f$(o.given)}</span></span>` : ""}
         <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"} (index ${o.room.callDown != null ? fPs(o.room.callDown / YRE.LEV[o.R.run.tk], 1) : "–"} for the call)</span></span>`; }).join("");
     q("#y-sbwsub").textContent = `${scenTxt()} · click a week to inspect it`;
     // loss by week: $ and % stacked
     const host = q("#y-sbw"); host.innerHTML = ""; const Wd = Math.max(600, host.parentElement.clientWidth - 30), l = 62, rM = 110, pw = Wd - l - rM, W = ys.sc.W, X = w => l + (w - 1) / Math.max(1, W - 1) * pw;
-    const mkChart = (H, val, fmt, title) => { const s = sv("svg", { width: Wd, height: H + 26, viewBox: `0 0 ${Wd} ${H + 26}` }, host); let lo = 0, hi = 0;
-      for (const [, o] of runs) for (const b of o.by) { const v = val(b); lo = Math.min(lo, v); hi = Math.max(hi, v); } if (hi - lo < 1e-9) hi = lo + 1; const pad = (hi - lo) * 0.08; const Y = yLin(lo - pad, hi + pad, 16, H - 16);
+    const mkChart = (H, valOf, fmt, title) => { const s = sv("svg", { width: Wd, height: H + 26, viewBox: `0 0 ${Wd} ${H + 26}` }, host); let lo = 0, hi = 0;
+      for (const [, o] of runs) for (const b of o.by) { const v = valOf(b); lo = Math.min(lo, v); hi = Math.max(hi, v); } if (hi - lo < 1e-9) hi = lo + 1; const pad = (hi - lo) * 0.08; const Y = yLin(lo - pad, hi + pad, 16, H - 16);
       const ax = sv("g", { class: "yax" }, s); st_(s, l, 10, title, { "font-size": 11, fill: "var(--ink-2)" });
       for (const t of niceTicks(lo - pad, hi + pad, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fmt(t), { "text-anchor": "end" }); }
       for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(YRE.weekDate(w - 1)), { "text-anchor": "middle" });
-      for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.by.forEach((b, i) => d += (i ? "L" : "M") + X(b.w) + "," + Y(val(b))); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, s);
-        for (const b of o.by) { if (b.wiped) sv("circle", { cx: X(b.w), cy: Y(val(b)), r: 3.2, fill: "var(--neg)" }, s); else if (b.call) sv("circle", { cx: X(b.w), cy: Y(val(b)), r: 3, fill: "none", stroke: "var(--shade)", "stroke-width": 1.4 }, s); }
-        const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(val(lb)) + 4, `${who} ${fmt(val(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
+      for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.by.forEach((b, i) => d += (i ? "L" : "M") + X(b.w) + "," + Y(valOf(b))); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, s);
+        for (const b of o.by) { if (b.wiped) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3.2, fill: "var(--neg)" }, s); else if (b.call) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3, fill: "none", stroke: "var(--shade)", "stroke-width": 1.4 }, s); }
+        const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(valOf(lb)) + 4, `${who} ${fmt(valOf(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
       sv("line", { x1: X(wk), x2: X(wk), y1: 14, y2: H - 10, stroke: "var(--ink-3)", "stroke-dasharray": "2 3" }, s);
       const hit = sv("rect", { x: l, y: 0, width: pw, height: H, fill: "transparent", style: "cursor:pointer" }, s);
       hit.addEventListener("pointermove", ev => { const rc = s.getBoundingClientRect(), w = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1));
@@ -798,9 +798,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
       st_(s, l + pw + 6, Y(b[W - 1][2]) + 4, `${P.who} ${f$(b[W - 1][2])}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); });
     const tb = document.createElement("span"); tb.className = "ytab"; host.appendChild(tb);
     const row = P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), dd = P.out.map(o => o.dd).sort((a, b) => a - b), n = e.length, w5 = e.slice(0, Math.max(1, Math.floor(n * 0.05))), pc = P.out.reduce((t, o) => t + o.call, 0) / n, se = Math.sqrt(pc * (1 - pc) / n);
-      return `<tr><td><span class="key ${P.who.toLowerCase()}">${P.who}</span></td><td>${f$(qn(e, .05))}</td><td>${f$(qn(e, .1))}</td><td><b>${f$(qn(e, .5))}</b></td><td>${f$(qn(e, .9))}</td><td>${f$(qn(e, .95))}</td><td>${f$(w5.reduce((a, b) => a + b, 0) / w5.length)}</td><td>${fP(qn(dd, .5), 0)} / ${fP(qn(dd, .9), 0)}</td><td>${fP(pc, 1)} ± ${(se * 100).toFixed(1)}</td><td>${fP(P.out.reduce((t, o) => t + o.wiped, 0) / n, 1)}</td></tr>`; };
+      return `<tr><td><span class="key ${P.who.toLowerCase()}">${P.who}</span></td><td>${f$(qn(e, .05))}</td><td>${f$(qn(e, .1))}</td><td><b>${f$(qn(e, .5))}</b></td><td>${f$(qn(e, .9))}</td><td>${f$(qn(e, .95))}</td><td>${f$(w5.reduce((a, b) => a + b, 0) / w5.length)}</td><td>${fPc(qn(dd, .5), 0)} / ${fPc(qn(dd, .9), 0)}</td><td>${fPc(pc, 1)} ± ${(se * 100).toFixed(1)}</td><td>${fPc(P.out.reduce((t, o) => t + o.wiped, 0) / n, 1)}</td></tr>`; };
     tb.innerHTML = `<table><thead><tr><th></th><th>5%</th><th>10%</th><th>median</th><th>90%</th><th>95%</th><th>worst 5% avg</th><th>drawdown med / 90%</th><th>≥ 1 margin call</th><th>NAV ≤ 0</th></tr></thead><tbody>${parts.map(row).join("")}</tbody></table>
-      <p style="margin:6px 0 0;font-size:12px">${parts.map(P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), med = qn(e, .5), pc = P.out.reduce((t, o) => t + o.call, 0) / e.length; return `<span class="key ${P.who.toLowerCase()}">${P.who}</span> check against the engine: median ${f$(med)} vs ${f$(P.R.main.end.med)} (${fPs(med / P.R.main.end.med - 1)}), margin call ${fP(pc, 0)} vs ${fP(P.R.main.end.called, 0)}`; }).join(" &nbsp; ")}</p>
+      <p style="margin:6px 0 0;font-size:12px">${parts.map(P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), med = qn(e, .5), pc = P.out.reduce((t, o) => t + o.call, 0) / e.length; return `<span class="key ${P.who.toLowerCase()}">${P.who}</span> check against the engine: median ${f$(med)} vs ${f$(P.R.main.end.med)} (${fPs(med / P.R.main.end.med - 1)}), margin call ${fPc(pc, 0)} vs ${fPc(P.R.main.end.called, 0)}`; }).join(" &nbsp; ")}</p>
       <p class="cap" style="margin-top:6px">Solid line and bands: random years (median, 25–75%, 5–95%). Dashed: the engine's typical track. Each run sees the same random ${ys.A.tk} paths. Plain lognormal daily moves, Monday carrying three days; no jumps. Options are marked with the time actually left, so strangle margin calls come out more often here than in the engine, which marks at half the cycle.</p>`;
   }
   // ---------------------------------------------------------- persistence (the app saves; we expose state)

@@ -6,9 +6,9 @@
 const YRE = (() => {
   // ---------------------------------------------------------- math
   const SQ2PI = Math.sqrt(2 * Math.PI);
-  const erf = x => { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); };
-  const Nc = x => 0.5 * (1 + erf(x / Math.SQRT2));
-  function Ninv(p) { // Acklam
+  const erfY = x => { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); };
+  const Nc = x => 0.5 * (1 + erfY(x / Math.SQRT2));
+  function NinvY(p) { // Acklam
     const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239],
       b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572],
       c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783],
@@ -19,14 +19,14 @@ const YRE = (() => {
     q = p - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
   }
   const RATE = 0.04;
-  function bs(S, K, T, s, cp) {
+  function bsY(S, K, T, s, cp) {
     if (!(K > 0)) return cp === "C" ? S : 0;
     if (T <= 1e-12 || s <= 1e-12) { const F = S * Math.exp(RATE * T); return Math.exp(-RATE * T) * Math.max(0, cp === "C" ? F - K : K - F); }
     const v = s * Math.sqrt(T), d1 = (Math.log(S / K) + (RATE + s * s / 2) * T) / v, d2 = d1 - v;
     return cp === "C" ? S * Nc(d1) - K * Math.exp(-RATE * T) * Nc(d2) : K * Math.exp(-RATE * T) * Nc(-d2) - S * Nc(-d1);
   }
   const deltaOf = (S, K, T, s, cp) => { const d1 = (Math.log(S / K) + (RATE + s * s / 2) * T) / (s * Math.sqrt(T)); return cp === "C" ? Nc(d1) : 1 - Nc(d1); }; // |Δ|
-  const kForDelta = (S, T, s, d, cp) => { const z = cp === "C" ? Ninv(d) : -Ninv(d); return S * Math.exp(-(z * s * Math.sqrt(T)) + (RATE + s * s / 2) * T); };
+  const kForDelta = (S, T, s, d, cp) => { const z = cp === "C" ? NinvY(d) : -NinvY(d); return S * Math.exp(-(z * s * Math.sqrt(T)) + (RATE + s * s / 2) * T); };
 
   // ---------------------------------------------------------- tickers, margin (IBKR, leveraged ETFs)
   const LEV = { KORU: 3, RAM: 2 };
@@ -161,24 +161,24 @@ const YRE = (() => {
       const v = o.literal ? 0 : rv * Math.sqrt(Th), mu = Math.log(S1 / S0);
       const L = { Kc: 0, Kp: 0, Kwc: 0, Kwp: 0, pc: 0, pp: 0, pwc: 0, pwp: 0 };
       if (isCC) {
-        if (run.cd > 0) { L.Kc = pickStrike(S0, T, iv, "C", run.cd, g); L.pc = bs(S0, L.Kc, T, iv, "C"); }
-        if (run.puts) { L.Kp = pickStrike(S0, T, iv, "P", run.pd, g); L.pp = bs(S0, L.Kp, T, iv, "P"); }
+        if (run.cd > 0) { L.Kc = pickStrike(S0, T, iv, "C", run.cd, g); L.pc = bsY(S0, L.Kc, T, iv, "C"); }
+        if (run.puts) { L.Kp = pickStrike(S0, T, iv, "P", run.pd, g); L.pp = bsY(S0, L.Kp, T, iv, "P"); }
       } else {
         L.Kc = pickStrike(S0, T, iv, "C", run.cd, g); L.Kp = pickStrike(S0, T, iv, "P", run.pd, g);
-        L.pc = bs(S0, L.Kc, T, iv, "C"); L.pp = bs(S0, L.Kp, T, iv, "P");
-        if (run.wcd) { L.Kwc = Math.max(pickStrike(S0, T, iv, "C", run.wcd, g), Math.max(L.Kc, L.Kp) + g); L.pwc = bs(S0, L.Kwc, T, iv, "C"); }
-        if (run.wpd) { L.Kwp = Math.max(g, Math.min(pickStrike(S0, T, iv, "P", run.wpd, g), Math.min(L.Kp, L.Kc) - g)); L.pwp = bs(S0, L.Kwp, T, iv, "P"); }
+        L.pc = bsY(S0, L.Kc, T, iv, "C"); L.pp = bsY(S0, L.Kp, T, iv, "P");
+        if (run.wcd) { L.Kwc = Math.max(pickStrike(S0, T, iv, "C", run.wcd, g), Math.max(L.Kc, L.Kp) + g); L.pwc = bsY(S0, L.Kwc, T, iv, "C"); }
+        if (run.wpd) { L.Kwp = Math.max(g, Math.min(pickStrike(S0, T, iv, "P", run.wpd, g), Math.min(L.Kp, L.Kc) - g)); L.pwp = bsY(S0, L.Kwp, T, iv, "P"); }
       }
       const fc = L.pc - costs.give * hs(L.pc, costs), fp = L.pp - costs.give * hs(L.pp, costs);
       const fwc = L.pwc ? L.pwc + costs.give * hs(L.pwc, costs) : 0, fwp = L.pwp ? L.pwp + costs.give * hs(L.pwp, costs) : 0;
       const tvc = L.Kc ? L.pc - Math.max(0, S0 - L.Kc) : 0, tvp = L.Kp ? L.pp - Math.max(0, L.Kp - S0) : 0;
       const callLiab = x => L.Kc ? Math.max(0, x - L.Kc) : 0, putLiab = x => L.Kp ? Math.max(0, L.Kp - x) : 0;
       const liabEnd = x => tauRem > 0
-        ? (L.Kc ? bs(x, L.Kc, tauRem, iv, "C") : 0) + (L.Kp ? bs(x, L.Kp, tauRem, iv, "P") : 0) - (L.Kwc ? bs(x, L.Kwc, tauRem, iv, "C") : 0) - (L.Kwp ? bs(x, L.Kwp, tauRem, iv, "P") : 0)
+        ? (L.Kc ? bsY(x, L.Kc, tauRem, iv, "C") : 0) + (L.Kp ? bsY(x, L.Kp, tauRem, iv, "P") : 0) - (L.Kwc ? bsY(x, L.Kwc, tauRem, iv, "C") : 0) - (L.Kwp ? bsY(x, L.Kwp, tauRem, iv, "P") : 0)
         : callLiab(x) + putLiab(x) - (L.Kwc ? Math.max(0, x - L.Kwc) : 0) - (L.Kwp ? Math.max(0, L.Kwp - x) : 0);
       const nat = q => q + hs(q, costs);
-      const mc = x => L.Kc ? bs(x, L.Kc, T / 2, iv, "C") : 0, mp = x => L.Kp ? bs(x, L.Kp, T / 2, iv, "P") : 0;
-      const mwc = x => L.Kwc ? bs(x, L.Kwc, T / 2, iv, "C") : 0, mwp = x => L.Kwp ? bs(x, L.Kwp, T / 2, iv, "P") : 0;
+      const mc = x => L.Kc ? bsY(x, L.Kc, T / 2, iv, "C") : 0, mp = x => L.Kp ? bsY(x, L.Kp, T / 2, iv, "P") : 0;
+      const mwc = x => L.Kwc ? bsY(x, L.Kwc, T / 2, iv, "C") : 0, mwp = x => L.Kwp ? bsY(x, L.Kwp, T / 2, iv, "P") : 0;
       const qHat = isCC ? 0 : reqStr(run.tk, S0, L, L.pc, L.pp) / S0;
       const nP0 = mk(), nP1 = mk(), nL1 = mk(), nL2 = mk(), nL3 = mk(), nA = mk(), nU1 = mk(), nU2 = mk(), nU3 = mk();
       let pTouchCycle = 0, row = null, credExp = 0;
@@ -220,7 +220,7 @@ const YRE = (() => {
             if (!isCC) { const fhi = exc(40); if (fhi < 0) al = Math.log(root(exc, 1, 40, f1, fhi)); } } }
         if (v > 0) { const shf = 0.5826 * rv / Math.sqrt(252); if (isFinite(be)) be -= shf; if (isFinite(al)) al += shf; }
         const navEnd = X => { const x = X * S0; let nv = cashE + (isCC ? lam * X : 0);
-          if (isCC) nv -= cu * (tauRem > 0 ? (L.Kc ? bs(x, L.Kc, tauRem, iv, "C") : 0) : callLiab(x)) + pu * (tauRem > 0 ? (L.Kp ? bs(x, L.Kp, tauRem, iv, "P") : 0) : putLiab(x)) + (L.Kc && x > L.Kc ? cu * (costs.commSh + costs.hsSh) : 0);
+          if (isCC) nv -= cu * (tauRem > 0 ? (L.Kc ? bsY(x, L.Kc, tauRem, iv, "C") : 0) : callLiab(x)) + pu * (tauRem > 0 ? (L.Kp ? bsY(x, L.Kp, tauRem, iv, "P") : 0) : putLiab(x)) + (L.Kc && x > L.Kc ? cu * (costs.commSh + costs.hsSh) : 0);
           else nv -= ku * liabEnd(x);
           return nv; };
         const netOpt = X => { const x = X * S0; return cu * fc + pu * fp - comm / navD - cu * callLiab(x) - pu * putLiab(x); };
@@ -268,7 +268,7 @@ const YRE = (() => {
               const ws = new Float64Array(Y.length); let ms = 0;
               for (let j = 0; j < Y.length; j++) { const y = Y[j]; ws[j] = Wt[j] * (y < be ? Math.exp(-((y - mu) ** 2) / (2 * v * v)) : e2 * Math.exp(-((y - 2 * be - mu) ** 2) / (2 * v * v))); ms += ws[j]; }
               for (let j = 0; j < Y.length; j++) { if (!(ws[j] > 0)) continue; const X = Math.exp(Y[j]), x = X * S0;
-                let nv = cash2 + nL * X - cu2 * (tauRem > 0 ? bs(x, L.Kc, tauRem, iv, "C") : callLiab(x)); if (nv <= 1e-9) nv = 1e-9;
+                let nv = cash2 + nL * X - cu2 * (tauRem > 0 ? bsY(x, L.Kc, tauRem, iv, "C") : callLiab(x)); if (nv <= 1e-9) nv = 1e-9;
                 const lN = lattice ? Math.min(LMAX, nL * X / nv) : lamHold; put(lN, 0, p, i, pT * ws[j] / ms, Math.log(nv), nv, Math.log(nv) - Y[j]); }
             } else { // IBKR minimum: from the shares-only limit the account rides it down (equity ∝ x^(1/m)), then holds from the cycle's low
               const lr = cashB < 0 && lam > 0 ? Math.min(be, Math.log(-cashB / ((1 - m) * lam))) : -Infinity, E_r = isFinite(lr) ? m * lam * Math.exp(lr) : 0;
@@ -281,7 +281,7 @@ const YRE = (() => {
                 for (let j = 0; j < Yn.Y.length; j++) { const y = Yn.Y[j], wq = Mq.Wt[a] * Yn.Wt[j] * jointMinEnd(mm, y, mu, v); if (!(wq > 0)) continue;
                   ms += wq; acc.push(y, wq, cashM, nL, cuM); } }
               for (let q = 0; q < acc.length; q += 5) { const y = acc[q], X = Math.exp(y), x = X * S0, wq = acc[q + 1], cashM = acc[q + 2], nL = acc[q + 3], cuM = acc[q + 4];
-                let nv = cashM + nL * X - cuM * (tauRem > 0 ? bs(x, L.Kc, tauRem, iv, "C") : callLiab(x)); if (nv <= 1e-9) nv = 1e-9;
+                let nv = cashM + nL * X - cuM * (tauRem > 0 ? bsY(x, L.Kc, tauRem, iv, "C") : callLiab(x)); if (nv <= 1e-9) nv = 1e-9;
                 const lN = lattice ? Math.min(LMAX, nL * X / nv) : lamHold; put(lN, 0, p, i, pT * wq / ms, Math.log(nv), nv, Math.log(nv) - y); }
             }
           }
@@ -317,6 +317,6 @@ const YRE = (() => {
     return { main, exact };
   }
 
-  return { runYear, runAll, cycles, weekDate, pathMult, pickStrike, bs, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
+  return { runYear, runAll, cycles, weekDate, pathMult, pickStrike, bs: bsY, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv: NinvY, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
 })();
 if (typeof module !== "undefined") module.exports = YRE;

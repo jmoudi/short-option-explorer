@@ -11,13 +11,16 @@ function statsBase(b) {
   if (st.dist === "rn") legs = b.sp.mid + b.sc.mid - (b.cap ? b.cap.mid : 0);   // market value of the legs at entry
   else { const h = d.hs; legs = bs0(S, b.sp.K, T, h, "P") + bs0(S, b.sc.K, T, h, "C") - (b.cap ? bs0(S, b.cap.K, T, h, "C") : 0); }
   const ev = b.cr - legs;
-  const beLo = b.sp.K - b.cr;
-  const beHi = b.cap ? (b.sc.K + b.cr < b.cap.K ? b.sc.K + b.cr : null) : b.sc.K + b.cr;
+  let beLo = b.sp.K - b.cr;
+  let beHi = b.cap ? (b.sc.K + b.cr < b.cap.K ? b.sc.K + b.cr : null) : b.sc.K + b.cr;
   const F = K => K <= 0 ? 0 : cdfT(d, Math.log(K / S));
-  const pop = (beHi ? F(beHi) : 1) - F(beLo);
+  let pop = (beHi ? F(beHi) : 1) - F(beLo);
+  // a short guts whose credit is below the strike gap (a mid below intrinsic) never ends in profit
+  const noBE = b.guts && b.cr < b.sp.K - b.sc.K - 1e-12;
+  if (noBE) { beLo = null; beHi = null; pop = 0; }
   const capBE = b.cap ? b.cap.K + b.capPx : null;
   const pCap = capBE ? 1 - F(capBE) : null;
-  const s = { pop, ev, beLo, beHi, capBE, pCap }; SB.set(key, s); return s;
+  const s = { pop, ev, beLo, beHi, capBE, pCap, noBE }; SB.set(key, s); return s;
 }
 function worstIn(b, Slo, Shi) {
   if (b.na) return NaN;
@@ -73,7 +76,7 @@ const SIZES = [["auto", "Auto"], ["notional", "Equal notional"], ["credit", "Equ
 function hRatio(rule, A, B, sa, sb) {
   switch (rule) {
     case "notional": return 1;
-    case "credit": return (A.cr / A.S) / (B.cr / B.S);
+    case "credit": return (A.tv / A.S) / (B.tv / B.S);   // time value: intrinsic is not income
     case "vega": return (A.vega / A.S) / (B.vega / B.S);
     case "loss": return (sa.worst < 0 && sb.worst < 0) ? (sa.worst / A.S) / (sb.worst / B.S) : NaN;
     case "margin": return (A.margin / A.S) / (B.margin / B.S);
@@ -129,13 +132,13 @@ function fU(v, d) {
   if (!Number.isFinite(v)) return "–";
   const sg = Math.abs(v) < 1e-12 ? "" : v < 0 ? MINUS : "+";
   if (st.units === "usd") { const x = Math.abs(v * C.A.S * 100); return sg + "$" + x.toFixed(d ?? (x < 10 ? 2 : 0)); }
-  if (st.units === "cr" && !C.A.na && C.A.cr > 0) { const x = Math.abs(v / (C.A.cr / C.A.S)); const dd = d != null && x >= 1 ? d : x >= 10 ? 1 : x >= 1 ? 2 : Math.min(4, Math.max(2, 1 - Math.floor(Math.log10(x || 1e-9)))); return sg + x.toFixed(dd) + "×"; }
+  if (st.units === "cr" && !C.A.na && C.A.tv > 0) { const x = Math.abs(v / (C.A.tv / C.A.S)); const dd = d != null && x >= 1 ? d : x >= 10 ? 1 : x >= 1 ? 2 : Math.min(4, Math.max(2, 1 - Math.floor(Math.log10(x || 1e-9)))); return sg + x.toFixed(dd) + "×"; }
   const x = Math.abs(v * 100); return sg + x.toFixed(d ?? (x < 1 ? 2 : 1)) + "%";
 }
 function fUt(t, step) {
   let s = step * 100;
-  if (st.units === "usd") s = step * C.A.S * 100; else if (st.units === "cr" && !C.A.na && C.A.cr > 0) s = step / (C.A.cr / C.A.S);
+  if (st.units === "usd") s = step * C.A.S * 100; else if (st.units === "cr" && !C.A.na && C.A.tv > 0) s = step / (C.A.tv / C.A.S);
   return fU(t, s >= 1 ? 0 : s >= 0.1 ? 1 : s >= 0.01 ? 2 : 3);
 }
-const unitName = () => st.units === "usd" ? "$ per A contract" : st.units === "cr" ? "multiples of A's credit" : "% of A's notional";
+const unitName = () => st.units === "usd" ? "$ per A contract" : st.units === "cr" ? (C.A.intr > 0 ? "multiples of A's time value" : "multiples of A's credit") : "% of A's notional";
 const hTxt = () => Math.abs(C.h - 1) < 0.005 ? "B" : `${C.h.toFixed(2)}·B`;
