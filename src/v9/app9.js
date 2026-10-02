@@ -24,7 +24,8 @@ function renderAll() {
 }
 function renderNotes() { VIEWS.notes(); }
 
-const APP = { tab: "compare", theme: "auto", scroll: { compare: 0, yr: 0 } };
+// title: the page's own <title>; the Compare tab names A vs B (SUM9.render), the Compounding tab names itself
+const APP = { tab: "compare", theme: "auto", scroll: { compare: 0, yr: 0 }, title: document.title };
 const ASYNC = [];   // sync functions for app-level controls (theme seg), run on every render whichever tab is active
 let lastCode = "", lastBlob = "";
 function applyTheme() { const r = document.documentElement; if (APP.theme === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", APP.theme); }
@@ -53,7 +54,7 @@ function appRender() {
   for (const f of ASYNC) f();
   syncTabs();
   if (APP.tab === "compare") renderAll();
-  else { try { YR.render("full"); } catch (e) { console.error("YR.render", e); } appSave(); }
+  else { try { YR.render("full"); } catch (e) { console.error("YR.render", e); } document.title = "Compounding · " + APP.title; appSave(); }
 }
 // switching keeps each tab's own scroll position
 function setTab(t) {

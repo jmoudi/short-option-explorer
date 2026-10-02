@@ -116,6 +116,7 @@ const DOCK9 = (() => {
       if (r) { placed.push(t); placed.forEach((u, k) => { u.al = r.al[k]; }); }
     }
     const shown = placed.sort((a, b) => a.x - b.x);
+    el.querySelector(".d9tr").classList.toggle("noticks", !shown.length);
     el.querySelector(".d9tks").innerHTML = shown.map(t => `<span class="d9tk ${t.al}${t.bx ? " bx" : ""}" style="left:${t.x.toFixed(1)}px"${t.tip ? ` title="${att(t.tip)}"` : ""}>${esc(t.t)}</span>`).join("");
     const n = el.querySelector(".d9note"); n.hidden = !s.note; n.textContent = s.note || ""; n.classList.toggle("w", !!s.noteWarn);
   }
@@ -272,6 +273,15 @@ const DOCK9 = (() => {
   }
 
   // ---------------------------------------------------------- Legs in detail and Pair sizing
+  // a leg's distance from the forward, in the summary's line 3 convention: a straddle's strike signed vs the forward
+  // ("strike +0.3% / +0.01σ vs fwd"); any other leg as % and σ out of the money ("25.2% / 0.26σ OTM vs fwd",
+  // negative = in the money)
+  function place(b, l) {
+    const pc = (v, d) => { const t = Math.abs(v).toFixed(d); return { s: sgs(v, t), m: sgn(v, t), t }; };
+    if (b.center && b.kind === "straddle" && l.qty < 0) { const m = pc(l.money, 1), g = pc(l.sigma, 2); return `strike ${m.s}${m.t}% / ${g.s}${g.t}σ vs fwd`; }
+    const o = l.cp === "P" ? -1 : 1, m = pc(o * l.money, 1), g = pc(o * l.sigma, 2);
+    return `${m.m}${m.t}% / ${g.m}${g.t}σ OTM vs fwd`;
+  }
   function legsDetail() {
     return ["A", "B"].map(side => {
       const b = bOf(side), sideFlags = b.flags.filter(f => !f.leg);
@@ -290,11 +300,11 @@ const DOCK9 = (() => {
         if (Number.isFinite(l.quotePremium)) itm += ` · quote premium over parity ${f2(l.quotePremium)}`;
         h += `<span class="d9leg"><span class="t"><b>${fK(l.K)}${l.cp}</b> ${w ? "long" : "short"} ${l.cp === "P" ? "put" : "call"}${w ? " (protective)" : ""}<span class="px">${l.perContract < 0 ? "debit " + usd(l.perContract) : "credit " + usd(l.perContract)}</span></span>` +
           `<span class="q">bid ${f2(l.bid)} · mid ${f2(l.mid)} · ask ${f2(l.ask)} · fill ${f2(l.fillPx)} at ${fills}${l.model ? " · model quote" : ""}</span>` +
-          `<span class="q">IV ${fP(l.iv, 1)} · ${(Math.abs(l.delta) * 100).toFixed(1)}Δ · ${sgs(l.money, Math.abs(l.money).toFixed(1))}${Math.abs(l.money).toFixed(1)}% vs fwd · ${sgs(l.sigma, Math.abs(l.sigma).toFixed(2))}${Math.abs(l.sigma).toFixed(2)}σ</span>` +
+          `<span class="q">IV ${fP(l.iv, 1)} · ${(Math.abs(l.delta) * 100).toFixed(1)}Δ · ${place(b, l)}</span>` +
           `<span class="q">${esc(itm)}</span>` + lf.map(f => `<span class="q${f.severity === "warn" ? " w" : ""}">${f.severity === "warn" ? "! " : ""}${esc(f.text)}</span>`).join("") + `</span>`;
       }
       return h + `</span>`;
-    }).join("") + `<span class="cap">$ per contract (100 shares). Δ is the forward delta with the smile at the strike; ITM is measured against the forward, intrinsic against spot.</span>`;
+    }).join("") + `<span class="cap">$ per contract (100 shares). Δ is the forward delta with the smile at the strike. % and σ OTM are measured from the forward, as on the summary's third line (negative = in the money); ITM is measured against the forward, intrinsic against spot.</span>`;
   }
   function syncSizing() {
     for (const f of REG) f();
@@ -303,8 +313,8 @@ const DOCK9 = (() => {
     const hc = q("#d9-hc"); if (document.activeElement !== hc) hc.value = +(+sz.h).toFixed(3);
     const k = C.A.na || C.B.na ? NaN : C.h * C.A.S / C.B.S, nm = I => I ? I.name || I.id : "";
     q("#d9-sizesv").textContent = `· ${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
-    q("#d9-oh").innerHTML = (sz.rule === "auto" ? `Auto uses equal notional on one instrument and equal vega across instruments (${INST.list().map(x => `${esc(x.name || x.id)} ${x.lev}×`).join(", ")} leveraged). ` : "") +
-      `B is held at h = ${C.h.toFixed(3)} × A's notional${C.same || !Number.isFinite(k) ? "." : `, about ${k.toFixed(2)} ${esc(nm(C.instB))} contracts per ${esc(nm(C.instA))} contract.`}` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
+    q("#d9-oh").innerHTML = (sz.rule === "auto" ? `Auto uses equal notional when A and B are the same instrument at the same spot and IV, equal vega otherwise (${INST.list().map(x => `${esc(x.name || x.id)} ${x.lev}×`).join(", ")} leveraged). ` : "") +
+      `B is held at h = ${C.h.toFixed(3)} × A's notional${C.same || !Number.isFinite(k) ? "." : nm(C.instA) === nm(C.instB) ? `, about ${k.toFixed(2)} B contracts per A contract.` : `, about ${k.toFixed(2)} ${esc(nm(C.instB))} contracts per ${esc(nm(C.instA))} contract.`}` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
   }
 
   // ---------------------------------------------------------- events

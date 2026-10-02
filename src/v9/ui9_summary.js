@@ -73,6 +73,8 @@ const SUM9 = (() => {
     }
     return m;
   }
+  // B contracts per A contract: h is B's notional as a multiple of A's, so k = h · S_A / S_B (= h on one instrument)
+  const contractsK = C => C.h * C.A.S / C.B.S;
   const tok = (cls, html, title) => `<span class="s9tok ${cls || ""}"${title ? ` title="${tipEsc(title)}"` : ""}>${html}</span>`;
 
   // ---------------------------------------------------------- the three lines of one card
@@ -108,26 +110,30 @@ const SUM9 = (() => {
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
     const fillTxt = b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
     h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span><span class="s9fi"> · ${tok(m.fill, fillTxt, b.fill === "nat" ? "natural fill: sell at the bid, buy at the ask" : "filled at mid")}</span>`;
+    // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
+    // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
     if (side === "B" && !C.A.na) {
-      const k = C.h * C.A.S / C.B.S, rn = (CTX.SIZES.find(s => s[0] === C.rule) || ["", C.rule])[1].toLowerCase();
+      const k = contractsK(C), rn = (CTX.SIZES.find(s => s[0] === C.rule) || ["", C.rule])[1].toLowerCase();
       const auto = C.cmp.sizing.rule === "auto" ? "auto: " : "";
-      const nm = I => I ? I.name || I.id : "";
-      h += `<span class="s9h"> · ×${C.h.toFixed(2)}</span><span class="info" tabindex="0" data-tip="${tipEsc(`Sizing (${auto}${rn}): B is held at h = ${C.h.toFixed(3)} × A's notional${C.same ? "" : `, about ${k.toFixed(2)} ${nm(C.instB)} contracts per ${nm(C.instA)} contract`}. The charts show B ×h.${C.hNote ? " " + C.hNote + "." : ""} Change it under Pair sizing.`)}">i</span>`;
+      const nm = I => I ? I.name || I.id : "", twin = nm(C.instA) === nm(C.instB);
+      h += `<span class="s9h"> · ×${k.toFixed(2)}</span><span class="info" tabindex="0" data-tip="${tipEsc(`B contracts per A contract · ${auto}${rn} (${k.toFixed(2)} ${twin ? "B" : nm(C.instB)} contract${Math.abs(k - 1) < 0.005 ? "" : "s"} per ${twin ? "A" : nm(C.instA)} contract); the charts show B at h = ${C.h.toFixed(3)} × A's notional.${C.hNote ? " " + C.hNote + "." : ""} Change it under Pair sizing.`)}">i</span>`;
     }
     if (side === "A") {
-      const k = !C.B.na ? ` before the ×${C.h.toFixed(2)} sizing` : "";
+      const k = !C.B.na ? ` before the ×${contractsK(C).toFixed(2)} contract sizing` : "";
       h += `<span class="info" tabindex="0" data-tip="${tipEsc(`$ per contract (100 shares): + credit for a short leg, − debit for a long protective leg. B's figures are per B contract,${k}.`)}">i</span>`;
     }
     return h + `</span>`;
   }
-  // line 3 comes in stages for fit(): full; flags folded into one "N warnings, M notes" token; the "to <expiry>" σ
-  // suffix without its year; the forward note without spot; no days; fewer secondary pairs; then "N flags"
+  // line 3 comes in levels for fitPair(), the same nine on both cards so they can shorten together: 0 full; 1 flags
+  // folded into one "N warnings, M notes" token; 2 the "to <expiry>" σ suffix without its year; 3 the forward note
+  // without spot; 4 no days; 5–7 one, two, three secondary readings fewer; 8 "N flags"
+  const L3N = 9;
   function line3(b, P, C) {
     const fl = flagsHtml(b, b.na), flags = b.flags.filter(f => b.na || f.code !== "WING_NA");
     const nw = flags.filter(f => f.severity === "warn").length, nn = flags.length - nw;
     const allTip = tipEsc(flags.map(f => (f.severity === "warn" ? "! " : "") + f.text).join(" · "));
     const fold = flags.length ? `<span class="s9fl${nw ? " s9wn" : ""}" data-tip="${allTip}">${nw ? `! ${nw} warning${nw > 1 ? "s" : ""}` : ""}${nw && nn ? ", " : ""}${nn ? `${nn} note${nn > 1 ? "s" : ""}` : ""}</span>` : "";
-    if (b.na) return [fl.join(" · "), fold];
+    if (b.na) { const full = fl.join(" · "); return Array.from({ length: L3N }, (_, i) => i ? fold : full); }
     const fold2 = flags.length > 1 ? `<span class="s9fl${nw ? " s9wn" : ""}" data-tip="${allTip}">${nw ? "! " : ""}${flags.length} flags</span>` : fold;
     const bas = P.basis, sfxL = C.sigOwnSuffix(b), sfxS = sfxL.replace(/ ’\d\d$/, "");
     const lp = b.legs.find(l => l.role === "short put"), lc = b.legs.find(l => l.role === "short call");
@@ -152,19 +158,18 @@ const SUM9 = (() => {
     const away = Math.abs(b.F / b.S - 1) > 0.01;
     const fwL = away ? ` · fwd ${fPx2(b.F)} (spot ${fPx2(b.S)})` : "", fwS = away ? ` · <span title="spot ${fPx2(b.S)}">fwd ${fPx2(b.F)}</span>` : "";
     const tail = x => x ? " · " + x : "";
-    // o = {sfx, fw, dte, nx (extras kept), fl ("all" | "fold" | "fold2")}
+    // o = {sfx, fw, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
     const mk = o => {
-      const { head, extra } = parts(o.sfx), items = head.concat(extra.slice(0, o.nx));
+      const { head, extra } = parts(o.sfx), items = head.concat(extra.slice(0, Math.max(0, extra.length - o.drop)));
       if (o.dte) items.push(`${b.dte} d`);
       const base = items.map(esc).join(" · ") + o.fw;
       return o.fl === "all" ? base + fl.map(x => " · " + x).join("") : base + tail(o.fl === "fold" ? fold : fold2);
     };
-    const nx = parts(sfxL).extra.length, stages = [], o = { sfx: sfxL, fw: fwL, dte: true, nx, fl: "all" };
-    const push = ch => { Object.assign(o, ch); const h = mk(o); if (stages[stages.length - 1] !== h) stages.push(h); };
+    const levels = [], o = { sfx: sfxL, fw: fwL, dte: true, drop: 0, fl: "all" };
+    const push = ch => { Object.assign(o, ch); levels.push(mk(o)); };
     push({}); push({ fl: "fold" }); push({ sfx: sfxS }); push({ fw: fwS }); push({ dte: false });
-    for (let k = nx - 1; k >= 0; k--) push({ nx: k });
-    push({ fl: "fold2" });
-    return stages;
+    push({ drop: 1 }); push({ drop: 2 }); push({ drop: 3 }); push({ fl: "fold2" });
+    return levels;
   }
   function flagsHtml(b, all) {
     return b.flags.filter(f => all || f.code !== "WING_NA").map(f => {
@@ -176,25 +181,45 @@ const SUM9 = (() => {
   // never wrap, never clip. Line 1: 20px, then drop "short", then the word "wings", then tighten the separators and
   // shorten the override mark to ✎ (details in its title); an ellipsis only as a last resort.
   // Line 2: f1 tighten the gaps, f2 drop the word "wing", f3 the % of spot, f4 the word "net", f5 "natural" → "nat",
-  // f6 tighter gaps, f7 the ×h figure (h stays in the ⓘ), f8 the fill token. Line 3: the stages of line3(), then
+  // f6 tighter gaps, f7 the ×k figure (k stays in the ⓘ), f8 the fill token. Line 3: the levels of line3(), then
   // ellipsis (full text in the title)
-  // A stage is applied only while the line still overflows; then each earlier stage is given back when the line
-  // still fits without it (e.g. "wings" returns once the override mark has folded to ✎). f20 is never given back.
+  // Each card first finds its own stages: a stage is applied only while the line still overflows, then each earlier
+  // stage is given back when the line still fits without it (f20 is never given back). Both cards then take the union
+  // of the two sets, so identical wording reads the same on A and B (and line 1 has one font size); a stage of the
+  // union is given back only when both cards still fit without it. Line 3 takes the larger of the two levels.
   const L1F = ["f20", "fa", "fw", "fx"], L2F = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"];
-  function fit(card, l3stages) {
-    const l1 = card.querySelector(".s9l1"), l2 = card.querySelector(".s9l2"), l3 = card.querySelector(".s9l3"), over = e => e.scrollWidth > e.clientWidth + 0.5;
-    const shrink = (el, stages) => {
-      el.classList.remove(...stages); const on = [];
-      for (const f of stages) if (over(el)) { el.classList.add(f); on.push(f); }
-      for (const f of on.slice(0, -1).reverse()) if (f !== "f20") { el.classList.remove(f); if (over(el)) el.classList.add(f); }
-    };
-    l1.classList.remove("cut"); l1.title = "";
-    shrink(l1, L1F);
-    if (over(l1)) { l1.classList.add("cut"); l1.title = l1.textContent; }
-    shrink(l2, L2F);
-    let k = 0; l3.innerHTML = l3stages[0];
-    while (over(l3) && k + 1 < l3stages.length && l3stages[k + 1]) l3.innerHTML = l3stages[++k];
-    l3.title = over(l3) ? card.querySelector(".s9l3").textContent : "";
+  // pure: the shared set. order = all stages in order, sets = each card's own set, fits(set) -> every card fits with
+  // set applied, keep = stages never given back
+  function commonStages(order, sets, fits, keep) {
+    let U = order.filter(f => sets.some(s => s.includes(f)));
+    for (const f of U.slice().reverse()) {
+      if (keep && keep.includes(f)) continue;
+      const t = U.filter(g => g !== f);
+      if (fits(t)) U = t;
+    }
+    return U;
+  }
+  const over = e => e.scrollWidth > e.clientWidth + 0.5;
+  const setStages = (el, order, on) => { el.classList.remove(...order); if (on.length) el.classList.add(...on); };
+  function ownStages(el, order, keep) {
+    setStages(el, order, []); const on = [];
+    for (const f of order) if (over(el)) { el.classList.add(f); on.push(f); }
+    for (const f of on.slice(0, -1).reverse()) if (!keep.includes(f)) { el.classList.remove(f); if (over(el)) el.classList.add(f); }
+    return order.filter(f => el.classList.contains(f));
+  }
+  function fitPair(list) {
+    const L = list.map(x => ({ l1: x.card.querySelector(".s9l1"), l2: x.card.querySelector(".s9l2"), l3: x.card.querySelector(".s9l3"), lv: x.l3 }));
+    for (const x of L) { x.l1.classList.remove("cut"); x.l1.title = ""; }
+    for (const [k, order, keep] of [["l1", L1F, ["f20"]], ["l2", L2F, []]]) {
+      const own = L.map(x => ownStages(x[k], order, keep));
+      const fits = set => { for (const x of L) setStages(x[k], order, set); return L.every(x => !over(x[k])); };
+      const U = commonStages(order, own, fits, keep);
+      for (const x of L) setStages(x[k], order, U);
+    }
+    for (const x of L) if (over(x.l1)) { x.l1.classList.add("cut"); x.l1.title = x.l1.textContent; }
+    const at = (x, k) => { x.l3.innerHTML = x.lv[k]; while (over(x.l3) && k + 1 < x.lv.length) x.l3.innerHTML = x.lv[++k]; return k; };
+    const lev = Math.max(...L.map(x => at(x, 0)));
+    for (const x of L) { at(x, Math.min(lev, x.lv.length - 1)); x.l3.title = over(x.l3) ? x.l3.textContent : ""; }
   }
 
   // ---------------------------------------------------------- pills and notices (bottom row)
@@ -320,16 +345,17 @@ const SUM9 = (() => {
   }
   function render(C) {
     SUM9.C = C;
-    for (const side of ["A", "B"]) {
+    const cards = ["A", "B"].map(side => {
       const card = q(side === "A" ? "#s9A" : "#s9B"), b = side === "A" ? C.A : C.B, P = side === "A" ? C.Ap : C.Bp, m = marks(C.diff, side);
       card.querySelector(".s9l1").innerHTML = line1(b, side, m);
       card.querySelector(".s9l2").innerHTML = line2(b, side, m, C);
       card.setAttribute("aria-label", `${side}: ${b.label.full}`);
-      fit(card, line3(b, P, C));
-    }
+      return { card, l3: line3(b, P, C) };
+    });
+    fitPair(cards);
     renderPills(C);
     syncRange(C);
     if (C.labels && C.labels.title) document.title = C.labels.title;
   }
-  return { init, render, glyph, marks, toastEvents, setUnit, C: null };
+  return { init, render, glyph, marks, toastEvents, setUnit, commonStages, contractsK, L1F, L2F, C: null };
 })();

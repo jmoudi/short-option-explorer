@@ -121,7 +121,8 @@ const CMP = (() => {
   }
   function placeTxt(basis, values, structure) {
     if (structure === "straddle") return values.center === "atm" ? "ATM center" : "center " + RULE.fmtV(+values.center, basis);
-    const u = RULE.UNIT[basis], f = v => String(+(+v).toFixed(basis === "sigma" ? 2 : 1));
+    // typographic minus, and a value that rounds to zero prints unsigned (as RULE.fmtV)
+    const u = RULE.UNIT[basis], f = v => { const n = +(+v).toFixed(basis === "sigma" ? 2 : 1); return (n < 0 ? "\u2212" : "") + String(Math.abs(n)); };
     return `${f(values.put)} / ${f(values.call)}${u}`;
   }
 

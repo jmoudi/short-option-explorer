@@ -41,8 +41,11 @@
 .v9views .full td.st,.v9views .full th.st{position:sticky;left:0;background:var(--surface);z-index:1}
 .v9views .full td.st2,.v9views .full th.st2{position:sticky;left:52px;background:var(--surface);z-index:1;box-shadow:1px 0 0 var(--line)}
 .v9views .full td.l small{display:block;color:var(--ink-3);font:11px var(--f-ui);white-space:nowrap}
+/* every cell reads on the row's first line (the position name, the time value, the low breakeven); second lines sit under it */
+.v9views .full td{vertical-align:baseline}
+.v9views .full td small.cash{display:block;color:var(--ink-3);font:10.5px var(--f-num)}
 .v9views .full button:disabled{opacity:.35;cursor:not-allowed}
-.v9views .full th,.v9views .full td{padding:4px 4px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap;font:11px var(--f-num)}
+.v9views .full th,.v9views .full td{padding:4px 3px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap;font:11px var(--f-num)}
 .v9views .full th{font:600 11px/1.25 var(--f-cond);color:var(--ink-2);background:var(--surface);white-space:normal;vertical-align:bottom}
 .v9views .full td.l,.v9views .full th.l{text-align:left}
 .v9views .full td.st2{font:12px var(--f-ui)}
@@ -131,7 +134,7 @@
 .v9views .rec .rv{display:inline-block;vertical-align:top;width:33.333%;padding-right:10px;margin:6px 0 0;box-sizing:border-box}
 .v9views .rec .rv .l{display:block;font-size:11px;color:var(--ink-3)}
 .v9views .rec .rv .v{display:block;font:600 15px var(--f-num);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v9views .rec .rv .v small{font:500 11px var(--f-num);color:var(--ink-2);margin-left:4px}
+.v9views .rec .rv .v small{font:500 11px var(--f-num);color:var(--ink-2);margin-left:1px}
 .v9views .rec .rv .d{display:block;font:11px var(--f-num);color:var(--ink-3);white-space:normal;overflow-wrap:anywhere}
 .v9views .rec .rcap{display:block;margin-top:4px}
 .v9views .rec .rch{display:block;width:100%}

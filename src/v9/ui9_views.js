@@ -42,6 +42,16 @@ const VIEWS = (() => {
   const trow = (label, v, cls) => `<span class="r"><span class="k">${cls ? `<i class="sw" style="background:var(--${cls})"></i>` : ""}${label}</span><span class="v ${pn(v)}">${fU(v)}</span></span>`;
   // the sign class follows the printed value: C.fU prints a value that rounds to zero as an unsigned, uncoloured 0
   const pn = (v, d) => { const t = fU(v, d); return t.charAt(0) === MINUS ? "neg" : t.charAt(0) === "+" ? "pos" : ""; };
+  // zero-safe fN / fP: a value that rounds to zero at the printed precision prints unsigned ("0.000", "0.0%")
+  const fN0 = (v, d = 2) => Number.isFinite(v) ? (v < 0 && +Math.abs(v).toFixed(d) !== 0 ? MINUS : "") + Math.abs(v).toFixed(d) : "–";
+  const fP0 = (v, d = 1) => Number.isFinite(v) ? (v < 0 && +Math.abs(v * 100).toFixed(d) !== 0 ? MINUS : "") + Math.abs(v * 100).toFixed(d) + "%" : "–";
+  // a printed number is zero when it has digits and none of them is 1–9 ("0.000", "0.0%", "$0", "0.00×")
+  const zeroTxt = t => /\d/.test(t) && !/[1-9]/.test(t);
+  // the A / B cell: "–" unless both are numbers and B's value, printed with fmt (its cell's own precision), is not zero
+  function ratioTxt(x, y, fmt) {
+    if (!(Number.isFinite(x) && Number.isFinite(y)) || Math.abs(y) <= 1e-12 || (fmt && zeroTxt(fmt(y)))) return "–";
+    const r = x / y; return (Math.abs(r) < 0.005 ? "0.00" : fN(r, 2)) + "×";
+  }
   // instrument names per side; when A and B are the same ticker on different inputs (an override), "A KORU" / "B KORU ✎"
   const twin = () => !C.same && C.A.tk === C.B.tk;
   const tkOf = side => { const b = side === "A" ? C.A : C.B, I = side === "A" ? C.instA : C.instB; return twin() ? `${side} ${b.tk}${I && I.overridden ? " ✎" : ""}` : b.tk; };
@@ -90,8 +100,9 @@ const VIEWS = (() => {
     const word = on.call.on && on.put.on ? "+ both wings" : on.call.on ? "+ call wing" : "+ put wing";
     return [{ key: "plain", wings: off, word: "" }, { key: "wing", wings: on, word }];
   }
-  // A's instrument slot keeps A's overrides, B's keeps B's; any other instrument is loaded at its listed spot
-  const ovSlot = (Cx, id) => id === Cx.Ap.inst.id ? Cx.Ap.inst : id === Cx.Bp.inst.id ? Cx.Bp.inst : { id };
+  // every instrument at its listed spot and IV: "Set as A/B" loads exactly what the overview shows, so a spot/IV
+  // override on A or B is not carried into it (that side is drawn as its own point instead)
+  const ovSlot = (Cx, id) => ({ id });
   function ovCells(Cx) {
     const vars = ovVariants(Cx.Ap), out = [];
     INST.list().forEach((it, i) => {
@@ -108,7 +119,7 @@ const VIEWS = (() => {
   const ovCount = () => INST.list().reduce((t, it) => { const I = INST.base(it.id); return t + (I ? I.expiries.length * 2 : 0); }, 0);
   const OVM = {
     cr: { l: "Credit", f: b => b.tv / b.S, kind: "money" },
-    crs: { l: "Credit/σ", f: b => b.tv / (b.S * b.sig), kind: "ratio", fmt: v => fN(v, 3), tip: "Credit ÷ (spot × ATM IV × √T): credit per unit of the expiry's own implied move, σ to its own expiry. In-the-money legs count time value only" },
+    crs: { l: "Credit/σ", f: b => b.tv / (b.S * b.sig), kind: "ratio", fmt: v => fN0(v, 3), tip: "Credit ÷ (spot × ATM IV × √T): credit per unit of the expiry's own implied move, σ to its own expiry. In-the-money legs count time value only" },
     crd: { l: "Credit per day", f: b => b.tv / b.S / b.dte, kind: "money", d: 3 },
     ev: { l: "Expected value · HV30", f: b => { const s = C.statsHV(b); return s ? s.ev / b.S : NaN; }, kind: "money", d: 2, zero: true },
     pop: { l: "Profit odds", f: (b, s) => s.pop, kind: "pct" },
@@ -126,16 +137,23 @@ const VIEWS = (() => {
   function fOwn(v, b, M, plain) {
     if (!Number.isFinite(v)) return "–";
     if (M.kind === "ratio") return M.fmt(v);
-    if (M.kind === "pct") return fP(v, 0);
-    const x = v * b.S * 100, usd = ` <span class="muted">${x < 0 ? MINUS : ""}$${Math.abs(x).toFixed(Math.abs(x) < 10 ? 2 : 0)}</span>`;
-    return (M.zero ? fS : fP)(v, M.d ?? 1) + (plain ? "" : usd);
+    if (M.kind === "pct") return fP0(v, 0);
+    const x = v * b.S * 100, xd = Math.abs(x).toFixed(Math.abs(x) < 10 ? 2 : 0), usd = ` <span class="muted">${x < 0 && +xd !== 0 ? MINUS : ""}$${xd}</span>`;
+    return (M.zero ? fS : fP0)(v, M.d ?? 1) + (plain ? "" : usd);
   }
   const mk = (sh, x, y, r, fill, col) => sh === "c" ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${col}" stroke-width="1.6"/>` : `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="${fill}" stroke="${col}" stroke-width="1.6"/>`;
   const wingFlag = b => b.na ? null : b.flags.find(f => f.code === "WING_NA");
   const cellDesc = c => `${c.b.label.full}${wingFlag(c.b) ? ` <span class="warnc">! ${esc(wingFlag(c.b).text)}</span>` : ""}`;
+  // "Set as A/B": that side takes the cell's instrument at its listed spot and IV, expiry and wings. An override the
+  // side had is dropped (also on the same instrument), and the toast says so
   function setFromCell(side, c) {
     const w = c.wings, wing = s => w[s].on ? { on: true, value: w[s].value } : false;
-    op("setFrom", side, { inst: c.slot, exp: c.e, wings: { call: wing("call"), put: wing("put") } });
+    const I = side === "A" ? C.instA : C.instB, cur = side === "A" ? C.Ap.inst : C.Bp.inst, had = !!(I && I.overridden);
+    const inst = had && cur.id === c.id ? { id: c.id, spot: INST.base(c.id).spotListed, ivShift: 0 } : { id: c.id };
+    const r = STATE.cmpOp(S(), "setFrom", side, { inst, exp: c.e, wings: { call: wing("call"), put: wing("put") } });
+    HOOK.set(r.S9);
+    const ov = had ? [Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? `spot ${fPx2(I.spot)}` : "", I.ivShift ? `IV ${I.ivShift > 0 ? "+" : MINUS}${+Math.abs(I.ivShift).toFixed(2)} pts` : ""].filter(Boolean).join(", ") : "";
+    emit((had ? [{ type: "note", aspects: [], text: `${side} now uses ${c.id} at its listed spot and IV, as the overview shows it; ${side}'s ${I.id} override (${ov}) is off`, actions: [] }] : []).concat(r.events));
     refresh();
   }
   let OV = [];
@@ -146,18 +164,20 @@ const VIEWS = (() => {
     if (!P.open) return;
     const vw = V(), table = vw.ovv === "table";
     OV = ovCells(C);
-    const isA = c => sameTrade(c.b, C.A), isB = c => sameTrade(c.b, C.B), bOwnOn = !C.B.na && !OV.some(isB);
+    const isA = c => sameTrade(c.b, C.A), isB = c => sameTrade(c.b, C.B), aOwnOn = !C.A.na && !OV.some(isA), bOwnOn = !C.B.na && !OV.some(isB);
+    const ovd = s => { const I = s === "A" ? C.instA : C.instB; return !!(I && I.overridden); };
+    const ownTxt = s => `${s} differs from every point${ovd(s) ? " (its ✎ spot/IV override is not applied here)" : ""}, so it is drawn as its own ${s === "A" ? "A-coloured" : "orange"} point`;
     q("#ovgrid").hidden = table; q("#ovtable").hidden = !table; q("#ovlgd").hidden = table;
     const nI = INST.list().length;
     let lg = "";
     for (let i = 0; i < nI; i++) for (let j = 0; j < 2; j++) { const y = serStyle(i, j); lg += `<span><svg width="30" height="12" aria-hidden="true"><line x1="0" x2="30" y1="6" y2="6" stroke="${y.col}" stroke-width="1.8" stroke-dasharray="${y.dash}"/>${mk(y.shape, 15, 6, 3.5, y.fill, y.col)}</svg>${esc(serName(OV, i, j))}</span>`; }
     q("#ovlgd").innerHTML = lg + `<span><svg width="20" height="14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="var(--a)" stroke-width="2"/></svg>A <svg width="20" height="14" aria-hidden="true" style="margin-left:6px"><circle cx="7" cy="7" r="6" fill="none" stroke="var(--b)" stroke-width="2"/></svg>B</span>`;
     const Ap = C.Ap, place = Ap.structure === "straddle" ? (Ap.values.center === "atm" ? "the strike nearest the forward" : `center ${RULE.fmtV(+Ap.values.center, Ap.basis)}`) : `${RULE.fmtV(+Ap.values.put, Ap.basis)} put, ${RULE.fmtV(+Ap.values.call, Ap.basis)} call`;
-    q("#ovcap").innerHTML = `Each point is A's ${Ap.structure} placed by A's rule (${place}) and filled at ${Ap.fill === "mid" ? "mid" : "natural"}, on each instrument's own chain${bOwnOn ? "; B differs from every point, so it is drawn as its own orange point" : ""}. Values are % of each position's own notional, $ per contract in the tooltips. Profit odds are ${SC().dist === "rn" ? "implied" : "HV30"}; EV always uses HV30, since under implied odds it is just fill vs mid. Worst loss covers ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${C.unit === "sig" ? " (each instrument's σ over A's horizon)" : C.unit === "pts" ? ` on ${C.A.tk}, the same % elsewhere` : ""}.`;
+    q("#ovcap").innerHTML = `Each point is A's ${Ap.structure} placed by A's rule (${place}) and filled at ${Ap.fill === "mid" ? "mid" : "natural"}, on each instrument's own chain at its listed spot and IV${aOwnOn ? "; " + ownTxt("A") : ""}${bOwnOn ? "; " + ownTxt("B") : ""}. Set as A or B loads that listed instrument, without spot or IV overrides. Values are % of each position's own notional, $ per contract in the tooltips. Profit odds are ${SC().dist === "rn" ? "implied" : "HV30"}; EV always uses HV30, since under implied odds it is just fill vs mid. Worst loss covers ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${C.unit === "sig" ? " (each instrument's σ over A's horizon)" : C.unit === "pts" ? ` on ${C.A.tk}, the same % elsewhere` : ""}.`;
     if (table) return renderOvTable(isA, isB);
     const host = q("#ovgrid"); host.innerHTML = "";
     const dts = [...new Set(OV.map(c => c.dte).filter(Number.isFinite))].sort((a, b) => a - b), expAt = d => OV.find(c => c.dte === d).e;
-    const anyI = OV.some(c => !c.b.na && c.b.intr > 0) || (bOwnOn && C.B.intr > 0);
+    const anyI = OV.some(c => !c.b.na && c.b.intr > 0) || (aOwnOn && C.A.intr > 0) || (bOwnOn && C.B.intr > 0);
     OVM.rom.tip = `Approximate margin: Reg-T style, 20% × leverage (${levTxt()}). In-the-money legs count time value only`;
     for (const k of Object.keys(OVM)) {
       const M0 = OVM[k], M = k === "cr" && anyI ? Object.assign({}, M0, { l: "Credit, time value", tip: "Credit minus intrinsic value at entry; for out-of-the-money legs it is the whole credit. Cash credit is in the tooltip" }) : M0;
@@ -165,8 +185,8 @@ const VIEWS = (() => {
       box.innerHTML = `<h3>${M.l}${M.tip ? `<span class="info" tabindex="0" data-tip="${esc(M.tip)}">i</span>` : ""}</h3>`;
       const W = Math.max(box.clientWidth, 220), Hh = 162, m = { l: 48, r: 12, t: 12, b: 32 };
       const vals = OV.map(c => Object.assign({}, c, { v: c.b.na || !c.sx ? NaN : M.f(c.b, c.sx) }));
-      const own = bOwnOn ? { b: C.B, sx: C.sb, own: true, dte: C.B.dte, v: C.sb ? M.f(C.B, C.sb) : NaN } : null;
-      const fin = vals.concat(own ? [own] : []).map(p => p.v).filter(Number.isFinite);
+      const owns = [["A", aOwnOn, C.A, C.sa], ["B", bOwnOn, C.B, C.sb]].filter(o => o[1]).map(([who, , b, sx]) => ({ b, sx, own: who, dte: b.dte, v: sx ? M.f(b, sx) : NaN }));
+      const fin = vals.concat(owns).map(p => p.v).filter(Number.isFinite);
       if (!fin.length) { box.insertAdjacentHTML("beforeend", `<span class="gna" style="padding:40px 0">no values</span>`); continue; }
       let lo = Math.min(...fin), hi = Math.max(...fin); if (M.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
       const pad = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 0.01; lo -= pad; hi += pad;
@@ -186,8 +206,8 @@ const VIEWS = (() => {
         if (!Number.isFinite(p.v)) { if (p.b.na || (k.startsWith("wing") && p.j)) { const y = Hh - m.b - 4; svg.insertAdjacentHTML("beforeend", `<text x="${x}" y="${y}" text-anchor="middle" style="font:600 10px var(--f-ui);fill:${sty.col}">×</text>`); pts.push({ p, x, y }); } continue; }
         const y = Y(p.v); svg.insertAdjacentHTML("beforeend", mk(sty.shape, x, y, 3.6, sty.fill, sty.col)); pts.push({ p, x, y });
       }
-      if (own && Number.isFinite(own.v)) { const x = X(own.dte, 8), y = Y(own.v); el("circle", { cx: x, cy: y, r: 3.6, fill: "var(--b)" }, svg); pts.push({ p: own, x, y }); }
-      const aPt = pts.find(t => !t.p.own && isA(t.p)), bPt = own ? pts.find(t => t.p.own) : pts.find(t => !t.p.own && isB(t.p));
+      for (const o of owns) if (Number.isFinite(o.v)) { const x = X(o.dte, o.own === "A" ? -8 : 8), y = Y(o.v); el("circle", { cx: x, cy: y, r: 3.6, fill: `var(--${o.own.toLowerCase()})` }, svg); pts.push({ p: o, x, y }); }
+      const aPt = aOwnOn ? pts.find(t => t.p.own === "A") : pts.find(t => !t.p.own && isA(t.p)), bPt = bOwnOn ? pts.find(t => t.p.own === "B") : pts.find(t => !t.p.own && isB(t.p));
       if (bPt) el("circle", { cx: bPt.x, cy: bPt.y, r: aPt && Math.hypot(aPt.x - bPt.x, aPt.y - bPt.y) < 4 ? 11.5 : 8, fill: "none", stroke: "var(--b)", "stroke-width": 2.2 }, svg);
       if (aPt) el("circle", { cx: aPt.x, cy: aPt.y, r: 8, fill: "none", stroke: "var(--a)", "stroke-width": 2.2 }, svg);
       const hov = el("circle", { r: 10, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1, visibility: "hidden" }, svg);
@@ -197,7 +217,7 @@ const VIEWS = (() => {
       hit.addEventListener("pointermove", ev => {
         const n = near(ev, 16); if (!n.length) { hov.setAttribute("visibility", "hidden"); hideTip(); return; }
         const t = n[0], c = cands(n), b = t.p.b; hov.setAttribute("cx", t.x); hov.setAttribute("cy", t.y); hov.setAttribute("visibility", "visible");
-        showTip(`<span class="h">${t.p.own ? "B: " : ""}${esc(b.label.full)}</span>${wingFlag(b) ? `<span class="s">! ${esc(wingFlag(b).text)}</span>` : ""}${krow(M.l, b.na ? "n/a" : fOwn(t.p.v, b, M))}${k === "cr" && !b.na && b.intr > 0 ? krow("Cash credit", fOwn(b.cr / b.S, b, M)) : ""}<span class="s" style="margin:4px 0 0">${t.p.own ? "B's own position; edit B in Positions" + (c.length ? " · click to pick a nearby position" : "") : "click to set as A or B"}${c.length > 1 ? ` · ${c.length} positions here` : ""}</span>`, ev.clientX, ev.clientY);
+        showTip(`<span class="h">${t.p.own ? t.p.own + ": " : ""}${esc(b.label.full)}</span>${wingFlag(b) ? `<span class="s">! ${esc(wingFlag(b).text)}</span>` : ""}${krow(M.l, b.na ? "n/a" : fOwn(t.p.v, b, M))}${k === "cr" && !b.na && b.intr > 0 ? krow("Cash credit", fOwn(b.cr / b.S, b, M)) : ""}<span class="s" style="margin:4px 0 0">${t.p.own ? `${t.p.own}'s own position${ovd(t.p.own) ? " (✎ override)" : ""}; edit ${t.p.own} in Positions` + (c.length ? " · click to pick a nearby position" : "") : "click to set as A or B"}${c.length > 1 ? ` · ${c.length} positions here` : ""}</span>`, ev.clientX, ev.clientY);
       });
       hit.addEventListener("pointerleave", () => { hov.setAttribute("visibility", "hidden"); hideTip(); });
       hit.addEventListener("click", ev => {
@@ -207,6 +227,8 @@ const VIEWS = (() => {
       });
     }
   }
+  // overview Breakevens cell: one price per line, low first ("none" when the position never profits at expiry)
+  const besTxt = bes => bes && bes.length ? bes.map(fPx2).join("<br>") : "none";
   function renderOvTable(isA, isB) {
     const cols = [OV.some(c => !c.b.na && c.b.intr > 0) ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", "EV (HV30)", "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"];
     let h = `<thead><tr><th class="st l">Set</th><th class="st2 l">Position</th>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
@@ -219,9 +241,10 @@ const VIEWS = (() => {
       const wf = wingFlag(b), name = `<span title="${esc(b.label.full)}">${esc(b.label.short)}</span><small>${esc(b.na ? "n/a" : b.label.tab.slice(b.tk.length + 1))}${wf ? `<span class="warnc wn" title="${esc(wf.text)}">! ${wf.leg === "wingPut" ? "put" : "call"} wing n/a</span>` : ""}</small>`;
       if (b.na || !x) { h += `<tr class="${cls}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td class="l" colspan="${cols.length}">n/a: ${esc(b.naReason)}</td></tr>`; continue; }
       const o = (k, v) => fOwn(v, b, OVM[k], true), hv = C.statsHV(b);
-      const cash = b.intr > 0 ? ` <span class="muted">cash ${o("cr", b.cr / b.S)}</span>` : "";
+      // the cash credit sits under the time value, as the Position cell stacks its parts (keeps the table narrow)
+      const cash = b.intr > 0 ? `<small class="cash">cash ${o("cr", b.cr / b.S)}</small>` : "";
       const wp = OVM.wingp.f(b, x);
-      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV (HV30) $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td>${o("cr", b.tv / b.S)}${cash}</td><td>${fN(b.tv / (b.S * b.sig), 3)}</td><td>${o("crd", b.tv / b.S / b.dte)}</td><td>${hv ? o("ev", hv.ev / b.S) : "–"}</td><td>${fP(x.pop, 0)}</td><td>${o("worst", x.worst / b.S)}</td><td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)} · ${Number.isFinite(wp) ? fP(wp, 0) : "–"}` : "–"}</td><td>${fP(b.tv / b.margin, 1)}</td><td>${x.bes.length ? x.bes.map(fPx2).join(" / ") : "none"}</td></tr>`;
+      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV (HV30) $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td>${o("cr", b.tv / b.S)}${cash}</td><td>${fN0(b.tv / (b.S * b.sig), 3)}</td><td>${o("crd", b.tv / b.S / b.dte)}</td><td>${hv ? o("ev", hv.ev / b.S) : "–"}</td><td>${fP(x.pop, 0)}</td><td>${o("worst", x.worst / b.S)}</td><td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)}<small class="cash">pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}</small>` : "–"}</td><td>${fP0(b.tv / b.margin, 1)}</td><td>${besTxt(x.bes)}</td></tr>`;
     }
     q("#full").innerHTML = h + "</tbody>";
   }
@@ -242,6 +265,35 @@ const VIEWS = (() => {
     el("path", { d: dd, fill: "var(--ink-3)", "fill-opacity": .3 }, svg); txt(svg, X(lo) - 6, y0 + h - 3, label, { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 });
   }
   const LAST = {};
+  // the roundest number in [a, b] (0 < a <= b) with its step: the largest 1/2/5 step that has a multiple there,
+  // and that step's outermost multiple
+  function niceIn(a, b) {
+    if (!(a > 0 && b >= a)) return null;
+    for (let e = Math.ceil(Math.log10(b)); e > -15; e--) for (const m of [5, 2, 1]) {
+      const st = m * Math.pow(10, e), v = +(Math.floor(b / st + 1e-9) * st).toPrecision(12);
+      if (v > 0 && v >= a * (1 - 1e-9) && v <= b * (1 + 1e-9)) return { v, step: st };
+    }
+    return null;
+  }
+  // payoff y ticks [{v, step}]: nice ticks over [lo, hi]; when one side of zero spans more than 12% of the range but
+  // got no tick (a lopsided range), the outermost tick of a finer nice set on that side is added, at least 14px from
+  // the zero line (px = chart height), labelled at its own step; on a short panel (the 92px A − h·B panel), where no
+  // finer set has a tick in that band, the roundest number between 12px from zero and the edge is used (12px keeps
+  // two 10.5px labels apart and buys a rounder number than a 14px floor would), so every side 12px or taller has a tick
+  function payTicks(lo, hi, n, px) {
+    const t = ticks(lo, hi, n), step = t.length > 1 ? t[1] - t[0] : (hi - lo) || 0.01, out = t.map(v => ({ v, step }));
+    for (const sg of [1, -1]) {
+      if (!(sg * (sg > 0 ? hi : lo) > 0.12 * (hi - lo)) || t.some(v => sg * v > 1e-12)) continue;
+      let got = false;
+      for (const k of [2, 3, 4, 6]) {
+        const tf = ticks(lo, hi, n * k), sf = tf.length > 1 ? tf[1] - tf[0] : step;
+        const cand = tf.filter(v => sg * v > 1e-12 && Math.abs(v) / (hi - lo) * px >= 14);
+        if (cand.length) { const v = sg > 0 ? Math.max(...cand) : Math.min(...cand); out.push({ v, step: sf }); got = true; break; }
+      }
+      if (!got) { const r = niceIn(12 / px * (hi - lo), sg > 0 ? hi : -lo); if (r) out.push({ v: sg * r.v, step: r.step }); }
+    }
+    return out.sort((a, b) => a.v - b.v);
+  }
   function renderPayoff() {
     const host = q("#pay"); host.innerHTML = "";
     const { A, B, lo, hi } = C, vw = V(), W = Math.max(host.clientWidth, 600), two = !C.same;
@@ -258,9 +310,11 @@ const VIEWS = (() => {
     const y1 = m.t, y2 = y1 + H1 + gap, y3 = y2 + H2 + (H3 ? gap : 0), H = y3 + H3 + m.b;
     const X = u => m.l + (u - lo) / (hi - lo) * (W - m.l - m.r), Y = v => y1 + (yhi - v) / (yhi - ylo) * H1, Y2 = v => y2 + (dhi - v) / (dhi - dlo) * H2;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Payoff at expiry for A, B and the pair" }, host), ax = el("g", { class: "ax" }, svg);
-    const t1 = ticks(ylo, yhi, 6), t2 = ticks(dlo, dhi, 3);
-    for (const t of t1) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 6, Y(t) + 3.5, fUt(t, t1[1] - t1[0] || 0.01), { "text-anchor": "end" }); }
-    for (const t of t2) { el("line", { x1: m.l, x2: W - m.r, y1: Y2(t), y2: Y2(t) }, ax); txt(ax, m.l - 6, Y2(t) + 3.5, fUt(t, t2[1] - t2[0] || 0.01), { "text-anchor": "end" }); }
+    // both panels: a lopsided range still gets a tick on its short side (payTicks)
+    const t1 = payTicks(ylo, yhi, 6, H1), t2 = payTicks(dlo, dhi, 3, H2);
+    LAST.payTicks = t1.map(t => t.v); LAST.payDiffTicks = t2.map(t => t.v); LAST.payDiffRange = [dlo, dhi];
+    for (const { v: t, step } of t1) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 6, Y(t) + 3.5, fUt(t, step || 0.01), { "text-anchor": "end" }); }
+    for (const { v: t, step } of t2) { el("line", { x1: m.l, x2: W - m.r, y1: Y2(t), y2: Y2(t) }, ax); txt(ax, m.l - 6, Y2(t) + 3.5, fUt(t, step || 0.01), { "text-anchor": "end" }); }
     const yb = y3 + H3 + 14;
     for (const u of axisTicks(lo, hi, Math.floor(W / 85))) { const x = X(u), an = x - m.l < 18 ? "start" : W - m.r - x < 18 ? "end" : "middle"; el("line", { x1: x, x2: x, y1: y1, y2: y3 + H3 }, ax); txt(ax, x, yb, uLab(u, C.unit), { "text-anchor": an }); txt(ax, x, yb + 13, fPx(C.toSA(u)), { "text-anchor": an, style: "font-size:9.5px" }); if (two) txt(ax, x, yb + 26, fPx(C.toSB(u)), { "text-anchor": an, style: "font-size:9.5px" }); }
     txt(svg, m.l - 8, yb, "move", { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 }); txt(svg, m.l - 8, yb + 13, two ? tkOf("A") : A.tk, { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 }); if (two) txt(svg, m.l - 8, yb + 26, tkOf("B"), { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 });
@@ -314,8 +368,8 @@ const VIEWS = (() => {
   function renderCmp() {
     const { A, B, sa, sb, h } = C, nA = A.na, nB = B.na, rows = [], sc = SC();
     const a = (f, nn) => nn ? NaN : f, sB = v => v * h;
-    const ratio = (x, y) => { if (!(Number.isFinite(x) && Number.isFinite(y) && Math.abs(y) > 1e-12)) return "–"; const r = x / y; return (Math.abs(r) < 0.005 ? "0.00" : fN(r, 2)) + "×"; };
-    const add = (label, va, vb, fmt, diff = true, rat = true, cls = "") => rows.push(`<tr class="${cls}"><td>${label}</td><td>${fmt(va)}</td><td>${fmt(vb)}</td><td>${diff && Number.isFinite(va) && Number.isFinite(vb) ? fmt(va - vb) : ""}</td><td>${rat ? ratio(va, vb) : ""}</td></tr>`);
+    // every A / B cell reads "–" when B's value prints as zero in its own cell
+    const add = (label, va, vb, fmt, diff = true, rat = true, cls = "") => rows.push(`<tr class="${cls}"><td>${label}</td><td>${fmt(va)}</td><td>${fmt(vb)}</td><td>${diff && Number.isFinite(va) && Number.isFinite(vb) ? fmt(va - vb) : ""}</td><td>${rat ? ratioTxt(va, vb, fmt) : ""}</td></tr>`);
     const pair = C.same && C.sameExp && !nA && !nB;
     if (!C.same && A.tk !== B.tk) rows.push(`<tr class="note"><td colspan="5">No correlation between ${A.tk} and ${B.tk} is modelled, so the pair column only shows figures that add up. The joint-moves panel shows the pair across independent moves.</td></tr>`);
     else if (!C.sameExp) rows.push(`<tr class="note"><td colspan="5">A and B expire on different dates, so pair odds and pair worst loss at one expiry are not defined. The pair column only shows figures that add up.</td></tr>`);
@@ -327,18 +381,18 @@ const VIEWS = (() => {
     const anyI = (!nA && A.intr > 0) || (!nB && B.intr > 0), tvC = anyI ? `<span class="cap">on time value</span>` : "";
     const cv = (b, nn, k) => nn ? "–" : fU(k * b.cr / b.S) + (b.cr < 0 ? ` <span class="debit">net debit</span>` : "") + (b.intr > 0 ? ` <span class="muted">· time value ${fU(k * b.tv / b.S)}</span>` : "");
     const ca = a(A.cr / A.S, nA), cb = a(sB(B.cr / B.S), nB), ta = a(A.tv / A.S, nA), tb = a(sB(B.tv / B.S), nB);
-    rows.push(`<tr><td>Credit${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratio(ta, tb) : ratio(ca, cb)}</td></tr>`);
-    add(`Credit/σ<span class="cap">size-free, own σ to expiry</span>${tvC}`, a(A.tv / (A.S * A.sig), nA), a(B.tv / (B.S * B.sig), nB), v => fN(v, 3), false);
+    rows.push(`<tr><td>Credit${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)}</td></tr>`);
+    add(`Credit/σ<span class="cap">size-free, own σ to expiry</span>${tvC}`, a(A.tv / (A.S * A.sig), nA), a(B.tv / (B.S * B.sig), nB), v => fN0(v, 3), false);
     add(`Credit per day${tvC}`, a(A.tv / A.S / A.dte, nA), a(sB(B.tv / B.S / B.dte), nB), v => fU(v, 3), true, true, "grp");
     add(`Expected value<span class="cap">${sc.dist === "rn" ? "implied odds: fill vs mid, 0 at mid" : `HV30 ×${sc.hvk.toFixed(2)} odds`}</span>`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
     rows.push(`<tr><td>Profit odds<span class="cap">P&amp;L above 0 at expiry</span></td><td>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
     const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
     const own = sc.wl === "own" ? ` −<input type="number" data-wlo value="${+sc.wlo.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> to +<input type="number" data-whi value="${+sc.whi.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> ${STATE.UNAME[C.unit]}` : "";
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
-    rows.push(`<tr class="grp"><td>Worst loss within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratio(sa.worst / A.S, sB(sb.worst / B.S))}</td></tr>`);
+    rows.push(`<tr class="grp"><td>Worst loss within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)}</td></tr>`);
     add("Vega per vol point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
     add(`Margin<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
-    add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP(v, 1), false, true, "grp");
+    add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false, true, "grp");
     const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(fPx2).join(" / ") : "none";
     rows.push(`<tr><td>Breakevens</td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     if (A.wingPx > 0 || B.wingPx > 0) {
@@ -796,25 +850,34 @@ const VIEWS = (() => {
     if (L >= 1) return { v: "wiped out", s: "", d: "the hit exceeds the capital" };
     if (!Number.isFinite(n)) return { v: "never", s: "", d: "growth cannot get there" };
     if (n === 0) return { v: "none needed", s: "", d: "" };
-    const N = Math.ceil(n - 1e-9);
-    return { v: `${(N * days / 7).toFixed(1)} wk`, s: `${N} cycle${N === 1 ? "" : "s"}`, d: `${n.toFixed(1)} needed · ${N} × ${days}d → ${dstr(N * days)}` };
+    // whole cycles × days, in weeks below two years and in years from 104 weeks up
+    const N = Math.ceil(n - 1e-9), wk = N * days / 7;
+    return { v: wk >= 104 ? `${(N * days / 365.25).toFixed(1)} yr` : `${wk.toFixed(1)} wk`, s: `${N} cycle${N === 1 ? "" : "s"}`, d: `${n.toFixed(1)} needed · ${N} × ${days}d →\u00a0${dstr(N * days)}` };
   }
+  // the date `days` after t0 (UTC ms): "3 Mar"; the year when it differs from t0's, two digits within ten years
+  // ("3 Mar 28") and four beyond ("3 Mar 2071", which two digits would read as 1971)
+  function recDate(t0, days) {
+    const d = new Date(t0 + days * 864e5), y = d.getUTCFullYear();
+    return `${d.getUTCDate()} ${MON[d.getUTCMonth()]}${y !== new Date(t0).getUTCFullYear() ? " " + (days > 3652.5 ? String(y) : String(y).slice(2)) : ""}`;
+  }
+  // growth a cycle, signed from its printed value: "+1.41%", "−1.41%", and "0.00%" for anything that rounds to zero
+  const growthTxt = g => { if (!Number.isFinite(g)) return "–"; const t = Math.abs(g * 100).toFixed(2); return (+t === 0 ? "" : g > 0 ? "+" : MINUS) + t + "%"; };
   function renderRecovery() {
     const host = q("#rec"), vw = V();
     const runs = [recRun(C, C.A, "A", vw), recRun(C, C.B, "B", vw)].filter(Boolean);
-    const at = String(INST.asof || ""), t0 = /^\d{4}-\d{2}-\d{2}/.test(at) ? Date.UTC(+at.slice(0, 4), +at.slice(5, 7) - 1, +at.slice(8, 10)) : Date.now(), y0 = new Date(t0).getUTCFullYear();
-    const dstr = days => { const d = new Date(t0 + days * 864e5); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]}${d.getUTCFullYear() !== y0 ? " " + String(d.getUTCFullYear()).slice(2) : ""}`; };
+    const at = String(INST.asof || ""), t0 = /^\d{4}-\d{2}-\d{2}/.test(at) ? Date.UTC(+at.slice(0, 4), +at.slice(5, 7) - 1, +at.slice(8, 10)) : Date.now();
+    const dstr = days => recDate(t0, days).replace(/ /g, "\u00a0");   // the date never breaks across lines
     const hitTxt = vw.rdHit === "fixed" ? `a fixed ${vw.rdL}% hit` : `a ${vw.rdK}σ move to its own expiry, ${vw.rdDir === "worse" ? "the worse side" : vw.rdDir}`;
     const narrow = host.clientWidth < 900;
     host.classList.toggle("narrow", narrow);
     const base = vw.rdBase;
     let L = `<span class="rl">` + runs.map(r => {
       const rc = recCycles(r.L, r.g, "rec", base), bf = recCycles(r.L, r.g, "buf", base), a = recTime(rc, r.days, r.L, dstr), c = recTime(bf, r.days, base === "nav" ? r.L : 0, dstr);
-      return `<span class="rrun">${key(r.who)}<span class="rh">${esc(r.b.label.full)} · ${r.days}-day cycles · growth ${r.g > 0 ? "+" : ""}${(r.g * 100).toFixed(2)}% a cycle${vw.rdG === "ev" ? " (EV at HV30 odds" + (vw.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>` +
+      return `<span class="rrun">${key(r.who)}<span class="rh">${esc(r.b.label.full)} · ${r.days}-day cycles · growth ${growthTxt(r.g)} a cycle${vw.rdG === "ev" ? " (EV at HV30 odds" + (vw.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>` +
       `<span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${r.L > 0 ? MINUS + (r.L * 100).toFixed(0) + "%" : "no loss"}</span><span class="d">${r.xMove ? "at " + fPx2(r.xMove) + " · " : ""}of ${base === "nav" ? "NAV when it lands" : "starting capital"}</span></span>` +
-      `<span class="rv"><span class="l">Recovery (hit first)</span><span class="v">${a.v}<small>${a.s}</small></span><span class="d">${a.d}</span></span>` +
-      `<span class="rv"><span class="l">Buffer (climb first)</span><span class="v">${c.v}<small>${c.s}</small></span><span class="d">${c.d}</span></span></span>`;
-    }).join("") + `<span class="cap rcap">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded, and the weeks count whole cycles.${base === "nav" ? " Measured against NAV when it lands, the two times are equal at a constant growth rate." : ""}</span></span>`;
+      `<span class="rv"><span class="l">Recovery (hit first)</span><span class="v">${a.v}<small>${a.s ? ` (${a.s})` : ""}</small></span><span class="d">${a.d}</span></span>` +
+      `<span class="rv"><span class="l">Buffer (climb first)</span><span class="v">${c.v}<small>${c.s ? ` (${c.s})` : ""}</small></span><span class="d">${c.d}</span></span></span>`;
+    }).join("") + `<span class="cap rcap">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded, and the time counts whole cycles.${base === "nav" ? " Measured against NAV when it lands, the two times are equal at a constant growth rate." : ""}</span></span>`;
     host.innerHTML = L + `<span class="rr"><span id="rec-ch" class="rch"></span><span class="cap rcap">cycles needed (capped at 60) against the hit · ${base === "nav" ? "recovery = buffer when the hit is a % of NAV" : "solid: recovery, dashed: buffer"}</span></span>`;
     LAST.rec = runs.map(r => ({ who: r.who, L: r.L, g: r.g, rec: recCycles(r.L, r.g, "rec", base), headline: recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, dstr) }));
     const box = q("#rec-ch"), W = Math.max(320, box.getBoundingClientRect().width), H = 220, m = { l: 48, r: 24, t: 10, b: 28 }, pw = W - m.l - m.r;
@@ -1044,7 +1107,7 @@ const VIEWS = (() => {
     <div class="ph"><span class="lgd tools" id="sm-lgd"></span><h2>Smile and legs</h2><span class="sub">Click a quote to put a leg on exactly that strike.</span></div>
     <div class="smile" id="smile"></div>
   </section>
-  <details class="panel notes" id="p-notes"><summary>Method and caveats</summary><ul id="notes"></ul></details>`;
+  <details class="panel notes" id="p-notes"><summary><h2>Method and caveats</h2></summary><ul id="notes"></ul></details>`;
 
   function wire(opts) {
     opts = opts || {};
@@ -1116,7 +1179,7 @@ const VIEWS = (() => {
   return {
     render, wire, notes, LAST,
     // pure helpers (node-testable): no DOM, they take the context explicitly
-    ovVariants, ovCells, sameTrade, sweepSide, sweepData, recRun, recCycles, recTime, gridRows, smileGroups, smileOptions, smilePlace, pairWorst, pairPop
+    ovVariants, ovCells, sameTrade, sweepSide, sweepData, recRun, recCycles, recTime, recDate, growthTxt, besTxt, gridRows, fN0, fP0, zeroTxt, ratioTxt, payTicks, niceIn, smileGroups, smileOptions, smilePlace, pairWorst, pairPop
   };
 })();
 function renderViews(c) { return VIEWS.render(c); }
