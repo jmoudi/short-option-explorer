@@ -3,7 +3,7 @@
 // listed × hvk; one note per ticker; rv / rvB leave the Compounding state, B's differing moves become the run
 // override), and, on the built page (Chromium, through the DOM and the page's executor), the port: the Compounding
 // state carries no rv, its moves field writes the shared vol (reader Compounding: 0 allowed, 300 cap with a toast), a
-// vol changed on the comparer marks the Random years run stale, and a swap in vol mode flips the override's run while
+// vol changed on the comparer marks the Random paths run stale, and a swap in vol mode flips the override's run while
 // the shared vol stays.
 "use strict";
 const test = require("node:test"), assert = require("node:assert/strict");
@@ -16,7 +16,7 @@ const J = o => JSON.parse(JSON.stringify(o));
 // the Compounding state as v9 (and v10 before part 2c) wrote it: its own moves per ticker for A and for B
 const legacyYr = ({ rv, rvB, bDiff = "strategy" }) => ({
   bDiff, sc: { cap0: 30000, W: 52, path: { mode: "flat" }, S0: { KORU: 21.09, RAM: 14.45 }, iv: { KORU: 130, RAM: 114 }, rv, ivB: { KORU: 121, RAM: 114 }, rvB },
-  view: { v: "year" }
+  view: { v: "weeks" }
 });
 const v9Code = ({ hvk = 1, yr }) => {
   const tree = STATE.defaults();
@@ -67,7 +67,7 @@ test("T25 migration: a period vol the view already has is kept; rv / rvB leave t
   assert.deepEqual(J(v8.yr.sc.volOverride), { run: "B" }, "B moved with A: no override");
 });
 
-test("T25 the built page: the port, the stale Random years run, a swap in vol mode", { timeout: 240000 }, async () => {
+test("T25 the built page: the port, the stale Random paths run, a swap in vol mode", { timeout: 240000 }, async () => {
   let playwright;
   try { playwright = require(PLAYWRIGHT); } catch (error) { assert.fail(`Playwright is needed at ${PLAYWRIGHT}: ${error.message}`); }
   fs.mkdirSync(path.join(V9, "scratch"), { recursive: true });
@@ -100,15 +100,15 @@ test("T25 the built page: the port, the stale Random years run, a swap in vol mo
     await page.goto("file://" + path.join(out, "lab.html") + "#" + code);
     await settle();
     assert.deepEqual(await periodVol(), { KORU: { pct: 150, source: "set" } });
-    const sc = await read(() => YR.getState().sc);
+    const sc = await read(() => COMPOUND.getState().sc);
     assert.ok(!("rv" in sc) && !("rvB" in sc), "getState carries no rv / rvB: " + JSON.stringify(Object.keys(sc)));
-    assert.equal(await read(() => YR._res().A.vol.rv), 1.5, "the run moves at the shared vol");
+    assert.equal(await read(() => COMPOUND._res().A.vol.rv), 1.5, "the run moves at the shared vol");
     assert.equal(await read(() => JSON.parse(localStorage.getItem("rk-lab-v10")).yr.sc.rv), undefined, "nor does the stored view");
 
     // the moves field writes the shared vol: 0 stays 0 (the Compounding floor), 400 is capped at 300 with a toast
     await typeMoves("#y-v-KORU-rv", "0");
     assert.deepEqual(await periodVol(), { KORU: { pct: 0, source: "set" } });
-    assert.equal(await read(() => YR._res().A.vol.rv), 0);
+    assert.equal(await read(() => COMPOUND._res().A.vol.rv), 0);
     await typeMoves("#y-v-KORU-rv", "400");
     assert.deepEqual(await periodVol(), { KORU: { pct: 300, source: "set" } });
     assert.ok(toasts.some(t => /KORU period vol capped at 300% \(asked 400%\)/.test(t)), JSON.stringify(toasts));
@@ -118,27 +118,27 @@ test("T25 the built page: the port, the stale Random years run, a swap in vol mo
     assert.deepEqual(await read(() => [document.querySelector("#y-v-KORU-rv").value, document.activeElement.id]), ["0", "y-v-KORU-rv"]);
     await typeMoves("#y-v-KORU-rv", "120");
     // the pricing IV after a loaded view (a new ys.sc, the pair not redrawn): a typed IV still lands (fix round 2)
-    await read(() => { YR.setState(YR.getState()); YR.render(); });
+    await read(() => { COMPOUND.setState(COMPOUND.getState()); COMPOUND.render(); });
     await typeMoves("#y-v-KORU-iv", "150");
-    assert.equal(await read(() => YR.getState().sc.iv.KORU), 150, "the typed pricing IV reaches the state");
+    assert.equal(await read(() => COMPOUND.getState().sc.iv.KORU), 150, "the typed pricing IV reaches the state");
     await typeMoves("#y-v-KORU-iv", "130");
 
-    // Random years: a run, then a vol changed on the comparer marks it stale on the tab's next render
+    // Random paths: a run, then a vol changed on the comparer marks it stale on the tab's next render
     await page.click('#y-view button:nth-child(2)'); await settle();
     await page.click("#y-mc summary"); await page.click('#y-mcn button[data-v="1000"]'); await page.click("#y-mcrun");
     await page.waitForFunction(() => /paths per run/.test(document.querySelector("#y-mcp").textContent), null, { timeout: 120000 });
-    assert.equal(await read(() => YR._mc().stale), false);
+    assert.equal(await read(() => COMPOUND._mc().stale), false);
     await page.click("#tb-compare"); await settle();
     const changed = await read(() => page.executor.execute({ type: Command.SetPeriodVol, ticker: "KORU", source: VolSource.Set, pct: 140 }).ok);
     assert.equal(changed, true);
     await page.click("#tb-yr"); await settle();
-    assert.equal(await read(() => YR._mc().stale), true, "the comparer's vol change marks the run stale");
+    assert.equal(await read(() => COMPOUND._mc().stale), true, "the comparer's vol change marks the run stale");
     assert.equal(await read(() => document.querySelector("#y-mcp").textContent), "inputs changed: run again");
-    assert.equal(await read(() => YR._res().A.vol.rv), 1.4, "the next render uses the new value");
+    assert.equal(await read(() => COMPOUND._res().A.vol.rv), 1.4, "the next render uses the new value");
     // back to the vol the run was made with: no longer stale
     await read(() => page.executor.execute({ type: Command.SetPeriodVol, ticker: "KORU", source: VolSource.Set, pct: 120 }));
     await page.click("#y-view button:nth-child(1)"); await settle(); await page.click("#y-view button:nth-child(2)"); await settle();
-    assert.equal(await read(() => YR._mc().stale), false, "the key holds the vol, not a change counter");
+    assert.equal(await read(() => COMPOUND._mc().stale), false, "the key holds the vol, not a change counter");
 
     // B differs in vol: B's own moves, A's on the shared vol; a swap flips the run and keeps the shared vol
     await page.click("#y-view button:nth-child(1)"); await settle();
@@ -147,34 +147,34 @@ test("T25 the built page: the port, the stale Random years run, a swap in vol mo
     assert.deepEqual(await periodVol(), { KORU: { pct: 120, source: "set" } }, "B's own moves leave the shared vol");
     const pairNames = () => read(() => [...document.querySelectorAll("#y-vol .tk")].map(e => e.textContent));
     assert.deepEqual(await pairNames(), ["KORU", "B KORUown"], "the pair with a run's own moves is tagged");
-    assert.deepEqual(await read(() => [YR._res().A.vol.rv, YR._res().B.vol.rv]), [1.2, 1.5]);
+    assert.deepEqual(await read(() => [COMPOUND._res().A.vol.rv, COMPOUND._res().B.vol.rv]), [1.2, 1.5]);
     await page.click("#y-swap"); await settle();
     assert.deepEqual(await periodVol(), { KORU: { pct: 120, source: "set" } }, "a swap never changes the shared vol");
-    assert.deepEqual(await read(() => J(YR.getState().sc.volOverride)), { run: "A", KORU: 150 });
-    assert.deepEqual(await read(() => [YR._res().A.vol.rv, YR._res().B.vol.rv]), [1.5, 1.2], "each run keeps its vol");
+    assert.deepEqual(await read(() => J(COMPOUND.getState().sc.volOverride)), { run: "A", KORU: 150 });
+    assert.deepEqual(await read(() => [COMPOUND._res().A.vol.rv, COMPOUND._res().B.vol.rv]), [1.5, 1.2], "each run keeps its vol");
     assert.deepEqual(await read(() => [document.querySelector("#y-v-KORU-rv").value, document.querySelector("#y-v-KORUB-rv").value]), ["150", "120"]);
     assert.deepEqual(await pairNames(), ["A KORUown", "B KORU"], "after the swap A's pair carries the own moves, and says so");
-    assert.deepEqual(await read(() => [YR._res().A.vol.iv, YR._res().B.vol.iv]), [1.21, 1.3], "the pricing IVs swapped with the runs");
+    assert.deepEqual(await read(() => [COMPOUND._res().A.vol.iv, COMPOUND._res().B.vol.iv]), [1.21, 1.3], "the pricing IVs swapped with the runs");
     // the comparer reads the shared vol, not a run's override
     assert.equal(await read(() => CTX.ctx9(page.store.read()).volOf("KORU").pct), 120);
     // a run's own moves outside the range: applied at the end, with a toast worded like the period vol's
     await typeMoves("#y-v-KORU-rv", "400");
-    assert.deepEqual(await read(() => J(YR.getState().sc.volOverride)), { run: "A", KORU: 300 });
+    assert.deepEqual(await read(() => J(COMPOUND.getState().sc.volOverride)), { run: "A", KORU: 300 });
     assert.ok(toasts.some(t => /A's own KORU moves capped at 300% \(asked 400%\)/.test(t)), JSON.stringify(toasts));
     await typeMoves("#y-v-KORU-rv", "150");
     // a swap outside vol mode leaves both own vols (pricing IV and moves) with their slot, together: back in vol mode
     // the slot that had them still has both (fix round 2: they never split between the runs)
     await page.click("#y-bdiff button[data-v=\"strategy\"]"); await settle();
     await page.click("#y-swap"); await settle();
-    assert.equal(await read(() => YR.getState().sc.volOverride.run), "A", "the dormant override stays with its slot");
+    assert.equal(await read(() => COMPOUND.getState().sc.volOverride.run), "A", "the dormant override stays with its slot");
     await page.click("#y-bmore summary"); await page.click('#y-bdiff2 button[data-v="vol"]'); await settle();
-    assert.deepEqual(await read(() => [YR._res().A.vol.iv, YR._res().A.vol.rv, YR._res().B.vol.iv, YR._res().B.vol.rv]), [1.21, 1.5, 1.3, 1.2], "A keeps its own IV and moves, B the shared vol");
+    assert.deepEqual(await read(() => [COMPOUND._res().A.vol.iv, COMPOUND._res().A.vol.rv, COMPOUND._res().B.vol.iv, COMPOUND._res().B.vol.rv]), [1.21, 1.5, 1.3, 1.2], "A keeps its own IV and moves, B the shared vol");
     // the moves menu lists the comparer's references (one list): the listed vol, ATM at A's horizon, the realized vols
     const refs = await read(() => [...document.querySelectorAll('#y-v-KORU-mb button[data-k="rv"]')].map(b => b.textContent));
-    assert.deepEqual(refs, ["HV30 117", "ATM 20 Nov 130", "1-year realized 173", "5-year realized 101", "exactly on the path 0"]);
+    assert.deepEqual(refs, ["HV30 117", "ATM 20 Nov 130", "52-wk realized 173", "260-wk realized 101", "exactly on the path 0"]);
     // ATM follows Compare's A horizon
     await read(() => page.executor.execute({ type: Command.SetA, path: "exp", value: "20261016" }));
-    await read(() => YR.render());
+    await read(() => COMPOUND.render());
     assert.equal(await read(() => document.querySelector('#y-v-KORU-mb button[data-src="atm"]').textContent), "ATM 16 Oct 124");
     // the ATM tick sets the period vol at ATM, with the expiry it was read at and its unrounded pct (fix round 2: the
     // port dropped the expiry and the command was refused). B's pair is the shared one here (A carries its own moves)
@@ -183,13 +183,13 @@ test("T25 the built page: the port, the stale Random years run, a swap in vol mo
     await page.click("#y-v-KORUB-m summary");
     assert.deepEqual(await periodVol(), { KORU: { pct: 123.93, source: "atm", expiry: "20261016" } });
     assert.equal(await read(() => CTX.ctx9(page.store.read()).volOf("KORU").label), "vol 124% (ATM 16 Oct)");
-    // Random years: the IV path shapes the moves ("keep the gap"), so a path change marks the run stale
+    // Random paths: the IV path shapes the moves ("keep the gap"), so a path change marks the run stale
     await page.click('#y-view button:nth-child(2)'); await settle();
     await page.click("#y-mcrun");
     await page.waitForFunction(() => /paths per run/.test(document.querySelector("#y-mcp").textContent), null, { timeout: 120000 });
-    assert.equal(await read(() => YR._mc().stale), false);
-    await read(() => { YR.setState(Object.assign(YR.getState(), { ivp: Object.assign(YR.getState().ivp, { mode: "line", end: 0.7 }) })); YR.render(); });
-    assert.equal(await read(() => YR._mc().stale), true, "an IV-path change marks the Random years run stale");
+    assert.equal(await read(() => COMPOUND._mc().stale), false);
+    await read(() => { COMPOUND.setState(Object.assign(COMPOUND.getState(), { ivp: Object.assign(COMPOUND.getState().ivp, { mode: "line", end: 0.7 }) })); COMPOUND.render(); });
+    assert.equal(await read(() => COMPOUND._mc().stale), true, "an IV-path change marks the Random paths run stale");
     // a Compounding 0 reads on the comparer as its 1% floor, and says so
     await page.click('#y-view button:nth-child(1)'); await settle();
     await read(() => page.executor.execute({ type: Command.SetPeriodVol, ticker: "KORU", source: VolSource.Set, pct: 0, reader: Tab.Compounding }));

@@ -118,7 +118,7 @@ const SUM9 = (() => {
     return h + `</span>`;
   }
   // line 3 comes in levels for fitPair(), the same ten on both cards so they can shorten together: 0 full; 1 flags
-  // folded into one "N warnings, M notes" token; 2 the "to <expiry>" σ suffix without its year; 3 the forward note
+  // folded into one "N warnings, M notes" token; 2 the "to <expiry>" σ suffix without its calendar part; 3 the forward note
   // without spot; 4 the period-vol reading compact ("vs IV 124%"); 5–7 one, two, three secondary readings fewer; 8 no
   // days; 9 "N flags". The days (one short token, shown nowhere else on the summary) outlast the secondary readings
   const L3N = 10;
@@ -131,7 +131,7 @@ const SUM9 = (() => {
     const floored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct ? ` The stored ${+vol.storedPct.toFixed(2)}% (exactly on the path, set on Compounding) reads as ${Math.round(vol.pct)}% here, the comparer's floor.` : "";
     const tip = `${b.tk} period vol: the assumed vol of its moves over the period, one number for every expiry, used by every EV reading (and by the odds when the odds switch says period vol). Implied: ATM IV at ${fmtE(b.exp)}.${floored} Click to set it under Positions, spot / IV / period vol.`;
     // two different vols, named as such: the period vol (odds and EV) and the expiry's ATM IV (σ and the move range)
-    const versus = isCompact ? "· ATM" : "· ATM IV";
+    const versus = "· ATM IV";
     return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}period ${esc(vol.label)} ${versus} ${implied}</span>`;
   }
   /** @param {{ b: any, P: any, C: any, side: string }} input */
@@ -260,7 +260,7 @@ const SUM9 = (() => {
   function renderPills(C) {
     const host = q("#s9pills"), { list, notes, any } = pillsHtml(C);
     PILLS = list;
-    const tail = (any ? `<span class="s9pill all" data-all="1" title="Make B follow A in every aspect except the instrument">↺ all</span>` : "");
+    const tail = (any ? `<span class="s9pill all" data-all="1" title="Make B follow A in every aspect except the instrument">↺ B follows A again</span>` : "");
     const draw = n => notes.map(t => `<span class="s9note">${esc(t)}</span>`).join("") + list.slice(0, n).map(pillHtml).join("") +
       (n < list.length ? `<span class="s9pill" data-more="${n}">+${list.length - n} ▾</span>` : "") + tail;
     host.innerHTML = draw(list.length);

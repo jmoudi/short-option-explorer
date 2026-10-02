@@ -1,8 +1,8 @@
 // ============================================================ Stress engine (pure): what a move does to the account at a given week
-// Snapshot of the typical account (from the year engine) + a scenario + rules -> path through the move and a loss breakdown.
-// Moves may fall, gap and reverse here; the year engine's own path never falls.
-const YRS = ((YRE) => {
-  const { bs, pickStrike, naked, reqStr, LEV } = YRE;
+// Snapshot of the typical account (from the week-by-week engine) + a scenario + rules -> path through the move and a loss breakdown.
+// Moves may fall, gap and reverse here; the week-by-week engine's own path never falls.
+const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
+  const { bs, pickStrike, naked, reqStr, LEV } = COMPOUND_ENGINE;
   const hsOf = p => p > 0 ? Math.max(0.025, 0.07 * p) : 0;
   const markOf = (l, x, iv, el) => { const tau = Math.max(0, (l.days - el) / 365); return tau > 1e-9 ? bs(x, l.K, tau, iv, l.cp) : Math.max(0, l.cp === "C" ? x - l.K : l.K - x); };
   const navAt = (s, x, iv, el) => { let v = s.cash + s.n * x; for (const l of s.legs) v += 100 * l.q * markOf(l, x, iv, el); return v; };
@@ -143,7 +143,7 @@ const YRS = ((YRE) => {
       if (isExp) {
         let pay = 0; for (const l of s.legs) if (l.q < 0) pay += 100 * -l.q * Math.max(0, l.cp === "C" ? x - l.K : l.K - x);
         s.lastRes = s.credNet - pay;
-        // in-the-money legs settle at intrinsic (assignment and an immediate stock trade), as in the year engine
+        // in-the-money legs settle at intrinsic (assignment and an immediate stock trade), as in the week-by-week engine
         s.nPre = s.n;
         for (const l of s.legs) { const itm = Math.max(0, l.cp === "C" ? x - l.K : l.K - x); if (!(itm > 0) || !l.q) continue;
           if (l.cp === "C" && l.q < 0 && s.n > 0) { // covered lots are delivered at the strike; the rest pays intrinsic
@@ -178,7 +178,7 @@ const YRS = ((YRE) => {
     return { callDown: solve(-1, r => !!r.ev.call), zeroDown: solve(-1, r => r.navEnd <= 1e-6 || r.ev.wiped), callUp: solve(1, r => !!r.ev.call), zeroUp: solve(1, r => r.navEnd <= 1e-6 || r.ev.wiped) };
   }
 
-  // ---------------------------------------------------------- Random years: seeded daily lognormal moves around the path (no jumps)
+  // ---------------------------------------------------------- Random paths: seeded daily lognormal moves around the path (no jumps)
   const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   function mcDays(mult, rv, W, seed, i) {
     const rnd = mulberry((seed ^ Math.imul(i + 1, 0x9E3779B1)) >>> 0), days = [];
@@ -197,5 +197,5 @@ const YRS = ((YRE) => {
   }
 
   return { snapshot, margin, compile, run, givenUp, room, navAt, RULES, mcRun, mcDays };
-})(YRE);
-if (typeof module !== "undefined") module.exports = YRS;
+})(COMPOUND_ENGINE);
+if (typeof module !== "undefined") module.exports = COMPOUND_STRESS;

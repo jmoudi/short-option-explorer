@@ -1,5 +1,5 @@
-// ============================================================ Compounding tab UI (own state, own controls; reads YRE and D only)
-const YR = ((YRE, YRS) => {
+// ============================================================ Compounding tab UI (own state, own controls; reads COMPOUND_ENGINE and D only)
+const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   const q = s => document.querySelector(s), qa = s => [...document.querySelectorAll(s)];
   const SVGNS = "http://www.w3.org/2000/svg";
   const sv = (tag, attrs, parent) => { const n = document.createElementNS(SVGNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
@@ -45,13 +45,13 @@ const YR = ((YRE, YRS) => {
     A: clone(RUN0),
     B: { ...clone(RUN0), fam: "str", cd: 20, pd: 20 },
     bOn: true, bDiff: "strategy",
-    sc: { cap0: 30000, W: 52, path: { mode: "flat", end: 1.5, pts: [[26, 1.2], [52, 1.5]], g: 0.5, gUnit: "yr", geo: false }, S0: { KORU: spot("KORU"), RAM: spot("RAM") },
+    sc: { cap0: 30000, W: 52, path: { mode: "flat", end: 1.5, pts: [[26, 1.2], [52, 1.5]], g: 0.5, gUnit: "span", geo: false }, S0: { KORU: spot("KORU"), RAM: spot("RAM") },
       iv: { KORU: 130, RAM: atmIV("RAM") }, ivB: { KORU: 121, RAM: atmIV("RAM") }, volOverride: /** @type {Object<string, any>} */ ({ run: RunSlot.B }) },
 
     costs: { give: 0.25, comm: 0.65, commSh: 0.005, liq: 250, whole: true, grid: { KORU: 1, RAM: 1 }, mOvr: { KORU: 0.75, RAM: 0.5 } },
     rates: { tiered: true, bm: 4.0, loan: 5.5, cash: 3.5 },
-    ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, rule: "gap" },
-    view: { v: "year", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false }
+    ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, gUnit: "span", rule: "gap" },
+    view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false }
   });
   let ys = DEF();
   const FIELDS = { [RunDiff.Strategy]: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], [RunDiff.Ticker]: ["tk"], [RunDiff.Cadence]: ["cad"], [RunDiff.Strikes]: ["cd", "pd", "wcd", "wpd"], [RunDiff.Size]: ["lev", "use"], [RunDiff.Modus]: ["modus"], [RunDiff.Vol]: [] };
@@ -143,16 +143,16 @@ const YR = ((YRE, YRS) => {
     return { iv: iv / 100, rv: readMovesPct({ tk: run.tk, slot }) / 100 };
   }
   function pathSpec() { const p = ys.sc.path, W = ys.sc.W;
-    if (p.mode === "growth") { const g = p.gUnit === "yr" ? Math.pow(1 + Math.max(0, p.g), 1 / 52) - 1 : Math.max(0, p.g / 100); return { mode: "growth", g }; }
+    if (p.mode === "growth") { const g = p.gUnit === "span" ? Math.pow(1 + Math.max(0, p.g), 1 / Math.max(1, ys.sc.W)) - 1 : Math.max(0, p.g / 100); return { mode: "growth", g }; }
     if (p.mode === "line") return { mode: "line", end: Math.max(1, p.end), geo: p.geo };
     if (p.mode === "pts") return { mode: "pts", pts: p.pts.filter(x => x[0] > 0 && x[0] <= W), geo: p.geo };
     return { mode: "flat" }; }
-  const mult = () => YRE.pathMult(pathSpec(), ys.sc.W);
+  const mult = () => COMPOUND_ENGINE.pathMult(pathSpec(), ys.sc.W);
   // IV path: multiples of the IV input, may fall; realized moves keep their gap to IV, or stay constant
   function ivMult() { const p = ys.ivp, W = ys.sc.W;
-    if (p.mode === "line") return YRE.pathMult({ mode: "line", end: Math.max(0.2, p.end), geo: true }, W, false);
-    if (p.mode === "growth") return YRE.pathMult({ mode: "growth", g: Math.pow(1 + Math.max(-0.95, p.g / 100), 1 / 52) - 1 }, W, false);
-    if (p.mode === "pts") return YRE.pathMult({ mode: "pts", pts: p.pts.filter(x => x[0] > 0 && x[0] <= W).sort((a, b) => a[0] - b[0]) }, W, false);
+    if (p.mode === "line") return COMPOUND_ENGINE.pathMult({ mode: "line", end: Math.max(0.2, p.end), geo: true }, W, false);
+    if (p.mode === "growth") return COMPOUND_ENGINE.pathMult({ mode: "growth", g: Math.pow(1 + Math.max(-0.95, p.g / 100), 1 / Math.max(1, W)) - 1 }, W, false);
+    if (p.mode === "pts") return COMPOUND_ENGINE.pathMult({ mode: "pts", pts: p.pts.filter(x => x[0] > 0 && x[0] <= W).sort((a, b) => a[0] - b[0]) }, W, false);
     return Array(W + 1).fill(1); }
   // the vols a run reads week by week (its flat vols on the IV path): what the Monte Carlo and the sweep keys hold
   /** @param {{ run: any, slot: string }} input */
@@ -167,7 +167,7 @@ const YR = ((YRE, YRS) => {
     const arr = [...by.entries()].sort((a, b) => a[0] - b[0]); let prev = 1;
     for (const a of arr) { if (a[1] < prev - 1e-9) { notes[a[0]] = `held at ${fKs(prev * ys.sc.S0[ys.A.tk])}: the path cannot fall`; a[1] = prev; } prev = a[1]; }
     p.pts = arr; return notes; }
-  const costsOf = () => ({ ...YRE.COSTS, ...ys.costs, hsPct: 0.07, hsMin: 0.025, hsSh: 0.005 });
+  const costsOf = () => ({ ...COMPOUND_ENGINE.COSTS, ...ys.costs, hsPct: 0.07, hsMin: 0.025, hsSh: 0.005 });
   const ratesOf = () => ({ tiered: ys.rates.tiered, bm: ys.rates.bm / 100, loan: ys.rates.loan / 100, cash: ys.rates.cash / 100 });
 
   // ---------------------------------------------------------- compute (cached)
@@ -180,7 +180,7 @@ const YR = ((YRE, YRS) => {
     const sc = { cap0: ys.sc.cap0, W: ys.sc.W, S0: ys.sc.S0[run.tk], mult: m, iv: v.iv, rv: v.rv };
     const key = JSON.stringify([run, sc.cap0, sc.W, sc.S0, m, v, ys.costs, ys.rates, extra]);
     if (CACHE.has(key)) return CACHE.get(key);
-    const out = YRE.runYear(run, sc, costsOf(), ratesOf(), extra);
+    const out = COMPOUND_ENGINE.runHorizon(run, sc, costsOf(), ratesOf(), extra);
     if (CACHE.size > 160) CACHE.delete(CACHE.keys().next().value);
     CACHE.set(key, out); return out;
   }
@@ -253,7 +253,7 @@ const YR = ((YRE, YRS) => {
     }
     for (const f of SYV) f();
     const w = [];
-    if (A.tk === "RAM" || (B && B.tk === "RAM")) w.push(`RAM lists monthly options only, so its runs roll on third Fridays (13 cycles a year).`);
+    if (A.tk === "RAM" || (B && B.tk === "RAM")) w.push(`RAM lists monthly options only, so its runs roll on third Fridays (a cycle every 4 or 5 weeks).`);
     const notes = ys.sc.path.mode === "pts" ? Object.values(lastPtsNotes) : [];
     if (notes.length) w.push(...notes.slice(0, 2));
     if (RES && RES.A.main.note) w.push("A: " + RES.A.main.note);
@@ -351,14 +351,14 @@ const YR = ((YRE, YRS) => {
     if (host.dataset.sig !== sig) {
       host.dataset.sig = sig;
       if (p.mode === "line") { host.innerHTML = ` to $<input type="number" id="y-pend" step="0.5" min="0" style="width:62px">`; }
-      else if (p.mode === "growth") { host.innerHTML = ` <input type="number" id="y-pg" step="0.1" min="0" style="width:56px">% <select id="y-pgu"><option value="wk">per week</option><option value="yr">per year</option></select>`; }
+      else if (p.mode === "growth") { host.innerHTML = ` <input type="number" id="y-pg" step="0.1" min="0" style="width:56px">% <select id="y-pgu"><option value="wk">per week</option><option value="span">over the weeks shown</option></select>`; }
       else host.innerHTML = ` <span class="vv" id="y-pinfo"></span>`;
       const e = q("#y-pend"); if (e) e.onchange = () => { let v = parseFloat(e.value) / ys.sc.S0[ys.A.tk]; if (!Number.isFinite(v)) return; if (v < 1) { port.showNotice("The path cannot fall: an end below the start becomes flat"); v = 1; } ys.sc.path.end = v; schedule(30); };
-      const g = q("#y-pg"); if (g) g.onchange = () => { let v = parseFloat(g.value); if (!Number.isFinite(v)) return; if (v < 0) { port.showNotice("The path cannot fall: negative growth becomes 0"); v = 0; } ys.sc.path.g = ys.sc.path.gUnit === "yr" ? v / 100 : v; schedule(30); };
-      const gu = q("#y-pgu"); if (gu) gu.onchange = () => { const P = ys.sc.path; P.g = gu.value === "yr" ? Math.pow(1 + P.g / 100, 52) - 1 : (Math.pow(1 + P.g, 1 / 52) - 1) * 100; P.gUnit = gu.value; host.dataset.sig = ""; schedule(30); };
+      const g = q("#y-pg"); if (g) g.onchange = () => { let v = parseFloat(g.value); if (!Number.isFinite(v)) return; if (v < 0) { port.showNotice("The path cannot fall: negative growth becomes 0"); v = 0; } ys.sc.path.g = ys.sc.path.gUnit === "span" ? v / 100 : v; schedule(30); };
+      const gu = q("#y-pgu"); if (gu) gu.onchange = () => { const P = ys.sc.path; P.g = gu.value === "span" ? Math.pow(1 + P.g / 100, Math.max(1, ys.sc.W)) - 1 : (Math.pow(1 + P.g, 1 / Math.max(1, ys.sc.W)) - 1) * 100; P.gUnit = gu.value; host.dataset.sig = ""; schedule(30); };
     }
     const e = q("#y-pend"); if (e && document.activeElement !== e) e.value = (p.end * S0).toFixed(2);
-    const g = q("#y-pg"); if (g && document.activeElement !== g) g.value = p.gUnit === "yr" ? +(p.g * 100).toFixed(2) : +(+p.g).toFixed(3);
+    const g = q("#y-pg"); if (g && document.activeElement !== g) g.value = p.gUnit === "span" ? +(p.g * 100).toFixed(2) : +(+p.g).toFixed(3);
     const gu = q("#y-pgu"); if (gu) gu.value = p.gUnit;
     const inf = q("#y-pinfo"); if (inf) { const m = mult(); inf.textContent = p.mode === "flat" ? `at ${fKs(S0)}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"}, ends ${fKs(m[m.length - 1] * S0)}`; }
     q("#y-pmode").value = p.mode;
@@ -420,7 +420,7 @@ const YR = ((YRE, YRS) => {
       <span class="mrow" style="display:block;margin-bottom:8px"><span class="lbl" style="display:block">Credit after expiry</span><span class="seg" id="${id("mcr")}"></span></span>
       <span class="mrow" style="display:block;margin-bottom:8px"><span class="lbl" style="display:block">On a margin call</span><span class="seg" id="${id("mcall")}"></span> <span id="${id("mtg")}"><input type="number" id="${id("mtgt")}" min="0" max="2" step="0.05" style="width:52px">x</span></span>
       <span class="mrow" style="display:block"><span class="lbl" style="display:block">During a multi-week move (Stress view)</span><span class="seg" id="${id("mmove")}"></span></span>
-      <span class="cap">How the account is run, separate from what is sold. The year engine, Stress and Random years all read these rules.</span></span></details>`;
+      <span class="cap">How the account is run, separate from what is sold. The week-by-week engine, Stress and Random paths all read these rules.</span></span></details>`;
     host.innerHTML = h;
     const set = (f, v) => { R[f] = v; if (who === "A" && (f === "tk")) { fixRun(ys.A); } };
     const g = id;
@@ -451,8 +451,8 @@ const YR = ((YRE, YRS) => {
   function readouts(who) {
     const r = who === "A" ? runA() : runB(); if (!r) return;
     const res = RES && RES[who] ? RES[who].main : null, row = res ? res.rows[0] : null, id = s => q(`#y-${who}-${s}`);
-    const S0 = ys.sc.S0[r.tk], v = readRunVol({ run: r, slot: who }), cy = YRE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
-    const legTxt = (cp, d) => { const K = YRE.pickStrike(S0, T, v.iv, cp, d, g), D_ = YRE.deltaOf(S0, K, T, v.iv, cp) * 100, p = YRE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
+    const S0 = ys.sc.S0[r.tk], v = readRunVol({ run: r, slot: who }), cy = COMPOUND_ENGINE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
+    const legTxt = (cp, d) => { const K = COMPOUND_ENGINE.pickStrike(S0, T, v.iv, cp, d, g), D_ = COMPOUND_ENGINE.deltaOf(S0, K, T, v.iv, cp) * 100, p = COMPOUND_ENGINE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
       return `${fKs(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fKs(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fKs(tv)}` : ""}`; };
     if (id("cdr")) id("cdr").textContent = "Week 1: " + legTxt("C", r.cd);
     if (id("pdr")) id("pdr").textContent = "Week 1: " + legTxt("P", r.pd);
@@ -501,7 +501,7 @@ const YR = ((YRE, YRS) => {
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
         <span class="cell big"><span class="l">${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
         <span class="cell c2"><span class="l">10%–90%</span><span class="v" style="font-size:14px">${f$(z.c10)} – ${f$(z.c90)}</span></span>
-        <span class="cell c3"><span class="l">Margin call in the year</span><span class="v" style="font-size:14px">${callTxt}</span></span>
+        <span class="cell c3"><span class="l">Margin call within ${ys.sc.W} wk</span><span class="v" style="font-size:14px">${callTxt}</span></span>
         <span class="cell c4"><span class="l">${cc ? "Shares · lots (typical)" : "Contracts (typical)"}</span><span class="v" style="font-size:14px">${cc ? `${fInt(z.shMed)} · ${Math.min(z.lots, ys.costs.liq || 1e9)}` : Math.floor(z.kMed + 1e-9)}</span></span>
         <span class="cell sm"><span class="l">${ys.view.reading === "typ" ? "Average" : "Typical"} · exactly on the path</span><span class="v">${f$(ys.view.reading === "typ" ? z.avg : z.med)} · ${f$(ex.med)}</span></span>
         <span class="bd">${defTxt(R.run)}</span></span>`;
@@ -522,7 +522,8 @@ const YR = ((YRE, YRS) => {
     const host = q("#y-stack"); host.innerHTML = ""; GEO = geo(); const G = GEO, W = ys.sc.W;
     const runs = [["a", RES.A], RES.B ? ["b", RES.B] : null].filter(Boolean), m = RES.mult, tkA = RES.A.run.tk;
     const twoTk = RES.B && RES.B.run.tk !== tkA, unitMult = twoTk;
-    q("#y-stacksub").textContent = `${fD(YRE.START)} → ${fD(YRE.weekDate(W))} · ${twoTk ? "price as a multiple of the start (each run's own strikes)" : tkA + " price"} · NAV on a log scale`;
+    q("#y-stackh").textContent = `Over ${ys.sc.W} weeks`;
+    q("#y-stacksub").textContent = `${fD(COMPOUND_ENGINE.START)} → ${fD(COMPOUND_ENGINE.weekDate(W))} · ${twoTk ? "price as a multiple of the start (each run's own strikes)" : tkA + " price"} · NAV on a log scale`;
     // ---- price
     const hd1 = document.createElement("span"); hd1.className = "yhd"; hd1.innerHTML = `Price path and strikes<span class="cap">${ys.view.wiggle ? "grey band: one realized move either side at each expiry" : ""}</span>`; host.appendChild(hd1);
     const H1 = 170, s1 = sv("svg", { width: G.width, height: H1 + 22, viewBox: `0 0 ${G.width} ${H1 + 22}` }, host);
@@ -534,7 +535,7 @@ const YR = ((YRE, YRS) => {
     const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad; const Y1 = yLin(lo, hi, 6, H1 - 6);
     const ax1 = sv("g", { class: "yax" }, s1);
     for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: G.l, x2: G.l + G.pw, y1: Y1(t), y2: Y1(t) }, ax1); st_(ax1, G.l - 6, Y1(t) + 3.5, unitMult ? "×" + (+t.toFixed(2)) : "$" + (+t.toFixed(2)), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, G.pw)) st_(ax1, G.x(w), H1 + 14, fD(YRE.weekDate(w)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, G.pw)) st_(ax1, G.x(w), H1 + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
     if (ys.view.wiggle) { const rs = RES.A.main.rows, k = unitMult ? 1 / ys.sc.S0[tkA] : 1; let d = `M${G.x(0)},${Y1(pv(0))}`; for (const r of rs) d += `L${G.x(r.w1)},${Y1(r.S1 * Math.exp(r.sigma) * k)}`; for (let i = rs.length - 1; i >= 0; i--) d += `L${G.x(rs[i].w1)},${Y1(rs[i].S1 * Math.exp(-rs[i].sigma) * k)}`; d += `L${G.x(0)},${Y1(pv(0))}Z`; sv("path", { d, fill: "var(--ink-3)", opacity: 0.12 }, s1); }
     for (const [cls, R] of runs) { const k = unitMult ? 1 / ys.sc.S0[R.run.tk] : 1;
       for (const r of R.main.rows) {
@@ -554,7 +555,7 @@ const YR = ((YRE, YRS) => {
       for (const [cls, va] of serV) { for (const [k, dash, wdt] of [["iv", "", 1.8], ["rv", "4 3", 1.1]]) { let d = ""; for (let w = 0; w <= W; w++) d += (w ? "L" : "M") + G.x(w) + "," + YV(Array.isArray(va[k]) ? va[k][w] : va[k]); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": wdt, "stroke-dasharray": dash, opacity: cls === "b" && tks.length === 1 && ys.bDiff !== "vol" ? 0 : 1 }, sV); } }
       st_(sV, G.l + G.pw + 5, YV(Array.isArray(serV[0][1].iv) ? serV[0][1].iv[W] : serV[0][1].iv) + 4, "IV", { fill: "var(--ink-2)", "font-size": 10.5 }); st_(sV, G.l + G.pw + 5, YV(Array.isArray(serV[0][1].rv) ? serV[0][1].rv[W] : serV[0][1].rv) + 4, "moves", { fill: "var(--ink-3)", "font-size": 10.5 }); }
     // ---- NAV
-    const hd2 = document.createElement("span"); hd2.className = "yhd"; hd2.innerHTML = `NAV<span class="cap">${ys.view.reading === "typ" ? "typical (median)" : "average"} line${ys.view.band !== "off" ? ", band = 10%–90% of years" : ""}${ys.view.exact ? ", dashed = exactly on the path" : ""}; grey = ${tkA} held with no loan</span>`; host.appendChild(hd2);
+    const hd2 = document.createElement("span"); hd2.className = "yhd"; hd2.innerHTML = `NAV<span class="cap">${ys.view.reading === "typ" ? "typical (median)" : "average"} line${ys.view.band !== "off" ? ", band = 10%–90% of outcomes" : ""}${ys.view.exact ? ", dashed = exactly on the path" : ""}; grey = ${tkA} held with no loan</span>`; host.appendChild(hd2);
     const H2 = 300, s2 = sv("svg", { width: G.width, height: H2 + 8, viewBox: `0 0 ${G.width} ${H2 + 8}` }, host);
     const cap0 = ys.sc.cap0; let nlo = cap0, nhi = cap0;
     const tr = (R, k) => [cap0, ...R.main.rows.map(r => r[k])];
@@ -574,7 +575,7 @@ const YR = ((YRE, YRS) => {
       if (ys.view.exact) { const e = tr({ main: R.exact }, "med"); let d = ""; X.forEach((w, i) => d += (i ? "L" : "M") + G.x(w) + "," + Y2(e[i])); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 1.2, "stroke-dasharray": "5 4" }, s2); }
       const t = tr(R, ys.view.reading === "typ" ? "med" : "avg"); let d = ""; X.forEach((w, i) => d += (i ? "L" : "M") + G.x(w) + "," + Y2(t[i]));
       sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s2);
-      // margin-call odds marks: where this cycle adds ≥ 2 points of called years
+      // margin-call odds marks: where this cycle adds ≥ 2 points of called outcomes
       ends.push([cls, Y2(t[t.length - 1]), `${cls.toUpperCase()} ${f$(t[t.length - 1])} ${fX(t[t.length - 1] / cap0)}`]);
     }
     ends.sort((a, b) => a[1] - b[1]); for (let i = 1; i < ends.length; i++) if (ends[i][1] - ends[i - 1][1] < 13) ends[i][1] = ends[i - 1][1] + 13;
@@ -611,9 +612,9 @@ const YR = ((YRE, YRS) => {
     const p = ys.ivp, sel = q("#y-ivpm"); sel.value = p.mode; sel.onchange = () => { p.mode = sel.value; schedule(10); };
     const n = q("#y-ivpn"), tk = ys.A.tk, iv0 = ys.sc.iv[tk];
     if (p.mode === "line") n.innerHTML = `to <input type="number" id="y-ivpe" min="20" max="300" step="1" style="width:52px">% at week ${ys.sc.W}`;
-    else if (p.mode === "growth") n.innerHTML = `<input type="number" id="y-ivpg" min="-90" max="200" step="1" style="width:52px">% a year`;
+    else if (p.mode === "growth") n.innerHTML = `<input type="number" id="y-ivpg" min="-90" max="200" step="1" style="width:52px">% over the ${ys.sc.W} weeks`;
     else if (p.mode === "pts") n.innerHTML = p.pts.map((x, i) => `<span class="vv" style="margin-right:8px">wk <input type="number" data-i="${i}" data-f="w" value="${x[0]}" min="1" max="104" style="width:44px"> <input type="number" data-i="${i}" data-f="v" value="${Math.round(x[1] * iv0)}" min="20" max="300" style="width:48px">% <button type="button" class="btn" data-del="${i}" style="padding:0 5px">×</button></span>`).join("") + `<button type="button" class="btn" id="y-ivpadd" style="padding:0 7px">+ point</button>`;
-    else n.innerHTML = `<span class="cap">IV stays at your input all year</span>`;
+    else n.innerHTML = `<span class="cap">IV stays at your input throughout</span>`;
     const e = q("#y-ivpe"); if (e) { e.value = Math.round(p.end * iv0); e.onchange = () => { const v = parseFloat(e.value); if (v > 0) p.end = v / iv0; schedule(10); }; }
     const g = q("#y-ivpg"); if (g) { g.value = p.g; g.onchange = () => { const v = parseFloat(g.value); if (Number.isFinite(v)) p.g = Math.max(-90, v); schedule(10); }; }
     if (p.mode === "pts") { n.onchange = ev => { const i = ev.target.dataset.i; if (i === undefined) return; const v = parseFloat(ev.target.value); if (!Number.isFinite(v)) return; if (ev.target.dataset.f === "w") p.pts[+i][0] = Math.round(v); else p.pts[+i][1] = v / iv0; schedule(10); };
@@ -625,7 +626,7 @@ const YR = ((YRE, YRS) => {
   const weekTicks = (W, px = 800) => { const raw = W * 74 / Math.max(200, px), step = [1, 2, 4, 8, 13, 26, 52].find(k => k >= raw) || 52; const out = []; for (let w = 0; w <= W; w += step) out.push(w); if (out[out.length - 1] !== W && W - out[out.length - 1] > step / 2) out.push(W); return out; };
   function rowAt(R, w) { const rs = R.main.rows; return rs.find(r => w > r.w0 && w <= r.w1) || rs.find(r => w >= r.w0 && w <= r.w1) || rs[rs.length - 1]; }
   function stackTip(w) {
-    const m = RES.mult, tkA = RES.A.run.tk; let h = `<span class="h">Week ${w} · ${fD(YRE.weekDate(w))}</span><span class="s">${tkA} ${fKs(m[w] * ys.sc.S0[tkA])}${RES.B && RES.B.run.tk !== tkA ? ` · ${RES.B.run.tk} ${fKs(m[w] * ys.sc.S0[RES.B.run.tk])}` : ""} · path ${fPs(m[w] - 1)}</span>`;
+    const m = RES.mult, tkA = RES.A.run.tk; let h = `<span class="h">Week ${w} · ${fD(COMPOUND_ENGINE.weekDate(w))}</span><span class="s">${tkA} ${fKs(m[w] * ys.sc.S0[tkA])}${RES.B && RES.B.run.tk !== tkA ? ` · ${RES.B.run.tk} ${fKs(m[w] * ys.sc.S0[RES.B.run.tk])}` : ""} · path ${fPs(m[w] - 1)}</span>`;
     for (const [who, R] of [["A", RES.A], ["B", RES.B]]) { if (!R) continue; const r = rowAt(R, Math.max(1, w)), cc = R.run.fam === "cc";
       h += `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who} typical NAV</span><span class="v">${f$(w === 0 ? ys.sc.cap0 : r.med)}</span></span>`;
       if (w) h += `<span class="r"><span class="k">10%–90%</span><span class="v">${f$(r.c10)} – ${f$(r.c90)}</span></span>`;
@@ -663,15 +664,15 @@ const YR = ((YRE, YRS) => {
     const w = Math.max(1, Math.min(ys.sc.W, ys.view.pin)), r = rowAt(R, w), i = rows.indexOf(r), prev = i ? rows[i - 1] : null;
     const S0 = r.S0, T = r.days / 365, v = r.sigma, g = r.S1 / r.S0 - 1, rates = ratesOf(), m = R.main.m;
     const y = r.pc / S0, a = r.Kc ? r.Kc / S0 - 1 : NaN;
-    const e = r.Kc ? YRE.bs(r.S1 * Math.exp(v * v / 2 - 0.04 * T), r.Kc, Math.max(T, 1e-9), v / Math.sqrt(Math.max(T, 1e-9)), "C") * Math.exp(0.04 * T) / S0 : 0;
-    const ePrice = r.Kc ? YRE.bs(S0, r.Kc, T, v / Math.sqrt(T), "C") * Math.exp(0.04 * T) / S0 : 0;
+    const e = r.Kc ? COMPOUND_ENGINE.bs(r.S1 * Math.exp(v * v / 2 - 0.04 * T), r.Kc, Math.max(T, 1e-9), v / Math.sqrt(Math.max(T, 1e-9)), "C") * Math.exp(0.04 * T) / S0 : 0;
+    const ePrice = r.Kc ? COMPOUND_ENGINE.bs(S0, r.Kc, T, v / Math.sqrt(T), "C") * Math.exp(0.04 * T) / S0 : 0;
     const edge = r.Kc ? 1 - ePrice / y : NaN;
     let body = "";
     const seg2 = RES.B ? `<span class="seg" id="y-grun"><button type="button" data-v="A" class="${who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${who === "B" ? "on" : ""}">B</button></span> ` : "";
     const head = `<h3>Growth, week ${w}<span class="sub">${fD(r.t0)} → ${fD(r.date)} · ${r.days} days · path ${fPs(g, 2)}</span><span class="stp">${seg2}<button type="button" class="btn" id="y-gp">◀</button> <button type="button" class="btn" id="y-gn">▶</button></span></h3>`;
     if (run.fam === "cc") {
       const lam = prev ? prev.lamTyp : run.lev, sh = prev ? prev.shMed : r.n, lots = Math.min(Math.floor(sh / 100 + 1e-9), ys.costs.liq || 1e9), c = sh > 0 ? Math.min(1, lots * 100 / sh) : 0;
-      const loanR = lam > 1 ? YRE.loanRate((lam - 1) * (prev ? prev.med : ys.sc.cap0), rates) : rates.tiered ? 0 : rates.cash;
+      const loanR = lam > 1 ? COMPOUND_ENGINE.loanRate((lam - 1) * (prev ? prev.med : ys.sc.cap0), rates) : rates.tiered ? 0 : rates.cash;
       const Rex = lam * (g + c * (y - Math.max(0, g - a))) + (1 - lam) * loanR * T, Ravg = lam * (Math.exp(v * v / 2) * (1 + g) - 1 + c * (y - e)) + (1 - lam) * loanR * T;
       const cred = lots * 100 * r.pc, buy = x => Math.floor(cred * x / S0);
       body = `<span class="f">R = λ·(g + c·(y − e)) + (1 − λ)·r·T
@@ -736,7 +737,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H + H2 + 8, xs: S.xs, toPx: X,
       tipAt: x => `<span class="h">${S.who} at ${xLabel(x)}</span>` + S.pols.map(pol => { const p = data.find(d => d.pol === pol && Math.abs(d.x - x) < 1e-9); if (!p) { return ""; }
         const name = S.pols.length > 1 ? `${pol === "rebal" ? "rebalance" : "reinvest"} · ` : "";
-        return tipRow(cls, `${name}typical NAV`, f$(p.med)) + tipRow(cls, `${name}margin call in the year`, fPc(p.called, 1)) + (p.sh ? tipRow(cls, `${name}shares (typical)`, fInt(p.sh)) : ""); }).join("") });
+        return tipRow(cls, `${name}typical NAV`, f$(p.med)) + tipRow(cls, `${name}margin call within ${ys.sc.W} wk`, fPc(p.called, 1)) + (p.sh ? tipRow(cls, `${name}shares (typical)`, fInt(p.sh)) : ""); }).join("") });
     if (S.kind === "lev") { const top = S.xs[S.xs.length - 1]; sv("line", { x1: X(top), x2: X(top), y1: 6, y2: H + H2 + 8, stroke: "var(--warn)", "stroke-dasharray": "2 3" }, s); st_(s, X(top) - 3, H - 16, "ceiling", { "text-anchor": "end", class: "yhalo", fill: "var(--warn)", "font-size": 10.5 }); }
   }
 
@@ -772,19 +773,19 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     if (y0 == null) lo = Math.min(lo, 0); if (!(hi > lo)) hi = lo + 1; const Y = yLin(lo, hi * 1.04, 6, H - 8);
     const ax = sv("g", { class: "yax" }, s);
     for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fmt(t), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(YRE.weekDate(w)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
     for (const S of series) { let d = ""; S.pts.forEach((p, i) => d += (i ? "L" : "M") + X(p[0]) + "," + Y(p[1])); sv("path", { d, fill: "none", stroke: `var(--${S.cls})`, "stroke-width": 2 }, s);
       const lp = S.pts[S.pts.length - 1]; st_(s, X(lp[0]) - 2, Y(lp[1]) - 6, `${S.cls.toUpperCase()} ${fmt(lp[1])}`, { "text-anchor": "end", class: "yhalo", fill: `var(--${S.cls})`, "font-size": 11, "font-weight": 600 }); }
     // the value of a stepped series at week w: its last point at or before w
     const valueAt = (S, w) => { let v = NaN; for (const p of S.pts) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
     const weeks = [...new Set(series.flatMap(S => S.pts.map(p => p[0])))].sort((a, b) => a - b);
     attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H - 8, xs: weeks, toPx: X,
-      tipAt: w => `<span class="h">${title}, week ${Math.round(w)} · ${fD(YRE.weekDate(Math.round(w)))}</span>` + series.map(S => tipRow(S.cls, S.cls.toUpperCase(), fmt(valueAt(S, w)))).join("") });
+      tipAt: w => `<span class="h">${title}, week ${Math.round(w)} · ${fD(COMPOUND_ENGINE.weekDate(Math.round(w)))}</span>` + series.map(S => tipRow(S.cls, S.cls.toUpperCase(), fmt(valueAt(S, w)))).join("") });
   }
   function renderCreditMargin() {
     const runs = [["a", RES.A], RES.B ? ["b", RES.B] : null].filter(Boolean), W = ys.sc.W;
-    lineChart(q("#y-credit"), "Credit collected", "cumulative, averaged over the years the model spans", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.cumCredit])] })), f$);
-    lineChart(q("#y-margin"), "Margin call so far", "share of years with at least one margin call by that week", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.called])] })), v => fPc(v, 0), 0, 1);
+    lineChart(q("#y-credit"), "Credit collected", "cumulative, averaged over the outcomes", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.cumCredit])] })), f$);
+    lineChart(q("#y-margin"), "Margin call so far", "share of outcomes with at least one margin call by that week", runs.map(([cls, R]) => ({ cls, pts: [[0, 0], ...R.main.rows.map(r => [Math.min(r.w1, W), r.called])] })), v => fPc(v, 0), 0, 1);
   }
 
   // ---------------------------------------------------------- table
@@ -808,13 +809,13 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       <h3>Strikes and contracts</h3><p>Each cycle picks the listed strike whose Δ is nearest the target, on a $1 grid unless the ticker is set to $0.50 in Costs and rates. Ties go further from the money. Contracts and shares are whole; covered calls need full 100-share lots. Δ runs to 90 on either leg; above 50 a leg is in the money, and two legs above 50 make a short guts (the put above the call). Ratios use time value, so intrinsic value never inflates the yield.</p>
       <h3>Margin (IBKR, leveraged ETFs)</h3><p>Shares: 25% × the leverage factor, initial and maintenance alike (KORU 75%, RAM 50%), so ${"1/m"} is the most leverage (KORU 1.33x) and the last dollar of buying power has no cushion. Naked options: the Reg T percentages × the leverage factor (KORU 60% / 30%). Equity with loan value leaves US options out. Margin is checked daily (the trigger is shifted by one daily move).</p>
       <h3>Modus operandi</h3><p><b>Reinvest</b>: the kept credit × leverage buys more shares at expiry; leverage drifts up after drops and down after rallies. <b>Rebalance</b>: shares return to target leverage each expiry. <b>Keep as cash</b>: the baseline. <b>Only what IBKR requires</b>: after a margin call the account rides the limit, selling as it makes new lows (equity ∝ price^(1/m)), then holds from the cycle's low; computed from the joint odds of each cycle's low and close. <b>Back to a target</b>: sell down to the target leverage at the trigger. Strangles are closed at the trigger under both rules (an approximation for the IBKR rule).</p>
-      <h3>Typical, average and the bands</h3><p>The engine carries the distribution of ln NAV through the year (a lattice over leverage for share runs) and reads the median and 10%/90% from its first three moments. "Average" is the mean NAV. Margin-call odds are the share of years with at least one call. Each cycle is independent given its start; correlation between two tickers is not modelled, so A and B are never compared path by path.</p>
+      <h3>Typical, average and the bands</h3><p>The engine carries the distribution of ln NAV week by week (a lattice over leverage for share runs) and reads the median and 10%/90% from its first three moments. "Average" is the mean NAV. Margin-call odds are the share of outcomes with at least one call. Each cycle is independent given its start; correlation between two tickers is not modelled, so A and B are never compared path by path.</p>
       <h3>Not modelled</h3><p>Early assignment, dividends, IV changes within a cycle, the skew (flat IV across strikes), trading halts, gaps beyond the lognormal spread (see the Stress view), IBKR's own choice of what to liquidate, portfolio margin.</p>`;
   }
 
   // ---------------------------------------------------------- reading / stack menus
   function buildMenus() {
-    q("#y-readmb").innerHTML = `<span class="mt">How results are read</span><span class="mrow"><span class="lbl">Main number and line</span><span class="seg" id="y-rd"></span></span><span class="cap">Typical = the median year. Average is pulled up by the best years.</span>`;
+    q("#y-readmb").innerHTML = `<span class="mt">How results are read</span><span class="mrow"><span class="lbl">Main number and line</span><span class="seg" id="y-rd"></span></span><span class="cap">Typical = the median outcome. Average is pulled up by the best outcomes.</span>`;
     segY(q("#y-rd"), [["typ", "Typical"], ["avg", "Average"]], () => ys.view.reading, v => ys.view.reading = v);
     q("#y-stackmb").innerHTML = `<span class="mt">Chart display</span><span class="mrow"><span class="lbl">10%–90% band</span><span class="seg" id="y-band"></span></span>
       <span class="mrow"><label class="chk"><input type="checkbox" id="y-exact">exactly on the path (dashed)</label></span><span class="mrow"><label class="chk"><input type="checkbox" id="y-wig">realized-move band on the price</label></span>`;
@@ -836,22 +837,22 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const S = ssOf(), scen = scenOf(), W = ys.sc.W, out = {};
     for (const who of ["A", "B"]) { const R = RES[who]; if (!R) continue;
       const main = { ...R.main, run: R.run }, sc = { cap0: ys.sc.cap0, W, mult: RES.mult }, costs = costsOf(), rules = rulesOf(R.run.tk);
-      const snaps = Array.from({ length: W }, (_, w) => YRS.snapshot(main, w, sc, costs));
-      const by = snaps.map(sn => { const r = YRS.run(sn, scen, rules, costs); return { w: sn.w + 1, nav: r.navBefore, loss: r.lossEnd, lossLow: r.lossLow, call: r.ev.call, wiped: r.ev.wiped, deficit: r.ev.deficit, r }; });
-      const rooms = snaps.map(sn => YRS.room(sn, rules, costs));
+      const snaps = Array.from({ length: W }, (_, w) => COMPOUND_STRESS.snapshot(main, w, sc, costs));
+      const by = snaps.map(sn => { const r = COMPOUND_STRESS.run(sn, scen, rules, costs); return { w: sn.w + 1, nav: r.navBefore, loss: r.lossEnd, lossLow: r.lossLow, call: r.ev.call, wiped: r.ev.wiped, deficit: r.ev.deficit, r }; });
+      const rooms = snaps.map(sn => COMPOUND_STRESS.room(sn, rules, costs));
       out[who] = { R, snaps, by, rooms, rules, costs };
     }
     // the chosen week: fixed, or the week of A's largest $ loss
     let wk = S.week === "worst" ? out.A.by.reduce((b, x) => x.loss > b.loss ? x : b, out.A.by[0]).w : Math.min(W, Math.max(1, +S.week));
     out.week = wk;
     for (const who of ["A", "B"]) { const o = out[who]; if (!o) continue; const sn = o.snaps[wk - 1];
-      o.cur = YRS.run(sn, scen, o.rules, o.costs); o.given = YRS.givenUp(sn, scen, o.rules, o.costs);
-      o.curve = []; for (let m = -90; m <= 100; m += 2.5) { const r = YRS.run(sn, { shape: "gap", X: m / 100, unit: "etf" }, { ...o.rules }, o.costs); o.curve.push([m / 100, (r.navEnd - r.navBefore), !!r.ev.call, r.ev.wiped]); }
+      o.cur = COMPOUND_STRESS.run(sn, scen, o.rules, o.costs); o.given = COMPOUND_STRESS.givenUp(sn, scen, o.rules, o.costs);
+      o.curve = []; for (let m = -90; m <= 100; m += 2.5) { const r = COMPOUND_STRESS.run(sn, { shape: "gap", X: m / 100, unit: "etf" }, { ...o.rules }, o.costs); o.curve.push([m / 100, (r.navEnd - r.navBefore), !!r.ev.call, r.ev.wiped]); }
       o.room = o.rooms[wk - 1]; }
     return SRES = out;
   }
   function stressBar() {
-    const S = ssOf(), L = YRE.LEV[ys.A.tk];
+    const S = ssOf(), L = COMPOUND_ENGINE.LEV[ys.A.tk];
     const one = S.unit === "index" ? Math.max(-1, L * S.X / 100) : S.X / L / 100;
     q("#y-seq").textContent = S.unit === "index" ? `= ${ys.A.tk} ${fPs(one, 1)} in a session` : `= index ${fPs(one, 1)} in one session`;
     const sh = q("#y-sshp"), sig = S.shape;
@@ -861,7 +862,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       if (q("#y-sn")) numY(q("#y-sn"), () => S.n, v => S.n = Math.round(v), { min: 1, max: 12 });
       if (q("#y-sb")) numY(q("#y-sb"), () => S.back, v => S.back = Math.round(v), { min: 0, max: 10 }); }
     const sl = q("#y-sw"); sl.max = ys.sc.W; if (document.activeElement !== sl) sl.value = SRES ? SRES.week : 1;
-    q("#y-swo").textContent = (S.week === "worst" ? "worst: " : "") + (SRES ? `${SRES.week} (${fD(YRE.weekDate(SRES.week - 1))})` : "");
+    q("#y-swo").textContent = (S.week === "worst" ? "worst: " : "") + (SRES ? `${SRES.week} (${fD(COMPOUND_ENGINE.weekDate(SRES.week - 1))})` : "");
     q("#y-sworst").classList.toggle("on", S.week === "worst");
     const ivEnd = SRES && SRES.A.cur ? SRES.A.cur.ivEnd : null; q("#y-sivsum").innerHTML = ivEnd ? `IV → <b>${Math.round(ivEnd * 100)}%</b>` : "IV";
   }
@@ -888,7 +889,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const runs = [["A", SRES.A], SRES.B ? ["B", SRES.B] : null].filter(Boolean), wk = SRES.week;
     // strip
     q("#y-sstrip").innerHTML = runs.map(([who, o]) => { const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
-      const used = YRS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter), lev = cc ? sn.n * sn.S / Math.max(1, nb) : null;
+      const used = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter), lev = cc ? sn.n * sn.S / Math.max(1, nb) : null;
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
         <span class="cell big"><span class="l">Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin</span><span class="v">${f$(nb)}</span></span>
         <span class="cell c2"><span class="l">At the low</span><span class="v" style="font-size:14px" class="${r.lossLow > 0 ? "neg" : ""}">${fPs(-r.lossLow / nb)} <small>${f$(-r.lossLow)}</small></span></span>
@@ -896,7 +897,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
         <span class="cell c3" style="width:200px"><span class="l">Margin call</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
         ${r.ev.deficit > 0 ? `<span class="cell"><span class="l">Deficit</span><span class="v neg" style="font-size:14px">you owe IBKR ${f$(r.ev.deficit)}</span></span>` : ""}
         ${o.given > 1 ? `<span class="cell"><span class="l">Upside given up (not a loss)</span><span class="v" style="font-size:14px">${f$(o.given)}</span></span>` : ""}
-        <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"} (index ${o.room.callDown != null ? fPs(o.room.callDown / YRE.LEV[o.R.run.tk], 1) : "–"} for the call)</span></span>`; }).join("");
+        <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"} (index ${o.room.callDown != null ? fPs(o.room.callDown / COMPOUND_ENGINE.LEV[o.R.run.tk], 1) : "–"} for the call)</span></span>`; }).join("");
     q("#y-sbwsub").textContent = `${scenTxt()} · click a week to inspect it`;
     // loss by week: $ and % stacked
     const host = q("#y-sbw"); host.innerHTML = ""; const Wd = Math.max(600, host.parentElement.clientWidth - 30), l = 62, rM = 110, pw = Wd - l - rM, W = ys.sc.W, X = w => l + (w - 1) / Math.max(1, W - 1) * pw;
@@ -904,7 +905,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       for (const [, o] of runs) for (const b of o.by) { const v = valOf(b); lo = Math.min(lo, v); hi = Math.max(hi, v); } if (hi - lo < 1e-9) hi = lo + 1; const pad = (hi - lo) * 0.08; const Y = yLin(lo - pad, hi + pad, 16, H - 16);
       const ax = sv("g", { class: "yax" }, s); st_(s, l, 10, title, { "font-size": 11, fill: "var(--ink-2)" });
       for (const t of niceTicks(lo - pad, hi + pad, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fmt(t), { "text-anchor": "end" }); }
-      for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(YRE.weekDate(w - 1)), { "text-anchor": "middle" });
+      for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": "middle" });
       for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.by.forEach((b, i) => d += (i ? "L" : "M") + X(b.w) + "," + Y(valOf(b))); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, s);
         for (const b of o.by) { if (b.wiped) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3.2, fill: "var(--neg)" }, s); else if (b.call) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3, fill: "none", stroke: "var(--shade)", "stroke-width": 1.4 }, s); }
         const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(valOf(lb)) + 4, `${who} ${fmt(valOf(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
@@ -914,7 +915,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       hit.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
       hit.addEventListener("pointermove", ev => { const rc = s.getBoundingClientRect(), w = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1));
         cross.setAttribute("x1", String(X(w))); cross.setAttribute("x2", String(X(w))); cross.setAttribute("visibility", "visible");
-        showTip(`<span class="h">Hits in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const b = o.by[w - 1]; return `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who}: NAV ${f$(b.nav)}</span><span class="v neg">${f$(-b.loss)} (${fPs(-b.loss / b.nav)})</span></span>${b.call ? `<span class="s">margin call day ${b.call.day}${b.wiped ? " · wiped out" : ""}</span>` : ""}`; }).join(""), ev.clientX, ev.clientY); });
+        showTip(`<span class="h">Hits in week ${w} · ${fD(COMPOUND_ENGINE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const b = o.by[w - 1]; return `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who}: NAV ${f$(b.nav)}</span><span class="v neg">${f$(-b.loss)} (${fPs(-b.loss / b.nav)})</span></span>${b.call ? `<span class="s">margin call day ${b.call.day}${b.wiped ? " · wiped out" : ""}</span>` : ""}`; }).join(""), ev.clientX, ev.clientY); });
       hit.addEventListener("pointerleave", hideTip);
       hit.addEventListener("click", ev => { const rc = s.getBoundingClientRect(); ssOf().week = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1)); schedule(10); }); };
     mkChart(220, b => -b.loss, f$, "Change in NAV, $ (amber ring = margin call, red dot = wiped out)");
@@ -923,15 +924,15 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const rh = q("#y-sroom"); rh.innerHTML = ""; const H = 230, s = sv("svg", { width: Wd, height: H + 26, viewBox: `0 0 ${Wd} ${H + 26}` }, rh);
     let lo = -1, hi = 0; for (const [, o] of runs) for (const r of o.rooms) for (const k of ["callUp", "zeroUp"]) if (r[k] != null) hi = Math.max(hi, Math.min(r[k], 2));
     hi = Math.max(hi, 0.2); const Y = yLin(lo, hi * 1.05, 8, H - 12), ax = sv("g", { class: "yax" }, s);
-    for (const t of niceTicks(lo, hi, 6)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fPs(t, 0), { "text-anchor": "end" }); st_(ax, l + pw + 6, Y(t) + 3.5, "index " + fPs(t / YRE.LEV[ys.A.tk], 0), {}); }
-    for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(YRE.weekDate(w - 1)), { "text-anchor": "middle" });
+    for (const t of niceTicks(lo, hi, 6)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fPs(t, 0), { "text-anchor": "end" }); st_(ax, l + pw + 6, Y(t) + 3.5, "index " + fPs(t / COMPOUND_ENGINE.LEV[ys.A.tk], 0), {}); }
+    for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": "middle" });
     sv("line", { x1: l, x2: l + pw, y1: Y(0), y2: Y(0), stroke: "var(--ink-3)" }, s);
     if (ys.A.tk === "KORU") for (const [v, t] of [[-0.353, "worst open gap, 3 Mar 26: −35.3%"], [-0.514, "worst week low: −51.4%"]]) { sv("line", { x1: l, x2: l + pw, y1: Y(v), y2: Y(v), stroke: "var(--warn)", "stroke-dasharray": "1 3" }, s); st_(s, l + 4, Y(v) - 3, t, { class: "yhalo", fill: "var(--warn)", "font-size": 10 }); }
     for (const [who, o] of runs) { const cls = who.toLowerCase();
       for (const [k, dash] of [["callDown", ""], ["zeroDown", "5 4"], ["callUp", ""], ["zeroUp", "5 4"]]) { let d = "", on = false; o.rooms.forEach((r, i) => { const v = r[k]; if (v == null || Math.abs(v) > 2) { on = false; return; } d += (on ? "L" : "M") + X(i + 1) + "," + Y(v); on = true; }); if (d) sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": dash ? 1.3 : 2, "stroke-dasharray": dash }, s); } }
     const roomTxt = v => v == null ? "none" : fPs(v, 0);
     attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 12, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
-      tipAt: w => `<span class="h">Room in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const r = o.rooms[w - 1] || {}, cls = who.toLowerCase();
+      tipAt: w => `<span class="h">Room in week ${w} · ${fD(COMPOUND_ENGINE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const r = o.rooms[w - 1] || {}, cls = who.toLowerCase();
         return tipRow(cls, `${who} margin call at`, `${roomTxt(r.callDown)}${r.callUp != null ? ` / ${roomTxt(r.callUp)}` : ""}`) + tipRow(cls, `${who} NAV 0 at`, `${roomTxt(r.zeroDown)}${r.zeroUp != null ? ` / ${roomTxt(r.zeroUp)}` : ""}`); }).join("") });
     // curve at the chosen week + breakdown
     const ch = q("#y-scurve"); ch.innerHTML = `<h3>Loss against the size of a gap<span class="sub">week ${wk}, one-session gap in the ETF</span></h3>`; const Wc = Math.max(320, ch.getBoundingClientRect().width), Hc = 230, lc = 56, pc = Wc - lc - 16, sc_ = sv("svg", { width: Wc, height: Hc + 26, viewBox: `0 0 ${Wc} ${Hc + 26}` }, ch);
@@ -945,7 +946,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     const gaps = [...new Set(runs.flatMap(([, o]) => o.curve.map(c => c[0])))].sort((a, b) => a - b);
     attachCursor({ svg: sc_, left: lc, width: pc, top: 8, bottom: Hc - 12, xs: gaps, toPx: Xc,
       tipAt: m => `<span class="h">ETF gap ${fPs(m, 1)} · week ${wk}</span>` + runs.map(([who, o]) => { const c = o.curve.find(e => Math.abs(e[0] - m) < 1e-9); return c ? tipRow(who.toLowerCase(), who, `${f$(c[1])}${c[2] ? " · call assigned" : ""}`) : ""; }).join("") });
-    if (ssOf().shape === "gap") { const mv = ssOf().unit === "index" ? Math.max(-1, YRE.LEV[ys.A.tk] * ssOf().X / 100) : ssOf().X / 100; sv("line", { x1: Xc(mv), x2: Xc(mv), y1: 8, y2: Hc - 12, stroke: "var(--ink)", "stroke-dasharray": "3 3" }, sc_); }
+    if (ssOf().shape === "gap") { const mv = ssOf().unit === "index" ? Math.max(-1, COMPOUND_ENGINE.LEV[ys.A.tk] * ssOf().X / 100) : ssOf().X / 100; sv("line", { x1: Xc(mv), x2: Xc(mv), y1: 8, y2: Hc - 12, stroke: "var(--ink)", "stroke-dasharray": "3 3" }, sc_); }
     // breakdown
     const bh = q("#y-sbreak"); bh.innerHTML = `<h3>What happened, week ${wk}<span class="sub">${scenTxt()}</span></h3>` + runs.map(([who, o]) => { const r = o.cur, nb = r.navBefore, sh = r.ev.pnlSh, opt = (r.navEnd - nb) - sh + r.ev.slip;
       return `<span class="ygc" style="display:block;margin-bottom:10px"><span class="key ${who.toLowerCase()}">${who}</span> <span class="f">NAV before          ${f$(nb).padStart(10)}
@@ -953,12 +954,12 @@ shares              ${f$(sh).padStart(10)}
 options and cash    ${f$(opt).padStart(10)}
 forced-sale fills   ${f$(-r.ev.slip).padStart(10)}
 NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})${o.given > 1 ? `\nupside given up     ${f$(o.given).padStart(10)}  (not a loss)` : ""}${r.ev.deficit > 0 ? `\ndeficit             ${f$(r.ev.deficit).padStart(10)}` : ""}</span></span>`; }).join("");
-    q("#y-snotesb").innerHTML = `<p>The account hit is the typical account of the year engine at the chosen week: its shares, cash and this cycle's open legs. The move is a sequence of sessions; gaps land at the open. At each session every leg is marked (Black at the IV after the move, with the time left), IBKR's maintenance test runs (equity with loan value excludes US options; covered shares count at the lower of price and strike; naked legs use the Reg T percentages × the leverage factor), and on a breach the run's Modus operandi decides what is sold: only what IBKR requires (the smallest pro-rata fraction, whole units, rounded up) or back to the target leverage. Fills at the gap: shares at the price less the slippage, options at the mark plus a multiple of the half-spread. At expiry, in-the-money legs are assigned and the test runs again; the strategy then keeps trading or stops, as the run says. NAV below zero after everything is closed is a deficit owed to IBKR.</p>
+    q("#y-snotesb").innerHTML = `<p>The account hit is the typical account of the week-by-week engine at the chosen week: its shares, cash and this cycle's open legs. The move is a sequence of sessions; gaps land at the open. At each session every leg is marked (Black at the IV after the move, with the time left), IBKR's maintenance test runs (equity with loan value excludes US options; covered shares count at the lower of price and strike; naked legs use the Reg T percentages × the leverage factor), and on a breach the run's Modus operandi decides what is sold: only what IBKR requires (the smallest pro-rata fraction, whole units, rounded up) or back to the target leverage. Fills at the gap: shares at the price less the slippage, options at the mark plus a multiple of the half-spread. At expiry, in-the-money legs are assigned and the test runs again; the strategy then keeps trading or stops, as the run says. NAV below zero after everything is closed is a deficit owed to IBKR.</p>
       <p>Index moves convert through the fund's daily reset: one session of r on the index is max(0, 1 + L·r) − 1 for the ETF, so a −33.3% index session takes KORU to 0. KRX halts trading for 20 minutes at −8% and −15% on KOSPI and ends the session at −20% (each once a day), so one Korean session caps near KORU −60%; weekends and US holidays can stack sessions. Upside given up by covered calls is shown apart from losses: it is what the same shares alone would have gained above what the strategy made.</p>
       <p>Not modelled: trading halts, IBKR's own choice of what to liquidate, house margin changes unless set under Rules, intraday paths inside a session.</p>`;
   }
 
-  // ---------------------------------------------------------- Random years (Monte Carlo, opt-in, sliced on the main thread)
+  // ---------------------------------------------------------- Random paths (Monte Carlo, opt-in, sliced on the main thread)
   let MC = { key: "", res: null, job: 0, prog: 0 };
   // the Monte Carlo inputs: the runs, this tab's state and the vol paths the runs read (the shared period vol lives
   // outside this tab's state, so a vol changed on Compare A vs B marks the last run stale; the IV path shapes them too)
@@ -979,10 +980,10 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
   }
   function runMC() {
     const M = ys.mc, job = ++MC.job, key = mcKey(), W = ys.sc.W, costs = costsOf();
-    const parts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => ({ who, R, snap: YRS.snapshot({ ...R.main, run: R.run }, 0, { cap0: ys.sc.cap0, W, mult: RES.mult }, costs), vol: (v0 => volArrays(v0.iv, v0.rv))(readRunVol({ run: R.run, slot: who })),
+    const parts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => ({ who, R, snap: COMPOUND_STRESS.snapshot({ ...R.main, run: R.run }, 0, { cap0: ys.sc.cap0, W, mult: RES.mult }, costs), vol: (v0 => volArrays(v0.iv, v0.rv))(readRunVol({ run: R.run, slot: who })),
  mA: ys.costs.mOvr[R.run.tk], out: [] }));
     let i = 0; const N = M.paths, step = () => { if (job !== MC.job) return; const t0 = performance.now();
-      while (i < N && performance.now() - t0 < 40) { const to = Math.min(N, i + 25); for (const P of parts) P.out.push(...YRS.mcRun(P.snap, RES.mult, P.vol.rv, W, M.seed, i, to, costs, P.mA, Array.isArray(P.vol.iv) ? P.vol.iv : null)); i = to; }
+      while (i < N && performance.now() - t0 < 40) { const to = Math.min(N, i + 25); for (const P of parts) P.out.push(...COMPOUND_STRESS.mcRun(P.snap, RES.mult, P.vol.rv, W, M.seed, i, to, costs, P.mA, Array.isArray(P.vol.iv) ? P.vol.iv : null)); i = to; }
       MC.prog = i / N; const pe = q("#y-mcp"); if (pe) pe.textContent = `running… ${Math.round(MC.prog * 100)}%`;
       if (i < N) setTimeout(step, 0); else { MC = { key, job, prog: 1, res: parts }; if (q("#y-mcb")) drawMC(false); const pe2 = q("#y-mcp"); if (pe2) pe2.textContent = `${N.toLocaleString("en-US")} paths per run, seed ${M.seed}`; } };
     setTimeout(step, 0);
@@ -996,24 +997,24 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     let lo = Infinity, hi = -Infinity; for (const b of bands) for (const c of b) { lo = Math.min(lo, c[0]); hi = Math.max(hi, c[4]); } lo = Math.max(lo * 0.9, 500); hi *= 1.1;
     const Y = v => 8 + (Math.log(hi) - Math.log(Math.max(v, lo))) / (Math.log(hi) - Math.log(lo)) * (H - 16), ax = sv("g", { class: "yax" }, s);
     for (const t of logTicks(lo, hi)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(YRE.weekDate(w)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
     parts.forEach((P, k) => { const cls = P.who.toLowerCase(), b = bands[k], xs = b.map((_, w) => X(w + 1));
       for (const [i0, i1, op] of [[0, 4, 0.08], [1, 3, 0.16]]) { let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[i1])}`); for (let w = b.length - 1; w >= 0; w--) d += `L${xs[w]},${Y(b[w][i0])}`; sv("path", { d: d + "Z", fill: `var(--${cls})`, opacity: op }, s); }
       let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[2])}`); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s);
       const er = P.R.main.rows; let e = `M${X(0)},${Y(ys.sc.cap0)}`; er.forEach(r => e += `L${X(Math.min(r.w1, W))},${Y(r.med)}`); sv("path", { d: e, fill: "none", stroke: `var(--${cls})`, "stroke-width": 1.2, "stroke-dasharray": "4 4" }, s);
       st_(s, l + pw + 6, Y(b[W - 1][2]) + 4, `${P.who} ${f$(b[W - 1][2])}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); });
     attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 8, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
-      tipAt: w => `<span class="h">Random years, week ${w} · ${fD(YRE.weekDate(w))}</span>` + parts.map((P, k) => { const c = bands[k][w - 1], cls = P.who.toLowerCase();
+      tipAt: w => `<span class="h">Random paths, week ${w} · ${fD(COMPOUND_ENGINE.weekDate(w))}</span>` + parts.map((P, k) => { const c = bands[k][w - 1], cls = P.who.toLowerCase();
         return tipRow(cls, `${P.who} median`, f$(c[2])) + tipRow(cls, `${P.who} 25–75%`, `${f$(c[1])} – ${f$(c[3])}`) + tipRow(cls, `${P.who} 5–95%`, `${f$(c[0])} – ${f$(c[4])}`); }).join("") });
     const tb = document.createElement("span"); tb.className = "ytab"; host.appendChild(tb);
     const row = P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), dd = P.out.map(o => o.dd).sort((a, b) => a - b), n = e.length, w5 = e.slice(0, Math.max(1, Math.floor(n * 0.05))), pc = P.out.reduce((t, o) => t + o.call, 0) / n, se = Math.sqrt(pc * (1 - pc) / n);
       return `<tr><td><span class="key ${P.who.toLowerCase()}">${P.who}</span></td><td>${f$(qn(e, .05))}</td><td>${f$(qn(e, .1))}</td><td><b>${f$(qn(e, .5))}</b></td><td>${f$(qn(e, .9))}</td><td>${f$(qn(e, .95))}</td><td>${f$(w5.reduce((a, b) => a + b, 0) / w5.length)}</td><td>${fPc(qn(dd, .5), 0)} / ${fPc(qn(dd, .9), 0)}</td><td>${fPc(pc, 1)} ± ${(se * 100).toFixed(1)}</td><td>${fPc(P.out.reduce((t, o) => t + o.wiped, 0) / n, 1)}</td></tr>`; };
     tb.innerHTML = `<table><thead><tr><th></th><th>5%</th><th>10%</th><th>median</th><th>90%</th><th>95%</th><th>worst 5% avg</th><th>drawdown med / 90%</th><th>≥ 1 margin call</th><th>NAV ≤ 0</th></tr></thead><tbody>${parts.map(row).join("")}</tbody></table>
       <p style="margin:6px 0 0;font-size:12px">${parts.map(P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), med = qn(e, .5), pc = P.out.reduce((t, o) => t + o.call, 0) / e.length; return `<span class="key ${P.who.toLowerCase()}">${P.who}</span> check against the engine: median ${f$(med)} vs ${f$(P.R.main.end.med)} (${fPs(med / P.R.main.end.med - 1)}), margin call ${fPc(pc, 0)} vs ${fPc(P.R.main.end.called, 0)}`; }).join(" &nbsp; ")}</p>
-      <p class="cap" style="margin-top:6px">Solid line and bands: random years (median, 25–75%, 5–95%). Dashed: the engine's typical track. Each run sees the same random ${ys.A.tk} paths. Plain lognormal daily moves, Monday carrying three days; no jumps. Options are marked with the time actually left, so strangle margin calls come out more often here than in the engine, which marks at half the cycle.</p>`;
+      <p class="cap" style="margin-top:6px">Solid line and bands: random paths (median, 25–75%, 5–95%). Dashed: the engine's typical track. Each run sees the same random ${ys.A.tk} paths. Plain lognormal daily moves, Monday carrying three days; no jumps. Options are marked with the time actually left, so strangle margin calls come out more often here than in the engine, which marks at half the cycle.</p>`;
   }
   // ---------------------------------------------------------- persistence (the app saves; we expose state)
-  // the page's port (YR.init({port})): saveView writes the blob and the address, showNotice toasts, periodVol reads
+  // the page's port (COMPOUND.init({port})): saveView writes the blob and the address, showNotice toasts, periodVol reads
   // and writes the page's period vol (read(ticker) -> % as stored, 0 allowed; write({ticker, pct, source?, expiry?}) runs the
   // page's command, source Set unless a preset is named). Until init it is inert, with a period vol of its own
   /** @typedef {{ source: string, label: string, short: string, pct: number, expiry?: string }} YrVolRef */
@@ -1073,7 +1074,20 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
   }
   function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) } };
     ys.sc = sanitizeVolFields(ys.sc);
+    ys = migrateWeeksVocabulary(ys);
     for (const r of [ys.A, ys.B]) { r.modus = { ...MODUS0, ...(r.modus || {}) }; if (r.tk === "RAM" && r.cad === "wk") { r.cad = "mo"; setTimeout(() => port.showNotice("RAM lists monthly options only: the run was set to monthly"), 0); } } dockSig = ""; }
+  // views saved before the tab spoke only in weeks: the "year" view is the Weeks view, and growth rates typed per 52
+  // weeks become growth over the weeks shown (the same rate compounded over W weeks)
+  const overWeeks = ({ perFiftyTwo, weeks }) => Math.pow(1 + perFiftyTwo, weeks / 52) - 1;
+  function migrateWeeksVocabulary(state) {
+    const next = clone(state), weeks = Math.max(1, +next.sc.W || 52);
+    if (next.view && next.view.v === "year") { next.view.v = "weeks"; }
+    const path = next.sc.path;
+    if (path && path.gUnit === "yr") { path.g = overWeeks({ perFiftyTwo: +path.g || 0, weeks }); path.gUnit = "span"; }
+    const ivPath = next.ivp;
+    if (ivPath && ivPath.gUnit !== "span") { ivPath.g = +(overWeeks({ perFiftyTwo: (+ivPath.g || 0) / 100, weeks }) * 100).toFixed(4); ivPath.gUnit = "span"; }
+    return next;
+  }
   function reset() { ys = DEF(); dockSig = ""; CACHE.clear(); SW.key = ""; }
 
   // ---------------------------------------------------------- render
@@ -1091,8 +1105,8 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     q("#y-dockhide").onclick = () => { ys.view.dockOff = true; document.body.classList.add("ydock-off"); setTimeout(() => render("full"), 30); };
     q("#y-dockshow").onclick = () => { ys.view.dockOff = false; document.body.classList.remove("ydock-off"); setTimeout(() => render("full"), 30); };
     buildMenus(); renderNotes(); buildStressBar();
-    q("#y-sbase").onclick = () => { ys.view.v = "year"; schedule(10); };
-    segY(q("#y-view"), [["year", "Year"], ["stress", "Stress"]], () => ys.view.v || "year", v => { ys.view.v = v; });
+    q("#y-sbase").onclick = () => { ys.view.v = "weeks"; schedule(10); };
+    segY(q("#y-view"), [["weeks", "Weeks"], ["stress", "Stress"]], () => ys.view.v || "weeks", v => { ys.view.v = v; });
     let rz = 0; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (document.body.dataset.tab === "yr") render("full"); }, 150); });
   }
   function render(mode = "full") {
@@ -1112,4 +1126,4 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     saveSoon();
   }
   return { init, render, getState, setState, reset, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
-})(YRE, YRS);
+})(COMPOUND_ENGINE, COMPOUND_STRESS);

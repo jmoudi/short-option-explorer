@@ -10,7 +10,7 @@ declare namespace Lab {
 }
 declare const D: Lab.Data;
 interface Window { claude?: Lab.ViewerRuntime }
-// The Compounding engine files also export their namespace for node (`module.exports = YRE`), which makes tsc read
+// The Compounding engine files also export their namespace for node (`module.exports = COMPOUND_ENGINE`), which makes tsc read
 // them as CommonJS modules; the bundle uses them as globals.
-declare const YRE: typeof import("../yr_engine.js");
-declare const YRS: typeof import("../yr_stress.js");
+declare const COMPOUND_ENGINE: typeof import("../compound_engine.js");
+declare const COMPOUND_STRESS: typeof import("../compound_stress.js");

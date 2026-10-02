@@ -1,5 +1,5 @@
-// T22 build smoke tests: the build's options keep working with the tsc gate on (python3 build.py --no-yr builds the
-// YR stub and type-checks exactly the bundled files), and the Compounding files cannot reach the page except through
+// T22 build smoke tests: the build's options keep working with the tsc gate on (python3 build.py --no-compounding builds the
+// Compounding stub and type-checks exactly the bundled files), and the Compounding files cannot reach the page except through
 // their port. Each build writes to a temporary folder (--out) under this folder's scratch/, never to this folder's
 // outputs and never outside this folder.
 "use strict";
@@ -26,26 +26,26 @@ function build({ args, folder }) {
   return { out, run, text: run.stdout + run.stderr };
 }
 
-test("T22 build --no-yr: the YR stub is bundled and type-checked, the tsc gate passes", () => {
-  const { out, run, text } = build({ args: ["--no-yr"] });
+test("T22 build --no-compounding: the Compounding stub is bundled and type-checked, the tsc gate passes", () => {
+  const { out, run, text } = build({ args: ["--no-compounding"] });
   try {
     assert.equal(run.status, 0, text);
     assert.match(text, /tsc: 0 error\(s\)/);
     const page = fs.readFileSync(path.join(out, "lab.html"), "utf8");
-    assert.match(page, /YR stub \(yr_ui\.js not built\)/);
-    assert.doesNotMatch(page, /---- yr_ui\.js\n/);
+    assert.match(page, /Compounding stub \(compound_ui\.js not built\)/);
+    assert.doesNotMatch(page, /---- compound_ui\.js\n/);
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });
 
-test("T22 build: a yr file that reaches the page outside its port fails the build", () => {
+test("T22 build: a Compounding file that reaches the page outside its port fails the build", () => {
   const copy = makeScratchFolder("rk_src_");
   try {
     copySources(copy);
-    const yr = path.join(copy, "yr_ui.js");
+    const yr = path.join(copy, "compound_ui.js");
     fs.writeFileSync(yr, fs.readFileSync(yr, "utf8").replace("let port = {", "const leak = () => page.executor.execute({ type: Command.Reset });\n  let port = {"));
     const { out, run, text } = build({ args: ["--no-tsc"], folder: copy });
     fs.rmSync(out, { recursive: true, force: true });
     assert.equal(run.status, 1, text);
-    assert.match(text, /yr_ui\.js: uses comparer name page/); assert.match(text, /yr_ui\.js: uses comparer name Command/);
+    assert.match(text, /compound_ui\.js: uses comparer name page/); assert.match(text, /compound_ui\.js: uses comparer name Command/);
   } finally { fs.rmSync(copy, { recursive: true, force: true }); }
 });

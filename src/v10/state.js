@@ -12,7 +12,7 @@ const STATE = (() => {
   const PREFS_DEF = Object.freeze({
     units: ReadingUnit.Percent, ovm: "cr", ovv: "chart", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
     ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, cs: "comp", cr: "auto", crx: 20, shared: true,
-    sweep: "both", swSmooth: false, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
+    sweep: "both", sweepSmoothing: 0, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: "worse", rdL: 60, rdBase: "nav", rdCap: "margin", rdG: GrowthRate.Ev, rdGc: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
@@ -108,7 +108,7 @@ const STATE = (() => {
   }
   function sanitizePrefs(o) {
     const s = sanFlat(o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.jday = Math.round(clamp(s.jday, -1, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.jday = Math.round(clamp(s.jday, -1, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);
     s.exportSections = sanitizeExportSections(isObj(o) ? o.exportSections : null);
     return s;

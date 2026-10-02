@@ -216,7 +216,7 @@ test("T24 references: one list for both tabs; ATM at A's horizon on the listed i
   const S = refState(), C = CTX.ctx9(S);
   const refs = C.periodVolRefs("KORU");
   assert.deepEqual(J(refs.map(r => [r.source, r.label, r.short, Math.round(r.pct)])), [
-    [VolSource.Hv30, "HV30", "HV30", 117], [VolSource.Atm, "ATM 16 Oct", "ATM", 124], [VolSource.Set, "1-year realized", "1y", 173], [VolSource.Set, "5-year realized", "5y", 101]
+    [VolSource.Hv30, "HV30", "HV30", 117], [VolSource.Atm, "ATM 16 Oct", "ATM", 124], [VolSource.Set, "52-wk realized", "52w", 173], [VolSource.Set, "260-wk realized", "260w", 101]
   ]);
   assert.equal(refs[1].expiry, "20261016");
   assert.deepEqual(J(CTX.listPeriodVolRefs({ id: "KORU", comparison: S.comparison })), J(refs), "the port's list is the context's");

@@ -2,10 +2,10 @@
 
 Bundle order: "use strict" -> core (enums, Result/Fault, the event loop) -> adapters (storage, clipboard, download,
 calendar) -> app_store -> eng_head -> dist -> inst -> rule -> pos -> cmp -> state -> ctx -> ui_common -> ui_summary ->
-ui_dock -> ui_views -> ui_export -> the Compounding yr files (a YR stub when yr_ui.js is missing) -> app.
+ui_dock -> ui_views -> ui_export -> the Compounding files (a Compounding stub when compound_ui.js is missing) -> app.
 All sources, the Compounding files, the shells and data.json live in this folder. The v8 reference engine files
 (eng_state8 / eng_pos8 / eng_dist6) stay in the scratchpad and are read only by the parity tests.
-Shell: shell.html with <!--YR_SHELL--> <- yr_shell.html, /*YR_CSS*/ <- yr.css, /*VIEWS9_CSS*/ <- views.css.
+Shell: shell.html with <!--COMPOUND_SHELL--> <- compound_shell.html, /*COMPOUND_CSS*/ <- compound.css, /*VIEWS9_CSS*/ <- views.css.
 Outputs: /home/user/short-option-explorer/dist/ram_koru_lab_v10.html (standalone) and ram_koru_lab_v10_artifact.html here
 (no doctype; artifact). The bundle is also written to scratch/all.js for debugging (with --out: next to the output,
 <name>_all.js, so a test build leaves this folder as it was).
@@ -19,12 +19,12 @@ The build fails (exit 1) when (§3.1):
   - any UI string (page, CSS, bundle) contains wrinkle, seam or smell;
   - in either theme --diff-warn is < 30 degrees of OKLCH hue from --b, or --diff-warn / --debit has text contrast < 4.5:1
     against --surface;
-  - the page has duplicate ids (shell + Compounding shell + the panels the views inject), or a yr file uses a
+  - the page has duplicate ids (shell + Compounding shell + the panels the views inject), or a Compounding file uses a
     comparer name.
 The type check must report 0 errors (--no-tsc skips it). tsconfig.json lists the full build's sources in bundle order
 plus types/globals.d.ts (the editors' project); the build checks that list, then runs tsc on a generated tsconfig that
-extends it with exactly the files this build bundles (with --no-yr: the YR stub instead of the yr files).
-Options: --no-yr (YR stub), --out PATH (standalone output; the artifact goes next to it), --warn (report, exit 0),
+extends it with exactly the files this build bundles (with --no-compounding: the Compounding stub instead of the Compounding files).
+Options: --no-compounding (Compounding stub), --out PATH (standalone output; the artifact goes next to it), --warn (report, exit 0),
 --no-tsc.
 """
 import os, re, sys, json, math, subprocess, time
@@ -36,47 +36,47 @@ ALL_JS = os.path.join(V9, 'scratch', 'all.js')
 if '--out' in sys.argv:
     OUT = os.path.abspath(sys.argv[sys.argv.index('--out') + 1]); ART = os.path.splitext(OUT)[0] + '_artifact.html'
     ALL_JS = os.path.splitext(OUT)[0] + '_all.js'
-NO_YR = '--no-yr' in sys.argv
+NO_COMPOUNDING = '--no-compounding' in sys.argv
 
 MODEL = ['dist.js', 'inst.js', 'rule.js', 'pos.js', 'cmp.js', 'state.js', 'ctx.js']
 UI9 = ['ui_summary.js', 'ui_dock.js', 'ui_views.js', 'ui_export.js']
-YR_PURE = ['yr_cal.js', 'yr_path.js', 'yr_modus.js', 'yr_margin.js', 'yr_engine.js', 'yr_stress.js', 'yr_mc.js']
-YR_UI = ['yr_state.js', 'yr_ui.js']
-STUB = 'const YR={init(options){},render(mode){},getState(){return null},setState(state){},reset(){}};\n'
+COMPOUND_PURE = ['compound_engine.js', 'compound_stress.js']
+COMPOUND_UI = ['compound_ui.js']
+STUB = 'const COMPOUND={init(options){},render(mode){},getState(){return null},setState(state){},reset(){}};\n'
 # where each bundled file lives
 CORE = ['core.js', 'adapters.js']
 HOME = {f: V9 for f in CORE + ['app_store.js'] + MODEL + UI9 + ['app.js']}
-for f in ['eng_head.js', 'ui_common.js'] + YR_PURE + YR_UI: HOME[f] = V9   # everything lives in this folder
+for f in ['eng_head.js', 'ui_common.js'] + COMPOUND_PURE + COMPOUND_UI: HOME[f] = V9   # everything lives in this folder
 P = lambda f: os.path.join(HOME.get(f, V9), f)
 def ex(f, d=None):
     p = os.path.join(d, f) if d else P(f)
-    return os.path.exists(p) and not (NO_YR and (f.startswith('yr_') or f == 'yr.css'))
+    return os.path.exists(p) and not (NO_COMPOUNDING and (f.startswith('compound_') or f == 'compound.css'))
 def r(f, d=None):
     return open(os.path.join(d, f) if d else P(f), encoding='utf-8').read()
 
 files = CORE + ['app_store.js', 'eng_head.js'] + MODEL + ['ui_common.js'] + UI9
-yr_files = [f for f in YR_PURE if ex(f)]
-yr_ui = ex('yr_ui.js')
-if yr_ui: yr_files += [f for f in YR_UI if ex(f)]
-files += yr_files
+compound_files = [f for f in COMPOUND_PURE if ex(f)]
+compound_ui = ex('compound_ui.js')
+if compound_ui: compound_files += [f for f in COMPOUND_UI if ex(f)]
+files += compound_files
 missing = [f for f in files + ['app.js'] if not os.path.exists(P(f))]
 if missing: sys.exit('missing source files: ' + ', '.join(missing))
 parts = ['"use strict";\n']
 for f in files:
     parts.append(f'// ---------------------------------------------------------------- {f}\n' + r(f).rstrip('\n') + '\n')
-if not yr_ui: parts.append('// ---------------------------------------------------------------- YR stub (yr_ui.js not built)\n' + STUB)
+if not compound_ui: parts.append('// ---------------------------------------------------------------- Compounding stub (compound_ui.js not built)\n' + STUB)
 parts.append('// ---------------------------------------------------------------- app.js\n' + r('app.js'))
 js = ''.join(parts)
 os.makedirs(os.path.dirname(ALL_JS), exist_ok=True)
 open(ALL_JS, 'w', encoding='utf-8').write(js)
 
 shell = r('shell.html', V9)
-for ph in ['<!--YR_SHELL-->', '/*YR_CSS*/', '/*VIEWS9_CSS*/']:
+for ph in ['<!--COMPOUND_SHELL-->', '/*COMPOUND_CSS*/', '/*VIEWS9_CSS*/']:
     assert shell.count(ph) == 1, f'shell.html: placeholder {ph} missing or repeated'
 views_css = r('views.css', V9)
-yr_shell = r('yr_shell.html', V9) if ex('yr_shell.html', V9) else ''
-yr_css = r('yr.css', V9) if ex('yr.css', V9) else ''
-shell = shell.replace('<!--YR_SHELL-->', yr_shell, 1).replace('/*VIEWS9_CSS*/', views_css, 1).replace('/*YR_CSS*/', yr_css, 1)
+compound_shell = r('compound_shell.html', V9) if ex('compound_shell.html', V9) else ''
+compound_css = r('compound.css', V9) if ex('compound.css', V9) else ''
+shell = shell.replace('<!--COMPOUND_SHELL-->', compound_shell, 1).replace('/*VIEWS9_CSS*/', views_css, 1).replace('/*COMPOUND_CSS*/', compound_css, 1)
 data = r('data.json', V9)
 json.loads(data)   # fail the build on a broken data file
 body = shell + "\n<script>\nconst D = " + data.strip() + ";\n</script>\n<script>\n" + js + "\n</script>\n"
@@ -116,7 +116,7 @@ VOL_RULES = [
     (r'\.hv\b', 'reads .hv outside inst.js and readPeriodVol', {'inst.js': None, 'core.js': 'readPeriodVol'}),
     (r'HV30', 'spells HV30 outside nameVolSource', {'core.js': 'nameVolSource'}),
 ]
-VOL_SOURCES = [(f, r(f)) for f in files + ['app.js']] + [(f, r(f, V9)) for f in ['shell.html', 'yr_shell.html', 'yr.css', 'views.css'] if ex(f, V9)]
+VOL_SOURCES = [(f, r(f)) for f in files + ['app.js']] + [(f, r(f, V9)) for f in ['shell.html', 'compound_shell.html', 'compound.css', 'views.css'] if ex(f, V9)]
 for f, src in VOL_SOURCES:
     for rx, what, exempt in VOL_RULES:
         if f in exempt and exempt[f] is None: continue
@@ -163,7 +163,7 @@ ALLOWED = {
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',
                      'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb'},
     'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
-    'yr_engine.js': {'YRE'}, 'yr_stress.js': {'YRS'}, 'yr_ui.js': {'YR'},
+    'compound_engine.js': {'COMPOUND_ENGINE'}, 'compound_stress.js': {'COMPOUND_STRESS'}, 'compound_ui.js': {'COMPOUND'},
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',
                'writeStoredBlob', 'writeAddressCode', 'persistFrame', 'applyTheme', 'syncTabs', 'renderCompare', 'renderCompounding',
                'renderActiveTab', 'readBootState', 'showTab', 'findNextTab', 'loadView', 'loadTypedCode', 'loadAddressCode',
@@ -290,10 +290,10 @@ def strip_js(src):
     return ''.join(out)
 
 notes = []
-# the Compounding tab stays off the bus in v10: the yr files reach the page only through the port YR.init({port}) hands
+# the Compounding tab stays off the bus in v10: the Compounding files reach the page only through the port COMPOUND.init({port}) hands
 # them (saveView, showNotice), so they must not use a comparer or page name
 HEAD = set(top_names(r('eng_head.js'))) | {'R', 'N', 'D'}
-for f in yr_files:
+for f in compound_files:
     src = r(f)
     for m in re.finditer(r'^  (?:function\s+([A-Za-z_$][\w$]*)|(?:const|let|var|class)\s+([A-Za-z_$][\w$]*))', src, re.M):
         n = m.group(1) or m.group(2)
@@ -304,23 +304,23 @@ for f in yr_files:
         # a use reads a member or calls it (C.A, getS9(), STATE.x); template-literal text such as "15C (really" is not one
         if re.search(r'(?<![\w$.])' + re.escape(n) + r'(?=\s*[.(\[])', code): problems.append(f'{f}: uses comparer name {n}')
 
-# the type check. tsconfig.json is the full build's project (the yr files that exist, whatever the options); tsc runs
+# the type check. tsconfig.json is the full build's project (the Compounding files that exist, whatever the options); tsc runs
 # on a generated project that extends it with exactly this build's bundle files (global scripts, bundle order)
 TSC = '/opt/node22/bin/tsc'
 tsc_report = 'skipped (--no-tsc)'
 if '--no-tsc' not in sys.argv:
     import tempfile
     tsc_files = json.load(open(os.path.join(V9, 'tsconfig.json'), encoding='utf-8'))['files']
-    full = ['types/globals.d.ts'] + [f for f in CORE + ['app_store.js', 'eng_head.js'] + MODEL + ['ui_common.js'] + UI9 + YR_PURE + YR_UI
+    full = ['types/globals.d.ts'] + [f for f in CORE + ['app_store.js', 'eng_head.js'] + MODEL + ['ui_common.js'] + UI9 + COMPOUND_PURE + COMPOUND_UI
                                      if os.path.exists(P(f))] + ['app.js']
     if tsc_files != full: problems.append(f'tsconfig.json files {tsc_files} are not the full build\'s bundle files in order {full}')
-    # the generated project (and the --no-yr stub) live under this folder's scratch/, never in the system temp dir
+    # the generated project (and the --no-compounding stub) live under this folder's scratch/, never in the system temp dir
     os.makedirs(os.path.join(V9, 'scratch'), exist_ok=True)
     tmp = tempfile.mkdtemp(prefix='rk_tsc_', dir=os.path.join(V9, 'scratch'))
     built = [os.path.join(V9, 'types', 'globals.d.ts')] + [P(f) for f in files]
-    if not yr_ui:
-        open(os.path.join(tmp, 'yr_stub.js'), 'w', encoding='utf-8').write(STUB)
-        built.append(os.path.join(tmp, 'yr_stub.js'))
+    if not compound_ui:
+        open(os.path.join(tmp, 'compound_stub.js'), 'w', encoding='utf-8').write(STUB)
+        built.append(os.path.join(tmp, 'compound_stub.js'))
     built.append(P('app.js'))
     project = os.path.join(tmp, 'tsconfig.json')
     json.dump({'extends': os.path.join(V9, 'tsconfig.json'), 'files': built}, open(project, 'w', encoding='utf-8'))
@@ -332,7 +332,7 @@ if '--no-tsc' not in sys.argv:
     if run.returncode != 0 and not errs: errs = [(run.stdout + run.stderr).strip() or f'tsc exited {run.returncode}']
     for e in errs: problems.append('tsc: ' + e)
 
-print(f'files: {", ".join(files)}{"" if yr_ui else " + YR stub"}, app.js')
+print(f'files: {", ".join(files)}{"" if compound_ui else " + Compounding stub"}, app.js')
 print('tsc: ' + tsc_report)
 print('colours: ' + ' · '.join(colour_report))
 for n_ in notes: print('note: ' + n_)

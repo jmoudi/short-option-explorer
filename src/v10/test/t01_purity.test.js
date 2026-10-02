@@ -82,8 +82,8 @@ test("T2: STATE functions never modify their (frozen) input", () => {
 
 test("source rules: no .hv read outside inst.js and readPeriodVol, no HV30 outside nameVolSource (every source, shells and CSS)", () => {
   const SOURCES = ["core.js", "adapters.js", "app_store.js", "eng_head.js", "dist.js", "inst.js", "rule.js", "pos.js", "cmp.js", "state.js", "ctx.js",
-    "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_views.js", "ui_export.js", "yr_engine.js", "yr_stress.js", "yr_ui.js", "app.js",
-    "shell.html", "yr_shell.html", "yr.css", "views.css"].filter(f => fs.existsSync(path.join(V9, f)));
+    "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_views.js", "ui_export.js", "compound_engine.js", "compound_stress.js", "compound_ui.js", "app.js",
+    "shell.html", "compound_shell.html", "compound.css", "views.css"].filter(f => fs.existsSync(path.join(V9, f)));
   // the span of one top-level function (its exemption)
   const spanOf = (src, name) => { const m = new RegExp(`^function\\s+${name}\\b[\\s\\S]*?^}`, "m").exec(src); return m ? [m.index, m.index + m[0].length] : [0, 0]; };
   const RULES = [[/\.hv\b/g, { "inst.js": null, "core.js": "readPeriodVol" }], [/HV30/g, { "core.js": "nameVolSource" }]];

@@ -1,9 +1,9 @@
 // ============================================================ Compounding engine (pure: no DOM, no comparer state)
 // One run = a strategy (what is sold) + a modus operandi (how the account is run), over a weekly price path.
 // Each cycle the end price is lognormal around the path's next price (realized moves); settlement is the expected
-// payoff over that spread. Share runs under "reinvest" / "keep as cash" carry a lattice over leverage λ; the year's
+// payoff over that spread. Share runs under "reinvest" / "keep as cash" carry a lattice over leverage λ; the run's
 // outcome is the distribution of ln NAV, summarised by its first three moments (Cornish-Fisher quantiles).
-const YRE = (() => {
+const COMPOUND_ENGINE = (() => {
   // ---------------------------------------------------------- math
   const SQ2PI = Math.sqrt(2 * Math.PI);
   const erfY = x => { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); };
@@ -137,7 +137,7 @@ const YRE = (() => {
   // run: {tk, cad:'wk'|'mo', fam:'cc'|'str', cd, pd, puts, lev, use, wcd, wpd, modus}
   // sc: {cap0, W, S0, mult (path multiples), iv:[per cycle start week -> iv] or number, rv: number or per-week array}
   // o: {literal (moves 0), h, NQ, NQ2}
-  function runYear(run, sc, costs = COSTS, R = RATES, o = {}) {
+  function runHorizon(run, sc, costs = COSTS, R = RATES, o = {}) {
     const W = sc.W, S = sc.mult.map(x => x * sc.S0), cyc = cycles(run.cad, W), m = mOf(run.tk, costs.mOvr), LMAX = 1 / m;
     const md = { ...MODUS, ...(run.modus || {}) }, g = costs.grid && costs.grid[run.tk] != null ? costs.grid[run.tk] : 1;
     const ivAt = w => typeof sc.iv === "number" ? sc.iv : sc.iv[Math.min(w, sc.iv.length - 1)];
@@ -312,11 +312,11 @@ const YRE = (() => {
 
   // the three tracks a panel needs for one run: typical (realized moves), exactly on the path, and the KORU-held baseline
   function runAll(run, sc, costs, R, o = {}) {
-    const main = runYear(run, sc, costs, R, o);
-    const exact = runYear(run, sc, costs, R, { ...o, literal: true });
+    const main = runHorizon(run, sc, costs, R, o);
+    const exact = runHorizon(run, sc, costs, R, { ...o, literal: true });
     return { main, exact };
   }
 
-  return { runYear, runAll, cycles, weekDate, pathMult, pickStrike, bs: bsY, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv: NinvY, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
+  return { runHorizon, runAll, cycles, weekDate, pathMult, pickStrike, bs: bsY, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv: NinvY, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
 })();
-if (typeof module !== "undefined") module.exports = YRE;
+if (typeof module !== "undefined") module.exports = COMPOUND_ENGINE;

@@ -15,7 +15,7 @@ const EXPORT9 = (() => {
     [ExportSection.Overview, "Overview table"], [ExportSection.Notes, "Notes"]];
   /** @type {[string, string][]} */
   const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Weeks, "Week by week"],
-    [ExportSection.Stress, "Stress"], [ExportSection.Random, "Random years"]];
+    [ExportSection.Stress, "Stress"], [ExportSection.Random, "Random paths"]];
   const SECTION_LISTS = Object.freeze({ [Tab.Compare]: CMP_SECTIONS, [Tab.Compounding]: YR_SECTIONS });
 
   // ---------------------------------------------------------- markdown helpers
@@ -216,7 +216,7 @@ const EXPORT9 = (() => {
     if (!Number.isFinite(n)) return "never (growth cannot get there)";
     if (n === 0) return "none needed";
     const N = Math.ceil(n - 1e-9), wk = N * days / 7;
-    return `${wk >= 104 ? `${(N * days / 365.25).toFixed(1)} yr` : `${wk.toFixed(1)} wk`} · ${N} cycle${N === 1 ? "" : "s"} (${n.toFixed(1)} needed) · ${calendar.formatDayAfter({ startMs: t0, days: N * days })}`;
+    return `${wk.toFixed(1)} wk · ${N} cycle${N === 1 ? "" : "s"} (${n.toFixed(1)} needed) · ${calendar.formatDayAfter({ startMs: t0, days: N * days })}`;
   }
   const growthTxt = g => { if (!Number.isFinite(g)) return "–"; const t = Math.abs(g * 100).toFixed(2); return (+t === 0 ? "" : g > 0 ? "+" : MINUS) + t + "%"; };
   function secRecovery(C) {
@@ -306,7 +306,7 @@ const EXPORT9 = (() => {
   const fX = v => "×" + (v >= 10 ? v.toFixed(1) : v.toFixed(2));
   const fKs = K => "$" + (+(+K).toFixed(2));
   const fInt = v => Math.round(v).toLocaleString("en-US");
-  const hasYRE = () => typeof YRE !== "undefined";
+  const hasCompoundEngine = () => typeof COMPOUND_ENGINE !== "undefined";
   const famTxt = r => r.fam === "cc" ? (r.puts ? "covered strangle" : r.cd >= 50 ? "ITM covered calls" : "covered calls") : (r.pd > 50 && r.cd > 50 ? "short guts" : r.cd === 50 && r.pd === 50 ? "straddle" : "strangle") + (r.wcd || r.wpd ? " + wings" : "");
   const cadTxt = r => r.cad === "wk" ? "weekly" : "monthly";
   const modusTxt = m => `${{ reinvest: "reinvest", rebal: "rebalance", cash: "keep as cash" }[m.credit]} · ${m.call === "ibkr" ? "IBKR minimum" : `back to ${(+m.target).toFixed(2)}x`} · ${m.move === "keep" ? "keeps trading" : "stops"}`;
@@ -321,15 +321,15 @@ const EXPORT9 = (() => {
   function ySecBase(ys, res) {
     const sc = ys.sc, p = sc.path, W = sc.W, tks = [...new Set(runsOf(res).map(([, R]) => R.run.tk))], tkA = res.A.run.tk;
     const m = res.mult || [], endM = m.length ? m[m.length - 1] : 1;
-    const pathTxt = p.mode === "flat" ? `flat at ${fKs(sc.S0[tkA])}` : p.mode === "line" ? `a line from ${fKs(sc.S0[tkA])} to ${fKs(p.end * sc.S0[tkA])}${p.geo ? " (same % each week)" : ""}` : p.mode === "growth" ? `growth of ${p.gUnit === "yr" ? fPc(p.g, 1) + " a year" : (+p.g).toFixed(3) + "% a week"}, ending at ${fKs(endM * sc.S0[tkA])}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"} (${p.pts.map(x => `wk ${x[0]} ${fKs(x[1] * sc.S0[tkA])}`).join(", ")}), ending at ${fKs(endM * sc.S0[tkA])}`;
-    const start = hasYRE() ? ` from ${calendar.formatShortUtcDay(YRE.START)} to ${calendar.formatShortUtcDay(YRE.weekDate(W))}` : "";
+    const pathTxt = p.mode === "flat" ? `flat at ${fKs(sc.S0[tkA])}` : p.mode === "line" ? `a line from ${fKs(sc.S0[tkA])} to ${fKs(p.end * sc.S0[tkA])}${p.geo ? " (same % each week)" : ""}` : p.mode === "growth" ? `growth of ${p.gUnit === "span" ? fPc(p.g, 1) + ` over the ${W} weeks` : (+p.g).toFixed(3) + "% a week"}, ending at ${fKs(endM * sc.S0[tkA])}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"} (${p.pts.map(x => `wk ${x[0]} ${fKs(x[1] * sc.S0[tkA])}`).join(", ")}), ending at ${fKs(endM * sc.S0[tkA])}`;
+    const start = hasCompoundEngine() ? ` from ${calendar.formatShortUtcDay(COMPOUND_ENGINE.START)} to ${calendar.formatShortUtcDay(COMPOUND_ENGINE.weekDate(W))}` : "";
     // a ticker's moves as its run read them (res.X.vol, fractions): the period vol, or a run's own while B differs in vol
     const vol = [], fmtMoves = v => v ? `${Math.round(v.rv * 100)}%` : "–";
     const runOfTicker = tk => res.B && res.A.run.tk !== tk ? res.B : res.A;
     for (const tk of tks) vol.push([tk, `${sc.iv[tk]}%`, fmtMoves(runOfTicker(tk).vol)]);
     if (res.B && ys.bDiff === RunDiff.Vol) vol.push([`B ${res.B.run.tk}`, `${sc.ivB[res.B.run.tk]}%`, fmtMoves(res.B.vol)]);
     const ivp = ys.ivp, ivA = sc.iv[tkA];
-    const ivpTxt = ivp.mode === "flat" ? "flat, IV stays at the input all year" : `${ivp.mode === "line" ? `a line to ${Math.round(ivp.end * ivA)}% at week ${W}` : ivp.mode === "growth" ? `${ivp.g}% a year` : `${ivp.pts.length} points (${ivp.pts.map(x => `wk ${x[0]} ${Math.round(x[1] * ivA)}%`).join(", ")})`}; ${ivp.rule === "gap" ? "realized moves keep their gap to IV" : "realized moves stay constant"}`;
+    const ivpTxt = ivp.mode === "flat" ? "flat, IV stays at the input throughout" : `${ivp.mode === "line" ? `a line to ${Math.round(ivp.end * ivA)}% at week ${W}` : ivp.mode === "growth" ? `${ivp.g}% over the ${W} weeks` : `${ivp.pts.length} points (${ivp.pts.map(x => `wk ${x[0]} ${Math.round(x[1] * ivA)}%`).join(", ")})`}; ${ivp.rule === "gap" ? "realized moves keep their gap to IV" : "realized moves stay constant"}`;
     return para("## Base", bullets([`Start $${fInt(sc.cap0)}, ${W} weeks${start}.`, `Price path (${tkA}, typical price each week, never falls): ${pathTxt}.`, `IV path ${ivpTxt}.`]),
       table(["Ticker", "Implied vol (prices every option)", "Realized moves around the path"], vol), "The gap between implied vol and realized moves is the edge: premium is priced at IV, payouts settle over moves at the realized number. Realized moves are each ticker's period vol, shared with Compare A vs B (a run's own while B differs in vol).");
 
@@ -341,8 +341,8 @@ const EXPORT9 = (() => {
       return [w, `${f$(big)} ${fX(big / cap0)}`, `${f$(z.c10)} – ${f$(z.c90)}`, z.called > 0.0005 ? `${fPc(z.called, 0)} (${cc ? "on drops" : "either way"})` : "none",
         cc ? `${fInt(z.shMed)} shares · ${Math.min(z.lots, ys.costs.liq || 1e9)} lots` : `${Math.floor(z.kMed + 1e-9)} contracts`, f$(typ ? z.avg : z.med), f$(ex.med)];
     });
-    return para("## Result", `NAV at week ${W} from $${fInt(cap0)}. The main number is the ${typ ? "typical (median)" : "average"} year.`,
-      table(["Run", `${typ ? "Typical" : "Average"} NAV, week ${W}`, "10%–90% of years", "Margin call in the year", "Size (typical)", typ ? "Average" : "Typical", "Exactly on the path"], rows));
+    return para("## Result", `NAV at week ${W} from $${fInt(cap0)}. The main number is the ${typ ? "typical (median)" : "average"} outcome.`,
+      table(["Run", `${typ ? "Typical" : "Average"} NAV, week ${W}`, "10%–90% of outcomes", `Margin call within ${W} wk`, "Size (typical)", typ ? "Average" : "Typical", "Exactly on the path"], rows));
   }
   function ySecWeeks(ys, res) {
     const out = ["## Week by week"];
@@ -365,7 +365,7 @@ const EXPORT9 = (() => {
     const rows = runs.map(([w, o]) => {
       const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
       let used = "";
-      if (typeof YRS !== "undefined" && YRS.margin) { const u = YRS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter); used = `${fPc(u.req / Math.max(1, u.elv), 0)} of margin`; }
+      if (typeof COMPOUND_STRESS !== "undefined" && COMPOUND_STRESS.margin) { const u = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter); used = `${fPc(u.req / Math.max(1, u.elv), 0)} of margin`; }
       const before = `${f$(nb)}${cc ? ` · ${(sn.n * sn.S / Math.max(1, nb)).toFixed(2)}x` : ""}${used ? " · " + used : ""}`;
       const room = o.room ? `margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"}` : "–";
       return [w, before, `${fPs(-r.lossLow / nb)} (${f$(-r.lossLow)})`, `${fPs(-r.lossEnd / nb)} (${f$(-r.lossEnd)})`,
@@ -375,7 +375,7 @@ const EXPORT9 = (() => {
     // the deficit and upside-given-up columns only when a run has one, as the strip shows them
     const keep = [0, 1, 2, 3, 4, ...(runs.some(([, o]) => o.cur.ev.deficit > 0) ? [5] : []), ...(runs.some(([, o]) => o.given > 1) ? [6] : []), 7];
     const head = ["Run", "Before the move", "At the low", "End of the move", "Margin call", "Deficit", "Upside given up (not a loss)", "Room this week"], al = ["l", "r", "r", "r", "l", "l", "r", "l"];
-    const when = hasYRE() ? ` (${calendar.formatShortUtcDay(YRE.weekDate(wk - 1))})` : "";
+    const when = hasCompoundEngine() ? ` (${calendar.formatShortUtcDay(COMPOUND_ENGINE.weekDate(wk - 1))})` : "";
     return para("## Stress", `Scenario: ${scenTxt(S)}, landing in week ${wk}${when}${S.week === "worst" ? ", the week of A's largest loss" : ""}. IV after the move: +${S.ivDown} pts per 10% drop, +${S.ivUp} per 10% rise, capped at ${S.ivCap}%.`,
       table(keep.map(i => head[i]), rows.map(r => keep.map(i => r[i])), keep.map(i => al[i])));
   }
@@ -388,7 +388,7 @@ const EXPORT9 = (() => {
     });
     const chk = mc.parts.map(P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), med = qn(e, .5), pc = P.out.reduce((t, o) => t + o.call, 0) / e.length; return `${P.who}: median ${f$(med)} vs the engine's ${f$(P.R.main.end.med)} (${fPs(med / P.R.main.end.med - 1)}), margin call ${fPc(pc, 0)} vs ${fPc(P.R.main.end.called, 0)}`; });
     const M = ys.mc || {};
-    return para("## Random years", `${(mc.parts[0].out.length).toLocaleString("en-US")} paths per run${M.seed != null ? `, seed ${M.seed}` : ""}. Plain lognormal daily moves, no jumps; each run sees the same random paths.${mc.stale ? " **The inputs changed since this run: these figures are stale.**" : ""}`,
+    return para("## Random paths", `${(mc.parts[0].out.length).toLocaleString("en-US")} paths per run${M.seed != null ? `, seed ${M.seed}` : ""}. Plain lognormal daily moves, no jumps; each run sees the same random paths.${mc.stale ? " **The inputs changed since this run: these figures are stale.**" : ""}`,
       table(["Run", "5%", "10%", "Median", "90%", "95%", "Worst 5% avg", "Drawdown med / 90%", "≥ 1 margin call", "NAV ≤ 0"], rows), "Check against the engine: " + chk.join("; ") + ".");
   }
   function toMarkdownCompounding(ys, res, opts = {}) {
@@ -396,7 +396,7 @@ const EXPORT9 = (() => {
     if (!ys || !res || !res.A) return "# Compounding\n\nNo results yet: open the Compounding tab once.\n";
     const stress = ys.view && ys.view.v === "stress";
     out.push(para(`# Compounding · ${runsOf(res).map(([w, R]) => `${w} ${R.run.tk} ${cadTxt(R.run)} ${famTxt(R.run)}`).join(" vs ")}`,
-      `${CORE_CONFIG.appName}, Compounding · a model year on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
+      `${CORE_CONFIG.appName}, Compounding · a model of ${ys.sc.W} weeks on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
       opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));
@@ -414,8 +414,8 @@ const EXPORT9 = (() => {
   function makeExport() {
     const state = H.readState();
     if (state.tab === Tab.Compounding) {
-      const y = YR._state(), r = YR._res();
-      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: YR._sres ? YR._sres() : null, mc: YR._mc ? YR._mc() : null, code: H.code() }), name: "compounding" };
+      const y = COMPOUND._state(), r = COMPOUND._res();
+      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, code: H.code() }), name: "compounding" };
     }
     return { md: EXPORT9.toMarkdownCompare(CTX.ctx9(state), state, { sections: readSections(Tab.Compare), code: H.code() }), name: "compare" };
   }

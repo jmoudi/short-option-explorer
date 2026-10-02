@@ -3,7 +3,7 @@
  * frame loop), wires both tabs, the tab strip and the page menu (theme, view codes, resets), and subscribes the two
  * consumers of every frame: one ordered render (theme and tabs, then summary → dock → title → views: the dock must
  * render before the charts measure their width) and the persistence that writes the stored blob and the address.
- * The Compounding tab lives in YR (init({port}), render(mode), getState, setState, reset) and stays off the bus: it
+ * The Compounding tab lives in COMPOUND (init({port}), render(mode), getState, setState, reset) and stays off the bus: it
  * renders on its own schedule, calls port.saveView when its state settles, and reads and writes the period vol through
  * port.periodVol (its writes are commands; their frames on that tab persist without a render).
 
@@ -53,9 +53,9 @@ function runGuarded({ where, run }) {
 }
 function readYrState() {
   try {
-    return YR.getState();
+    return COMPOUND.getState();
   } catch (error) {
-    reportCaught({ where: "YR.getState", error });
+    reportCaught({ where: "COMPOUND.getState", error });
     return null;
   }
 }
@@ -140,7 +140,7 @@ function renderCompare(context) {
   VIEWS.render(context);
 }
 function renderCompounding() {
-  runGuarded({ where: "YR.render", run: () => YR.render("full") });
+  runGuarded({ where: "COMPOUND.render", run: () => COMPOUND.render("full") });
   document.title = "Compounding · " + page.title;
 }
 // the visible tab only: a hidden tab is display:none and renders when it is shown. body.dock-off follows the state on
@@ -219,7 +219,7 @@ function findNextTab({ tab, forward }) {
 // a view read from a code: the Compounding tab takes its part, the store the rest (toast: "View loaded" + migration
 // notes); a tab switch starts the new tab at the top
 function loadView(view) {
-  if (view.yr != null) { runGuarded({ where: "YR.setState", run: () => YR.setState(view.yr) }); }
+  if (view.yr != null) { runGuarded({ where: "COMPOUND.setState", run: () => COMPOUND.setState(view.yr) }); }
   const current = page.store.read().tab;
   if (view.tab !== current) {
     page.scroll[current] = scrollY;
@@ -253,7 +253,7 @@ function loadAddressCode() {
   page.frames.mark({ cause: FrameCause.Ui });
 }
 function resetCompounding() {
-  runGuarded({ where: "YR.reset", run: () => YR.reset() });
+  runGuarded({ where: "COMPOUND.reset", run: () => COMPOUND.reset() });
 }
 
 // ---------------------------------------------------------------- wiring
@@ -350,11 +350,11 @@ function startCompounding(yr) {
   if (!host.children.length) { host.innerHTML = `<p class="yrnone">The Compounding tab is not part of this build.</p>`; }
   const port = createCompoundingPort();
   try {
-    YR.init({ port });
+    COMPOUND.init({ port });
 
-    if (yr != null) { YR.setState(yr); }
+    if (yr != null) { COMPOUND.setState(yr); }
   } catch (error) {
-    reportCaught({ where: "YR.init", error });
+    reportCaught({ where: "COMPOUND.init", error });
   }
 }
 function showBootNotices(boot) {

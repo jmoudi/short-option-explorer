@@ -20,8 +20,8 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
   menu (through `port.periodVol.refs(ticker)`) are built from it, so the two tabs list the same references; the
   Compounding menu redraws when the list changes (ATM follows A's horizon).
 - **Shared constants (core.js).** `PERIOD_VOL_CONFIG = {range: [0, 300], floor: {compare: 1, yr: 0}, decimals: 2}`
-  (state.js, ctx.js, ui_dock.js and yr_ui.js read it; no module restates it). `RunSlot {A, B}` and
-  `RunDiff {Strategy, ..., Vol, Any}` (the Compounding tab's `bDiff` values) are read by yr_ui.js, state.js and the
+  (state.js, ctx.js, ui_dock.js and compound_ui.js read it; no module restates it). `RunSlot {A, B}` and
+  `RunDiff {Strategy, ..., Vol, Any}` (the Compounding tab's `bDiff` values) are read by compound_ui.js, state.js and the
   export. Assumption enums `MoveUnit`, `WorstLossRange`, `Align`, `ReadingUnit` (pct / usd / cr; "margin" arrives with
   §3) and `GrowthRate` (rdG) name the stored values; `STATE` builds its defaults and validators from them. The rest of
   §8.1's enums (placement, views, recovery) come with step 3's signatures. `STATE.migrate`'s `src` tags derive from
@@ -54,7 +54,7 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 
 ## v10 part 2c: the Compounding tab on the period vol (read with 2b)
 
-- **Port:** `YR.init({ port: { saveView, showNotice, periodVol: { read(ticker), write({ticker, pct, source?, expiry?}) } } })`,
+- **Port:** `COMPOUND.init({ port: { saveView, showNotice, periodVol: { read(ticker), write({ticker, pct, source?, expiry?}) } } })`,
   built by app.js `createCompoundingPort()`. `read` returns the stored period vol (else the listed vol) in %, unfloored:
   the Compounding tab's 0 means "exactly on the path", where the comparer's `C.volOf` reads its 1% floor. `write` runs
   `SetPeriodVol {ticker, source: source || Set, pct, reader: Compounding}` through `page.executor` and returns its Result
@@ -185,7 +185,7 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 
 ## v10 step 1: the event loop (read this first; the sections below keep their v9 names)
 
-- **Bundle order:** core.js, adapters.js, then the v9 order (app_store, eng_head, the model files, ui_common, ui_summary, ui_dock, ui_views, ui_export, the yr files, app).
+- **Bundle order:** core.js, adapters.js, then the v9 order (app_store, eng_head, the model files, ui_common, ui_summary, ui_dock, ui_views, ui_export, the Compounding files, app).
 - **core.js** (model layer, no DOM): the enums (`Command`, `EnvelopeType`, `FaultCode`, `FaultSeverity`, `FaultHandling`, `Tab`, `Theme`, `NoticeStyle`, `FrameCause`, `ViewCodeError`, `ViewCodeVersion` (the one list of readable code versions), `ActionStep` (the steps of a toast action), `CoreErrorCode` (what the core throws at a caller that broke its contract), `ResetTarget`) and the lists `TABS`, `THEMES`, `Result.ok/err`, `createFault` (an optional `cause`, the caught error, rides along non-enumerable), `createNoticeEnvelope`, `createFaultEnvelope`, the listed-vol accessor `readListedVol(record)` and label `labelListedVol()` (build rule: no `.hv` read outside inst.js and the accessor, no "HV30" outside the label), and the classes `Registry`, `Bus`, `Store`, `CommandExecutor`, `FrameLoop`.
 - **adapters.js:** `storage.read/write/remove`, `clipboard.writeText`, `download.saveTextFile`, `calendar` (today, day formats, day arithmetic). Results, never throws.
 - **Changes are commands** `{type: Command.X, ...fields, source}`, plain data (`isCommand` refuses a function anywhere), run by `page.executor.execute(command)` → `Result<{state, notices, faults, rendered}>`. `rendered`: the command's frame was delivered before `execute()` returned (ShowTab from a DOM event); run from inside a bus listener, a ShowTab frame is queued behind the envelope being delivered and `rendered` is false (app.js `showTab` then restores the scroll on that `state.changed`). Handlers: `STATE.registerCommandHandlers(registry)` (all but `PlaceLeg`, which `VIEWS.registerCommandHandlers` adds; `SetPeriodVol` has none before step 2b). The store's tree is the step-2a tree plus `tab` (step 1: S9 plus `tab`).
@@ -194,23 +194,23 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 - **Frames:** `page.frames.mark({cause, notices?, faults?})` asks for a frame; one `state.changed` per frame feeds the binders' sync functions (the summary's range row and the dock's sizing select hand theirs to their module, `syncList`, which runs them where v9's REG lists ran: inside `SUM9.render` / `DOCK9.render`, so a render step that throws leaves its controls and, for the summary, the title as they were), the ordered render (`renderActiveTab`) and the persistence (`saveView({state: frame.state})`; `saveView()` without a frame saves the store's state). A frame carries only the notices and faults of the commands it renders. A failing context builder gives one `context_failed` fault and a frame with `context: null`: the tabs, the theme and `dock-off` follow, the Compare panels, the binder syncs and the save skip it (as v9 did).
 - **Clock:** a `Bus` needs `{now}` (the page passes `calendar.nowMs`) and stamps every envelope without `at`; the executor and the frame loop use the bus clock unless given their own.
 - **Frame causes** are in execution order: the executor marks the frame before it emits the command's notices, so a command a notice listener runs is listed after the one that raised the notice.
-- **Faults on the console:** `logFault` prints each fault once (with its caught error), errors with `console.error` and warnings with `console.info` (`PAGE_CONFIG.consoleBySeverity`: v9 printed nothing for a refused storage, and the error and warning levels stay as v9's); a throwing listener's fault says what was skipped (`state.changed`: the state is kept, that listener skipped the frame); `guarded_step_failed` faults (a `runGuarded` step, YR calls) keep v9's own console line and are not printed again. Storage refusals (`storage_failed`) are reported once per session; a stored view that did not load is `stored_view_failed` after v9's `console.warn`.
+- **Faults on the console:** `logFault` prints each fault once (with its caught error), errors with `console.error` and warnings with `console.info` (`PAGE_CONFIG.consoleBySeverity`: v9 printed nothing for a refused storage, and the error and warning levels stay as v9's); a throwing listener's fault says what was skipped (`state.changed`: the state is kept, that listener skipped the frame); `guarded_step_failed` faults (a `runGuarded` step, COMPOUND calls) keep v9's own console line and are not printed again. Storage refusals (`storage_failed`) are reported once per session; a stored view that did not load is `stored_view_failed` after v9's `console.warn`.
 - **The `page` dependency:** the binders in ui_common.js and the panels reach `page.bus` / `page.executor` / `page.frames`; a binder subscribes when it is created, so binders are created after `main()` built the loop (step 4 passes these in).
 - **View codes:** `STATE.readViewCode(text)` / `STATE.readStoredView(blob)` → `Result<{state, tab, theme, yr, notices, faults}>`, errors `not_a_code`, `unknown_version`, `undecodable`.
 - **Deliberate differences from v9 (fault paths only; normal use is byte-identical):** (1) when `VIEWS.render` throws, v9 raised an uncaught page error and did not save; v10 logs one `listener_failed` fault and the persistence subscriber still saves the frame's state. (2) The Compounding tab's CSV copy (`#y-csv`) where `navigator.clipboard` does not exist (an insecure `http://` context; file:// and https have it): v9 threw a TypeError out of the click handler and showed no toast; v10's clipboard adapter returns `clipboard_blocked` and the toast reads "Clipboard blocked", as it does when the browser refuses. (3) A handler that throws (reachable only through a defect, e.g. a SetB with an unknown path): every command path now goes through `CommandExecutor.execute`, which keeps the state, shows the v9 toast "That change could not be applied" (3.8 s) and prints one `handler_failed` line, `console.error("command cmp.setB", "handler_failed: cmp.setB failed: unknown path … (toast; the state was kept)", error)`. In v9 only `cmpDo` had a try/catch, and it printed `console.error("cmpDo setB", error)`. v9's `cmpChange`, the views' `change`/`op`/`setFromCell`, the dock's expiry-map popover and the toast buttons (`STATE.applyAction`) had none, so a throw there was an uncaught page error with no toast. The toast, its timing, the unchanged state and the single fault match v9's `cmpDo` path; only the console text differs. We kept the v10 line on purpose: the console names the command type, and v9's `cmpDo` name does not exist any more.
-- **app.js names:** `page` (was APP), `runGuarded` (appSafe), `saveView` (appSave), `renderActiveTab` (appRender + renderAll), `readBootState` (appBoot), `main` (appInit). The Compounding tab gets `YR.init({port: {saveView, showNotice}})`.
+- **app.js names:** `page` (was APP), `runGuarded` (appSafe), `saveView` (appSave), `renderActiveTab` (appRender + renderAll), `readBootState` (appBoot), `main` (appInit). The Compounding tab gets `COMPOUND.init({port: {saveView, showNotice}})`.
 
 ---
 
 ## 0. Bundling and conventions
 
-**Bundle order (spec §3.1):** `"use strict"`, app_store9, **eng_head6**, **dist9**, **inst9**, **rule9**, **pos9**, **cmp9**, **state9**, **ctx9**, ui_common8, ui9_*, yr files, app9.
+**Bundle order (spec §3.1):** `"use strict"`, app_store9, **eng_head6**, **dist9**, **inst9**, **rule9**, **pos9**, **cmp9**, **state9**, **ctx9**, ui_common8, ui9_*, Compounding files, app9.
 - dist9 comes before inst9 but only uses `INST` at call time, so the order is safe.
 - The model needs only eng_head6 and a global `D` (`data.json`). It does not need app_store or ui_common8.
 
 **Globals from eng_head6 that the model uses:** `R`, `N`, `npdf`, `Ninv`, `bs`, `impliedVol`, `smile`, `wingAnchors` (inst9 only), `fK`, `fN`, `fmtE`, `MINUS`, `clamp`.
 
-**Top-level names:** each file declares exactly one namespace object: `INST`, `RULE`, `POS`, `DIST`, `CMP`, `STATE`, `CTX`. dist9 also declares `cdfT`, `cdfAt` and `quantAt`, copied verbatim from v8. There are no collisions with ui_common8, app8 or the yr files (checked).
+**Top-level names:** each file declares exactly one namespace object: `INST`, `RULE`, `POS`, `DIST`, `CMP`, `STATE`, `CTX`. dist9 also declares `cdfT`, `cdfAt` and `quantAt`, copied verbatim from v8. There are no collisions with ui_common8, app8 or the Compounding files (checked).
 
 **Purity**
 - No module reads `st`, `C`, `S9`, the DOM or `D`. The one exception is inst9, which reads `D` once through `makeRegistry(D)`.

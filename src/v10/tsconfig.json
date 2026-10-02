@@ -15,6 +15,6 @@
     "core.js", "adapters.js", "app_store.js", "eng_head.js",
     "dist.js", "inst.js", "rule.js", "pos.js", "cmp.js", "state.js", "ctx.js",
     "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_views.js", "ui_export.js",
-    "yr_engine.js", "yr_stress.js", "yr_ui.js", "app.js"
+    "compound_engine.js", "compound_stress.js", "compound_ui.js", "app.js"
   ]
 }

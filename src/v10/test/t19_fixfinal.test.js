@@ -2,7 +2,7 @@
 //   2. A and B summary cards shorten together (SUM9.commonStages);
 //   3. comparison table: zero-safe fN / fP and the A / B ratio over a B value that prints as zero;
 //   4. payoff ticks on a lopsided range;
-//   8. recovery headline in years from 104 weeks, four-digit years more than ten years out;
+//   8. recovery headline always in weeks (the view counts weeks), four-digit years in dates more than ten years out;
 //   1. B's line-2 multiplier is B contracts per A contract.
 "use strict";
 const test = require("node:test"), assert = require("node:assert/strict");
@@ -114,12 +114,12 @@ test("T19 (4): a lopsided payoff range gets a tick on its short side; a balanced
 });
 
 // ---------------------------------------------------------------- 8. recovery headline
-test("T19 (8): the recovery time reads in years from 104 weeks, with whole cycles", () => {
+test("T19 (8): the recovery time always reads in weeks, with whole cycles", () => {
   const id = d => String(d);
-  assert.equal(VIEWS.recTime(95.3, 169, 0.5, id).v, "44.4 yr");
+  assert.equal(VIEWS.recTime(95.3, 169, 0.5, id).v, `${(96 * 169 / 7).toFixed(1)} wk`);
   assert.equal(VIEWS.recTime(95.3, 169, 0.5, id).s, "96 cycles");
   assert.equal(VIEWS.recTime(103, 7, 0.5, id).v, "103.0 wk");
-  assert.equal(VIEWS.recTime(104, 7, 0.5, id).v, `${(104 * 7 / 365.25).toFixed(1)} yr`);
+  assert.equal(VIEWS.recTime(104, 7, 0.5, id).v, "104.0 wk");
   assert.equal(VIEWS.recTime(2.5, 50, 0.3, id).v, `${(3 * 50 / 7).toFixed(1)} wk`);
 });
 test("T19 (8): recovery dates carry a four-digit year more than ten years out", () => {
