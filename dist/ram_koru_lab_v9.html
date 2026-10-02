@@ -5295,15 +5295,42 @@ const EXPORT9 = (() => {
     if (!host) return;
     host.innerHTML = list.map(([k, l]) => `<label class="chk"><input type="checkbox" data-x="${k}"${on[k] ? " checked" : ""}>${l}</label>`).join("");
   }
+  // Adapter for handing the viewer a file. Inside the claude.ai viewer a plain anchor download does nothing, so the
+  // page asks the viewer's `downloads` capability first (the viewer confirms the save and may decline); the standalone
+  // file, where `window.claude` does not exist, falls back to a Blob anchor. Returns a Result, never throws.
+  async function saveTextFile({ filename, text }) {
+    if (typeof filename !== "string" || !filename.trim()) { return { ok: false, error: { code: "bad_filename", message: `a non-empty filename is required, got ${JSON.stringify(filename)}` } }; }
+    if (typeof text !== "string" || !text.length) { return { ok: false, error: { code: "empty_file", message: `nothing to save for ${filename}` } }; }
+    const viewerDownloads = await resolveViewerDownloads();
+    if (viewerDownloads) {
+      try { await viewerDownloads.save({ filename, data: text }); return { ok: true, value: { status: "saved", filename } }; }
+      catch (e) {
+        const code = e && e.code ? e.code : "unavailable";
+        if (code === "declined") { return { ok: true, value: { status: "declined", filename } }; }
+        return { ok: false, error: { code, message: e && e.message ? e.message : `the viewer could not save ${filename} (${code})` } };
+      }
+    }
+    try {
+      const a = document.createElement("a"), url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { ok: true, value: { status: "saved", filename } };
+    } catch (e) { return { ok: false, error: { code: "blob_failed", message: e && e.message ? e.message : `the browser refused the download of ${filename}` } }; }
+  }
+  async function resolveViewerDownloads() {
+    const hasViewerRuntime = typeof window !== "undefined" && window.claude && typeof window.claude.use === "function";
+    if (!hasViewerRuntime) { return null; }
+    try { return await window.claude.use("downloads"); } catch (e) { return null; }
+  }
   function wire(opts) {
     H = opts; const q = s => document.querySelector(s);
     if (!q("#xcopy")) return;
     q("#xcopy").addEventListener("click", () => { let r; try { r = makeExport(); } catch (e) { console.error("export", e); toast("The export failed"); return; } copyText(r.md, q("#xfall")); });
-    q("#xdl").addEventListener("click", () => {
+    q("#xdl").addEventListener("click", async () => {
       let r; try { r = makeExport(); } catch (e) { console.error("export", e); toast("The export failed"); return; }
-      const a = document.createElement("a"), url = URL.createObjectURL(new Blob([r.md], { type: "text/markdown;charset=utf-8" }));
-      a.href = url; a.download = `ram-koru-lab-${r.name}-${isoDay()}.md`; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000); toast("Downloaded " + a.download);
+      const saved = await saveTextFile({ filename: `ram-koru-lab-${r.name}-${isoDay()}.md`, text: r.md });
+      if (saved.ok) { toast(saved.value.status === "declined" ? "Download cancelled" : "Downloaded " + saved.value.filename); return; }
+      console.error("download", saved.error); toast("The download failed: " + saved.error.message);
     });
     q("#xsecs").addEventListener("change", e => { const c = e.target.closest("input[data-x]"); if (c) setSec(H.tab(), c.dataset.x, c.checked); });
     q("#pmenu").addEventListener("toggle", () => { if (q("#pmenu").open) { q("#xfall").hidden = true; syncSecs(); } });
