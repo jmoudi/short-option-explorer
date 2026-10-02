@@ -1,0 +1,82 @@
+/* ===== Compounding tab ===== */
+#tab-yr .panel{display:block}
+.ybar .crow .ctl{margin-right:12px}
+.ybar input[type=number]{height:24px}
+.ybar .vv{font:500 12px var(--f-num);color:var(--ink-2)}
+.ybar .vv input{width:52px}
+.ybar .vv .tk{font:600 11px var(--f-cond);color:var(--ink-3);margin-right:4px}
+.ybar .vv .tk.b{color:var(--b)}
+.ybar .vv .sl{display:inline-block;margin-left:2px}
+.ystrip{padding:10px 14px}
+.ystrip .sr{display:block;padding:6px 0;line-height:1.35}
+.ystrip .sr+.sr{border-top:1px solid var(--grid)}
+.ystrip .key{margin-right:8px;vertical-align:4px}
+.ystrip .cell{display:inline-block;vertical-align:top;margin-right:26px}
+.ystrip .cell .l{display:block;font-size:11px;color:var(--ink-3)}
+.ystrip .cell .v{display:block;font:600 17px var(--f-num)}
+.ystrip .cell .v small{font:500 12px var(--f-num);color:var(--ink-2);margin-left:5px}
+.ystrip .cell.sm .v{font:500 13px var(--f-num);color:var(--ink-2)}
+.ystrip .cell.big .v{font-size:20px}
+.ystrip .bd{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.ystrip.live .v{opacity:.55}
+.ystack{display:block;position:relative}
+.ystack svg{display:block;overflow:visible}
+.ystack .yhd{display:block;font:600 12px var(--f-ui);color:var(--ink-2);margin:6px 0 2px}
+.ystack .yhd .cap{margin-left:8px;font-weight:400}
+.ypts{position:absolute;top:22px;right:0;width:224px;font-size:12px}
+.ypts table{border-collapse:collapse;width:100%}
+.ypts td,.ypts th{padding:2px 4px;text-align:right;font:12px var(--f-num)}
+.ypts th{font:500 11px var(--f-ui);color:var(--ink-3)}
+.ypts input{width:56px}
+.ypts .held{color:var(--warn);font:11px var(--f-ui);text-align:left}
+.ytwo{white-space:nowrap}
+.yhalf{display:inline-block;vertical-align:top;width:calc(50% - 12px);white-space:normal}
+.yhalf+.yhalf{margin-left:24px}
+.yhalf h3{font:600 15px/1.2 var(--f-cond);margin:0 0 6px}
+.yhalf h3 .sub{font:400 12px var(--f-ui);color:var(--ink-2);margin-left:6px}
+.ygc{font-size:12.5px;line-height:1.55}
+.ygc .f{display:block;font:12px var(--f-num);background:var(--surface-2);border-radius:6px;padding:8px 10px;margin:6px 0;white-space:pre-wrap}
+.ygc .stp{float:right}
+.ygc .stp .btn{padding:1px 7px}
+.ygc .kv{display:inline-block;margin-right:14px}
+.ygc .kv b{font:600 12.5px var(--f-num)}
+.ydet>summary{list-style:none;cursor:pointer}
+.ydet>summary::-webkit-details-marker{display:none}
+.ydet>summary .sub{font-size:12px;color:var(--ink-2);margin-left:8px}
+.ytab{display:block;overflow-x:auto;margin-top:8px}
+.ytab table{border-collapse:separate;border-spacing:0;font:11.5px var(--f-num);white-space:nowrap}
+.ytab th{font:500 11px var(--f-ui);color:var(--ink-3);text-align:right;padding:3px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+.ytab td{text-align:right;padding:2px 8px;border-bottom:1px solid var(--grid)}
+.ytab td:first-child,.ytab th:first-child{position:sticky;left:0;background:var(--surface);text-align:left}
+.ytab tr.pin td{background:var(--surface-2)}
+.ytab tr.hold td{color:var(--ink-3)}
+.ytab tr:hover td{background:var(--surface-2);cursor:pointer}
+.ytools{display:block;margin-top:8px}
+#y-notesb p{max-width:860px;font-size:12.5px;color:var(--ink-2)}
+#y-notesb h3{margin-top:12px}
+.ydock .row>.lbl{width:66px}
+.ydock .row>.seg.eq{width:calc(100% - 70px)}
+.ydock .row.sl input[type=range]{width:calc(100% - 70px - 96px)}
+.ydock .row.sl output{width:92px}
+.ydock .ro{display:block;font:11.5px var(--f-num);color:var(--ink-2);margin:-2px 0 8px 70px;white-space:normal}
+.ydock .ro.warn{color:var(--warn)}
+.ydock .why{display:block;font-size:11.5px;color:var(--warn);margin:0 0 8px 70px;white-space:normal}
+.ydock .seg.eq button:disabled{text-decoration:line-through}
+body[data-tab="yr"].ydock-off main{margin-right:56px}
+body.ydock-off .ydock{width:56px}
+body.ydock-off .ydock .dh,body.ydock-off .ydock .db{display:none}
+body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
+.ylg{font-size:11.5px;color:var(--ink-2);margin-left:10px}
+.ylg i{display:inline-block;width:14px;height:2px;vertical-align:3px;margin-right:4px}
+.yax text{font:10.5px var(--f-num);fill:var(--ink-3)}
+.yax line{stroke:var(--grid)}
+.ycross{stroke:var(--ink-3);stroke-dasharray:3 3;pointer-events:none}
+.ypin{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:1 3;pointer-events:none}
+.yhalo{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+
+.ystrip .cell{margin-right:22px}
+.ystrip .cell{margin-right:14px}
+.ystrip .cell.big{width:150px}.ystrip .cell.c2{width:166px}.ystrip .cell.c3{width:122px}.ystrip .cell.c4{width:118px}.ystrip .cell.sm{width:175px;margin-right:0}
+.ypts input{width:64px}
+#y-sstrip .cell.big{width:230px}
+#y-srow .ctl{margin-right:10px}

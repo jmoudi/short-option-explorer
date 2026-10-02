@@ -1,0 +1,68 @@
+<div class="wrap">
+  <div class="cbar ybar" id="ybar">
+    <span class="crow">
+      <span class="seg yview" id="y-view"></span><span class="sep"></span>
+      <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
+      <button type="button" class="btn ib" id="y-swap" title="Swap A and B">⇄</button>
+      <span class="sep"></span>
+      <span class="ctl"><span class="lbl">B differs in</span><span class="seg" id="y-bdiff"></span></span>
+      <details class="menu" id="y-bmore"><summary>More</summary><span class="mb" style="width:220px"><span class="mt">B also differs in</span><span class="seg eq" id="y-bdiff2" style="width:100%"></span><span class="cap" style="display:block;margin-top:6px">“Anything” gives B its own full editor in the panel on the right.</span></span></details>
+    </span>
+    <span class="crow" id="y-row2">
+      <span class="ctl"><span class="lbl">Start</span>$<input type="number" id="y-cap0" min="1000" step="1000" style="width:78px"></span>
+      <span class="ctl"><span class="lbl">Weeks</span><input type="number" id="y-W" min="4" max="104" step="1" style="width:52px"></span>
+      <span class="ctl"><span class="lbl">Path</span><select id="y-pmode"><option value="flat">Flat</option><option value="line">Line</option><option value="pts">Points</option><option value="growth">Growth</option></select><span id="y-pnum"></span></span>
+      <details class="menu left" id="y-pmenu"><summary>Path</summary><span class="mb" style="width:300px" id="y-pmb"></span></details>
+      <span class="sep"></span>
+      <span class="ctl" id="y-vol"></span>
+      <details class="menu" id="y-read"><summary id="y-readsum">Reading</summary><span class="mb" style="width:300px" id="y-readmb"></span></details>
+    </span>
+    <span class="crow" id="y-srow" hidden>
+      <span class="ctl"><button type="button" class="btn" id="y-sbase" title="Edit the base in the Year view" style="padding:1px 8px"></button></span>
+      <span class="ctl"><span class="lbl">Move</span><span class="seg" id="y-sshape"></span></span>
+      <span class="ctl"><input type="number" id="y-sX" step="1" style="width:56px">% <span class="seg" id="y-sunit"></span> <span class="vv" id="y-seq"></span></span>
+      <span class="ctl" id="y-sshp"></span>
+      <span class="ctl"><span class="lbl">Hits in week</span><input type="range" id="y-sw" min="1" step="1" style="width:110px"> <output id="y-swo"></output> <button type="button" class="btn" id="y-sworst" style="padding:1px 7px">worst</button></span>
+      <details class="menu" id="y-siv"><summary id="y-sivsum">IV</summary><span class="mb" style="width:300px" id="y-sivmb"></span></details>
+      <details class="menu" id="y-srules"><summary>Rules</summary><span class="mb" style="width:330px" id="y-srulesmb"></span></details>
+    </span>
+    <span class="crow warnrow" id="y-warn" hidden></span>
+  </div>
+
+  <span id="y-yearv">
+  <section class="panel ystrip" id="y-strip"></section>
+
+  <section class="panel" id="y-stackp">
+    <div class="ph"><h2>Through the year</h2><span class="sub" id="y-stacksub"></span>
+      <span class="tools"><details class="menu" id="y-stackmenu"><summary>⚙</summary><span class="mb" style="width:270px" id="y-stackmb"></span></details></span></div>
+    <span class="ystack" id="y-stack"></span>
+  </section>
+
+  <section class="panel ytwo">
+    <span class="yhalf" id="y-growth"></span>
+    <span class="yhalf" id="y-sweep"></span>
+  </section>
+
+  <section class="panel ytwo">
+    <span class="yhalf" id="y-credit"></span>
+    <span class="yhalf" id="y-margin"></span>
+  </section>
+
+  <details class="panel ydet" id="y-tablep"><summary><h2>Week by week</h2><span class="sub" id="y-tablesub"></span></summary><span class="ytools" id="y-tabletools"></span><span class="ytab" id="y-table"></span></details>
+  <details class="panel ydet" id="y-notes"><summary><h2>Method and caveats</h2></summary><span id="y-notesb"></span></details>
+  </span>
+  <span id="y-stressv" hidden>
+  <section class="panel ystrip" id="y-sstrip"></section>
+  <section class="panel"><div class="ph"><h2>Loss by the week the move hits</h2><span class="sub" id="y-sbwsub"></span></div><span id="y-sbw"></span></section>
+  <section class="panel"><div class="ph"><h2>Room before a margin call and before NAV 0</h2><span class="sub">largest one-session gap in the ETF the account takes, by week · solid = margin call, dashed = NAV 0 · below 0 = drops, above = rallies</span></div><span id="y-sroom"></span></section>
+  <section class="panel ytwo"><span class="yhalf" id="y-scurve"></span><span class="yhalf" id="y-sbreak"></span></section>
+  <details class="panel ydet" id="y-mc"><summary><h2>Random years</h2><span class="sub">seeded random daily moves around your path at the realized-moves input; opt-in</span></summary><span class="ytools" id="y-mctools"></span><span id="y-mcb"></span></details>
+  <details class="panel ydet" id="y-snotes"><summary><h2>Method and caveats (stress)</h2></summary><span id="y-snotesb"></span></details>
+  </span>
+</div>
+
+<aside class="dock ydock" id="ydock" aria-label="Runs">
+  <span class="dh"><span class="dtitle">Runs</span><button type="button" class="btn" id="y-dockhide">Hide</button></span>
+  <span class="db" id="y-db"></span>
+  <span class="rail"><button type="button" class="btn" id="y-dockshow" title="Show runs">Runs</button></span>
+</aside>

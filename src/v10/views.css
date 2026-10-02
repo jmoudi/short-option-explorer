@@ -1,0 +1,155 @@
+/* ============================================================ ui9_views: the comparer's view panels (v9)
+   Scoped to the views host (.v9views). Type scale: panel titles 15px/600 (the most), chart titles 12.5px,
+   labels and table text 12px, fine print 11px. Inline span grouping; floats for right-aligned tools.
+   --v9-stick is set by VIEWS.render (setStick) to the bottom of the sticky summary, so table keys stick just below it. */
+.v9views{display:block;--v9-stick:150px}
+.v9views .panel{display:block;scroll-margin-top:calc(var(--v9-stick) + 8px);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
+.v9views .ph{display:block;margin-bottom:10px;line-height:26px;min-height:26px;white-space:normal}
+.v9views .ph:after{content:"";display:block;clear:both}
+.v9views .ph h2{font:600 15px/1.2 var(--f-cond);margin:0 10px 0 0;display:inline;vertical-align:middle;white-space:nowrap}
+.v9views .ph .tools{float:right;white-space:nowrap;margin-left:12px}
+.v9views .ph .tools>*{margin-left:8px;vertical-align:middle}
+.v9views .ph .sub{font-size:12px;color:var(--ink-2);white-space:normal;vertical-align:middle}
+.v9views .ph .info{vertical-align:middle}
+.v9views .lgd{font-size:12px;color:var(--ink-2);vertical-align:middle;margin-left:4px}
+.v9views .lgd>span{white-space:nowrap;margin-right:12px;display:inline-block}
+.v9views .lgd i{display:inline-block;width:16px;height:2px;border-radius:1px;vertical-align:middle;margin-right:5px}
+.v9views .vnote{display:inline-block;font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:4px;padding:0 6px;line-height:18px}
+.v9views .debit{font:600 11px var(--f-ui);color:var(--debit,var(--neg));white-space:nowrap}
+.v9views .warnc,.pop .warnc{color:var(--diff-warn,var(--warn))}
+.v9views .cap{font-size:11px;color:var(--ink-3)}
+.v9views h3{font:600 12.5px/1.2 var(--f-ui);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v9views details.panel>summary{list-style:none;cursor:pointer;line-height:26px}
+.v9views details.panel>summary::-webkit-details-marker{display:none}
+.v9views details.panel>summary h2{font:600 15px/1.2 var(--f-cond);margin:0;display:inline}
+.v9views details.panel>summary h2::before{content:"";display:inline-block;width:7px;height:7px;border-right:2px solid var(--ink-2);border-bottom:2px solid var(--ink-2);transform:rotate(-45deg);margin:0 10px 2px 2px;transition:transform .15s}
+.v9views details.panel[open]>summary h2::before{transform:rotate(45deg)}
+.v9views details.panel>summary .sub{font-size:12px;color:var(--ink-3);margin-left:10px}
+.v9views details.panel[open]>summary{margin-bottom:10px}
+
+/* overview: small multiples as inline blocks, three to a row */
+.v9views .ovtools{display:block;margin-bottom:10px}
+.v9views .ovlgd{font-size:12px;color:var(--ink-2);margin-left:14px}
+.v9views .ovlgd>span{margin-right:14px;white-space:nowrap;display:inline-block}
+.v9views .ovlgd svg{vertical-align:middle;margin-right:4px}
+.v9views .ovcap{display:block;font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.5}
+.v9views .ovgrid{display:block;font-size:0;margin-right:-20px}
+.v9views .ovc{display:inline-block;vertical-align:top;width:calc(33.333% - 20px);margin:0 20px 16px 0;font-size:12px}
+.v9views .ovc svg,.v9views .sw svg,.v9views .sm svg,.v9views .chart svg,.v9views #rec-ch svg{display:block;width:100%;height:auto;overflow:visible}
+.v9views .tblx{overflow-x:auto}
+.v9views .full{width:100%;min-width:0;border-collapse:collapse}
+.v9views .full td.st,.v9views .full th.st{position:sticky;left:0;background:var(--surface);z-index:1}
+.v9views .full td.st2,.v9views .full th.st2{position:sticky;left:52px;background:var(--surface);z-index:1;box-shadow:1px 0 0 var(--line)}
+.v9views .full td.l small{display:block;color:var(--ink-3);font:11px var(--f-ui);white-space:nowrap}
+/* every cell reads on the row's first line (the position name, the time value, the low breakeven); second lines sit under it */
+.v9views .full td{vertical-align:baseline}
+.v9views .full td small.cash{display:block;color:var(--ink-3);font:10.5px var(--f-num)}
+.v9views .full button:disabled{opacity:.35;cursor:not-allowed}
+.v9views .full th,.v9views .full td{padding:4px 3px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap;font:11px var(--f-num)}
+.v9views .full th{font:600 11px/1.25 var(--f-cond);color:var(--ink-2);background:var(--surface);white-space:normal;vertical-align:bottom}
+.v9views .full td.l,.v9views .full th.l{text-align:left}
+.v9views .full td.st2{font:12px var(--f-ui)}
+.v9views .full tr.sep td{border-top:1px solid var(--line)}
+.v9views .full tr.isA td:first-child{box-shadow:inset 3px 0 0 var(--a)}
+.v9views .full tr.isB td:first-child{box-shadow:inset 3px 0 0 var(--b)}
+.v9views .full button{border:1px solid var(--line);background:var(--surface);border-radius:4px;font:600 10.5px var(--f-cond);padding:0 5px;color:var(--ink-2)}
+
+/* payoff + comparison table; the table's A/B keys stick just below the summary */
+.v9views .chart{position:relative;width:100%}
+.v9views .ax text{fill:var(--ink-3);font:10.5px var(--f-num)}
+.v9views .ax line{stroke:var(--grid)}
+.v9views table{border-collapse:collapse}
+.v9views .cmp{width:100%;margin-top:12px;border-collapse:separate;border-spacing:0}
+.v9views .cmp th,.v9views .cmp td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+.v9views .cmp thead th{font:600 11px var(--f-cond);color:var(--ink-2);position:sticky;top:var(--v9-stick);z-index:5;background:var(--surface);box-shadow:0 1px 0 var(--line)}
+.v9views .cmp td{font:12px var(--f-num)}
+.v9views .cmp td:first-child{text-align:left;font:12px var(--f-ui);color:var(--ink);white-space:normal;width:34%}
+.v9views .cmp td:first-child .cap{display:inline;margin-left:6px}
+.v9views .cmp td.legs{font:12px var(--f-ui);color:var(--ink-2);white-space:nowrap}
+.v9views .cmp tr.grp td{border-bottom:1px solid var(--line)}
+.v9views .cmp tr:last-child td{border-bottom:0}
+.v9views .cmp tr.note td{font:12px var(--f-ui);color:var(--ink-2);text-align:left;background:var(--surface-2);white-space:normal}
+.v9views .cmp select,.v9views .cmp input{font-size:11.5px}
+
+/* P&L grid: a gutter and three heatmaps as inline blocks */
+.v9views .gwrap{display:block;font-size:0;white-space:nowrap}
+.v9views .gwrap>span{display:inline-block;vertical-align:top;font-size:12px;white-space:normal}
+.v9views .gwrap>.gut{width:var(--gutw,34px);margin-right:8px}
+.v9views .gwrap>.gcell{width:calc((100% - var(--gutw,34px) - 8px - 16px) / 3);margin-right:8px}
+.v9views .gwrap>.gcell:last-child{margin-right:0}
+.v9views .gwrap .gut canvas{display:block}
+.v9views .gh{display:block;height:24px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v9views .gh .t{color:var(--ink-2);margin-left:5px}
+.v9views .gh .rng2{font:11px var(--f-num);color:var(--ink-3);margin-left:6px}
+.v9views .gc{display:block;position:relative}
+.v9views .gc canvas{display:block;width:100%}
+.v9views .gc canvas.ov{position:absolute;left:0;top:0;cursor:crosshair}
+.v9views .gna{display:block;border:1px dashed var(--line);border-radius:6px;color:var(--ink-3);font-size:12px;text-align:center;padding:60px 12px}
+.v9views .gtabs{margin-bottom:8px}
+.v9views .gfoot{font:11px var(--f-num);color:var(--ink-3);margin-top:8px}
+.v9views .gfoot .bar{display:inline-block;height:8px;width:160px;border-radius:2px;vertical-align:middle;margin:0 6px}
+.v9views .gfoot>span{margin-right:14px;white-space:nowrap}
+.v9views .numctl{font-size:12px;color:var(--ink-2);margin-bottom:8px}
+.v9views .ntwrap{overflow:auto;max-height:520px}
+.v9views .ntab{border-collapse:separate;border-spacing:0}
+.v9views .ntab th,.v9views .ntab td{padding:3px 6px;text-align:right;border-bottom:1px solid var(--grid);font:11.5px var(--f-num);white-space:nowrap}
+.v9views .ntab th{font:600 11px var(--f-cond);color:var(--ink-2);position:sticky;top:0;background:var(--surface)}
+.v9views .ntab th small{display:block;font:400 10px var(--f-num);color:var(--ink-3)}
+.v9views .ntab td:first-child,.v9views .ntab th:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
+.v9views .pins{margin-top:10px}
+.v9views .pins table{width:100%}
+.v9views .pins th,.v9views .pins td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--grid);font:12px var(--f-num);white-space:nowrap}
+.v9views .pins th{font:600 11px var(--f-cond);color:var(--ink-2)}
+.v9views .pins td:first-child,.v9views .pins th:first-child,.v9views .pins td:nth-child(2),.v9views .pins th:nth-child(2){text-align:left}
+.v9views .pins button.x{border:0;background:none;color:var(--ink-3);font-size:15px;padding:0 4px}
+.v9views .pins button.x:hover{color:var(--neg)}
+
+/* joint moves */
+.v9views .panel.slim{padding:9px 14px}
+.v9views .panel.slim h2{font:600 14px/1.2 var(--f-cond);margin-right:10px;display:inline}
+.v9views .panel.slim .sub{font-size:12px;color:var(--ink-2);margin-right:10px}
+.v9views .joint{display:block;white-space:nowrap}
+.v9views .joint>.gc{display:inline-block;vertical-align:top}
+.v9views .jside{display:inline-block;vertical-align:top;white-space:normal;width:calc(100% - 540px);min-width:200px;margin-left:20px;font-size:12px;color:var(--ink-2)}
+.v9views .jside p{margin:0 0 8px}
+.v9views .jside .big{font:500 13.5px/1.6 var(--f-ui);color:var(--ink)}
+
+/* sweep: three charts as inline blocks */
+.v9views .sweep{display:block;font-size:0;margin-right:-16px}
+.v9views .sw{display:inline-block;vertical-align:top;width:calc(33.333% - 16px);margin-right:16px;font-size:12px}
+.v9views .sw h3 .info,.v9views .ovc h3 .info{width:15px;height:15px;line-height:13px;vertical-align:top}
+.v9views .swcap{display:block;margin-top:6px}
+.v9views .swlgd{display:block;margin:-4px 0 8px}
+
+/* recovery: text block and chart side by side when wide, stacked when narrow; captions wrap, never overprint */
+.v9views .rec{display:block}
+.v9views .rec .rl{display:inline-block;vertical-align:top;width:54%;padding-right:16px;box-sizing:border-box}
+.v9views .rec .rr{display:inline-block;vertical-align:top;width:46%}
+.v9views .rec.narrow .rl,.v9views .rec.narrow .rr{display:block;width:100%;padding-right:0}
+.v9views .rec.narrow .rr{margin-top:10px;max-width:640px}
+.v9views .rec .rrun{display:block;padding:6px 0 8px}
+.v9views .rec .rrun+.rrun{border-top:1px solid var(--grid)}
+.v9views .rec .rrun .key{margin-right:6px}
+.v9views .rec .rh{font-size:12px;color:var(--ink-2)}
+.v9views .rec .rv{display:inline-block;vertical-align:top;width:33.333%;padding-right:10px;margin:6px 0 0;box-sizing:border-box}
+.v9views .rec .rv .l{display:block;font-size:11px;color:var(--ink-3)}
+.v9views .rec .rv .v{display:block;font:600 15px var(--f-num);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v9views .rec .rv .v small{font:500 11px var(--f-num);color:var(--ink-2);margin-left:1px}
+.v9views .rec .rv .d{display:block;font:11px var(--f-num);color:var(--ink-3);white-space:normal;overflow-wrap:anywhere}
+.v9views .rec .rcap{display:block;margin-top:4px}
+.v9views .rec .rch{display:block;width:100%}
+
+/* smile and legs */
+.v9views .smile{display:block;font-size:0;margin-right:-16px}
+.v9views .sm{display:inline-block;vertical-align:top;width:calc(100% - 16px);margin-right:16px;font-size:12px}
+.v9views .smile.two .sm{width:calc(50% - 16px)}
+.v9views .qpt{cursor:pointer}
+.v9views details.notes>summary{cursor:pointer;font:600 15px var(--f-cond)}
+.v9views details.notes ul{margin:8px 0 0;padding-left:18px;color:var(--ink-2);font-size:12px;max-width:110ch}
+.v9views details.notes li{margin:4px 0}
+
+/* outside the host: the leg popover's refusal reason and the fallback event toast */
+.pop .why{display:block;font:11px var(--f-ui);color:var(--ink-3);margin:2px 0 4px 2px;white-space:normal;max-width:300px}
+.pop button .muted{font-weight:400}
+#toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:5px;padding:0 7px;font-size:12px}
+.v9views .full .wn{display:block}
