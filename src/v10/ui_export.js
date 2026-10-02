@@ -286,7 +286,7 @@ const EXPORT9 = (() => {
     const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
       const I = INST.list().map(x => INST.base(x.id)).filter(Boolean);
-      out.push(para(`# ${C.labels.title}`, `RAM · KORU options lab, Compare A vs B · IBKR quotes at ${asofTxt()} (spot ${I.map(x => `${x.id} ${fPx2(x.spotListed)}`).join(", ")}) · exported ${exportedOn(opts.now)}`,
+      out.push(para(`# ${C.labels.title}`, `${CORE_CONFIG.appName}, Compare A vs B · IBKR quotes at ${asofTxt()} (spot ${I.map(x => `${x.id} ${fPx2(x.spotListed)}`).join(", ")}) · exported ${exportedOn(opts.now)}`,
         opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     }
     if (on.comparison) out.push(secComparison(C));
@@ -396,7 +396,7 @@ const EXPORT9 = (() => {
     if (!ys || !res || !res.A) return "# Compounding\n\nNo results yet: open the Compounding tab once.\n";
     const stress = ys.view && ys.view.v === "stress";
     out.push(para(`# Compounding · ${runsOf(res).map(([w, R]) => `${w} ${R.run.tk} ${cadTxt(R.run)} ${famTxt(R.run)}`).join(" vs ")}`,
-      `RAM · KORU options lab, Compounding · a model year on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
+      `${CORE_CONFIG.appName}, Compounding · a model year on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
       opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));

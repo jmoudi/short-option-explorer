@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1200">
-<title>RAM · KORU Options Lab</title>
+<title>Short Options Comparer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -750,6 +750,10 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 #y-sstrip .cell.big{width:230px}
 #y-srow .ctl{margin-right:10px}
 
+/* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */
+.ybar.single .yb-only{display:none}
+.ybar.single #y-chipB{border-style:dashed;background:none}
+
 </style>
 </head>
 <body>
@@ -757,7 +761,7 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 <main>
 <div class="wrap">
   <nav class="tabstrip" id="tabstrip" aria-label="Lab">
-    <span class="apptitle">RAM · KORU options lab</span><span class="tabs" id="tabs" role="tablist" aria-label="Tabs"><button type="button" class="tab" role="tab" data-tab="compare" id="tb-compare" aria-controls="tab-cmp">Compare A vs B</button><button type="button" class="tab" role="tab" data-tab="yr" id="tb-yr" aria-controls="tab-yr">Compounding</button></span>
+    <span class="apptitle">Short Options Comparer</span><span class="tabs" id="tabs" role="tablist" aria-label="Tabs"><button type="button" class="tab" role="tab" data-tab="compare" id="tb-compare" aria-controls="tab-cmp">Compare A vs B</button><button type="button" class="tab" role="tab" data-tab="yr" id="tb-yr" aria-controls="tab-yr">Compounding</button></span>
     <details class="menu" id="pmenu">
       <summary aria-label="Page settings">⋯</summary>
       <span class="mb">
@@ -805,11 +809,11 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
   <div class="cbar ybar" id="ybar">
     <span class="crow">
       <span class="seg yview" id="y-view"></span><span class="sep"></span>
-      <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
-      <button type="button" class="btn ib" id="y-swap" title="Swap A and B">⇄</button>
-      <span class="sep"></span>
-      <span class="ctl"><span class="lbl">B differs in</span><span class="seg" id="y-bdiff"></span></span>
-      <details class="menu" id="y-bmore"><summary>More</summary><span class="mb" style="width:220px"><span class="mt">B also differs in</span><span class="seg eq" id="y-bdiff2" style="width:100%"></span><span class="cap" style="display:block;margin-top:6px">“Anything” gives B its own full editor in the panel on the right.</span></span></details>
+      <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs yb-only">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
+      <button type="button" class="btn ib yb-only" id="y-swap" title="Swap A and B">⇄</button>
+      <span class="sep yb-only"></span>
+      <span class="ctl yb-only"><span class="lbl">B differs in</span><span class="seg" id="y-bdiff"></span></span>
+      <details class="menu yb-only" id="y-bmore"><summary>More</summary><span class="mb" style="width:220px"><span class="mt">B also differs in</span><span class="seg eq" id="y-bdiff2" style="width:100%"></span><span class="cap" style="display:block;margin-top:6px">“Anything” gives B its own full editor in the panel on the right.</span></span></details>
     </span>
     <span class="crow" id="y-row2">
       <span class="ctl"><span class="lbl">Start</span>$<input type="number" id="y-cap0" min="1000" step="1000" style="width:78px"></span>
@@ -1052,6 +1056,7 @@ const RunDiff = Object.freeze({
 const TABS = Object.freeze(Object.values(Tab)), THEMES = Object.freeze(Object.values(Theme));
 
 const CORE_CONFIG = Object.freeze({
+  appName: "Short Options Comparer",                             // the product's name: page title, header, exports
   // their frame runs before execute() returns, unless the bus is delivering (see the timing contract above)
   renderAtOnce: /** @type {readonly string[]} */ (Object.freeze([Command.ShowTab])),
   failedChangeText: "That change could not be applied",        // the toast for a handler that threw (v9's text)
@@ -6780,7 +6785,7 @@ const EXPORT9 = (() => {
     const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
       const I = INST.list().map(x => INST.base(x.id)).filter(Boolean);
-      out.push(para(`# ${C.labels.title}`, `RAM · KORU options lab, Compare A vs B · IBKR quotes at ${asofTxt()} (spot ${I.map(x => `${x.id} ${fPx2(x.spotListed)}`).join(", ")}) · exported ${exportedOn(opts.now)}`,
+      out.push(para(`# ${C.labels.title}`, `${CORE_CONFIG.appName}, Compare A vs B · IBKR quotes at ${asofTxt()} (spot ${I.map(x => `${x.id} ${fPx2(x.spotListed)}`).join(", ")}) · exported ${exportedOn(opts.now)}`,
         opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     }
     if (on.comparison) out.push(secComparison(C));
@@ -6890,7 +6895,7 @@ const EXPORT9 = (() => {
     if (!ys || !res || !res.A) return "# Compounding\n\nNo results yet: open the Compounding tab once.\n";
     const stress = ys.view && ys.view.v === "stress";
     out.push(para(`# Compounding · ${runsOf(res).map(([w, R]) => `${w} ${R.run.tk} ${cadTxt(R.run)} ${famTxt(R.run)}`).join(" vs ")}`,
-      `RAM · KORU options lab, Compounding · a model year on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
+      `${CORE_CONFIG.appName}, Compounding · a model year on your price path, not market quotes · exported ${exportedOn(opts.now)}`,
       opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));
@@ -7666,6 +7671,9 @@ const YR = ((YRE, YRS) => {
 
   // ---------------------------------------------------------- tiny binders (own registry, so the comparer never repaints)
   const SY = [];
+  // where a binder registers its sync: SY for controls built once, the run dock's own list while the dock is being
+  // (re)built, so a rebuilt dock drops the syncs of controls that no longer exist (a dropped B's editor)
+  let syncTarget = SY;
   let T_ = 0;
   function schedule(ms = 140) { clearTimeout(T_); T_ = setTimeout(() => render("full"), ms); syncAll(); }
   function syncAll() { for (const f of SY) f(); }
@@ -7673,15 +7681,15 @@ const YR = ((YRE, YRS) => {
     host.innerHTML = opts.map(([v, l, t, dis]) => `<button type="button" data-v="${v}"${t ? ` title="${t}"` : ""}${dis ? " disabled" : ""}>${l}</button>`).join("");
     host.onclick = e => { const b = e.target.closest("button"); if (!b || b.disabled) return; set(b.dataset.v); schedule(30); };
     const sync = () => host.querySelectorAll("button").forEach(b => { const on = b.dataset.v === String(get()); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
-    SY.push(sync); sync();
+    syncTarget.push(sync); sync();
   }
   function numY(inp, get, set, opt = {}) {
     inp.onchange = () => { const v = parseFloat(inp.value); if (Number.isFinite(v)) set(opt.min != null ? Math.max(opt.min, opt.max != null ? Math.min(opt.max, v) : v) : v); schedule(30); };
-    const sync = () => { if (document.activeElement !== inp) inp.value = get(); }; SY.push(sync); sync();
+    const sync = () => { if (document.activeElement !== inp) inp.value = get(); }; syncTarget.push(sync); sync();
   }
   function rangeY(inp, out, get, set, fmt) {
     inp.oninput = () => { set(+inp.value); out.textContent = fmt(get()); schedule(); };
-    const sync = () => { if (document.activeElement !== inp) inp.value = get(); out.textContent = fmt(get()); }; SY.push(sync); sync();
+    const sync = () => { if (document.activeElement !== inp) inp.value = get(); out.textContent = fmt(get()); }; syncTarget.push(sync); sync();
   }
 
   // ---------------------------------------------------------- sticky bar
@@ -7704,7 +7712,8 @@ const YR = ((YRE, YRS) => {
     q("#y-chipA").title = defTxt(A);
     const cb = q("#y-chipB");
     if (B) { cb.innerHTML = `<span class="key b">B</span><span class="nm">${runName(B, A)}</span><span class="sz y-dropb" title="Drop B" style="cursor:pointer">×</span>`; cb.title = defTxt(B); }
-    else { cb.innerHTML = `<span class="key b">B</span><span class="nm muted">+ add B</span>`; cb.title = "Compare with a second run"; }
+    else { cb.innerHTML = `<span class="nm muted">+ compare with a second run</span>`; cb.title = "Add run B to compare with A"; }
+    q("#ybar").classList.toggle("single", !B);
     q("#y-bmore").classList.toggle("on", BDIFF2.some(([v]) => v === ys.bDiff));
     // vol group: one pair per ticker in use; B's pair in orange when B differs in vol
     const tks = [...new Set([A.tk, B && B.tk].filter(Boolean))], host = q("#y-vol");
@@ -7850,7 +7859,11 @@ const YR = ((YRE, YRS) => {
   }
   const SYD = [];
   function buildDock() {
-    SYD.length = 0; const db = q("#y-db"), B = runB();
+    SYD.length = 0; syncTarget = SYD;
+    try { buildDockControls(); } finally { syncTarget = SY; }
+  }
+  function buildDockControls() {
+    const db = q("#y-db"), B = runB();
     db.innerHTML = `<span class="ds" id="y-dsA"><h3><span class="key a">A</span>Run A</h3><span id="y-edA"></span></span>
       <span class="ds" id="y-dsB"><h3><span class="key b">B</span>Run B${B ? "" : ` <span class="sub">off</span>`}</h3><span id="y-edB"></span></span>
       <span class="ds"><details class="sub" id="y-costs"><summary>Costs and rates <span class="sv" id="y-costsum"></span></summary><span class="sb" id="y-costb"></span></details></span>`;
@@ -7938,7 +7951,7 @@ const YR = ((YRE, YRS) => {
     numY(q("#y-ccomm"), () => CO.comm, v => CO.comm = v, { min: 0 });
     numY(q("#y-csh"), () => CO.commSh, v => CO.commSh = v, { min: 0 });
     numY(q("#y-cliq"), () => CO.liq, v => CO.liq = Math.round(v), { min: 0 });
-    const w = q("#y-cwhole"); w.onchange = () => { CO.whole = w.checked; schedule(30); }; SY.push(() => { w.checked = CO.whole; });
+    const w = q("#y-cwhole"); w.onchange = () => { CO.whole = w.checked; schedule(30); }; syncTarget.push(() => { w.checked = CO.whole; });
     segY(q("#y-cgK"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.KORU), v => CO.grid.KORU = +v);
     segY(q("#y-cgR"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.RAM), v => CO.grid.RAM = +v);
     numY(q("#y-cmK"), () => CO.mOvr.KORU, v => CO.mOvr.KORU = v, { min: 0.25, max: 1 });
@@ -7947,7 +7960,7 @@ const YR = ((YRE, YRS) => {
     numY(q("#y-cbm"), () => Rt.bm, v => Rt.bm = v, { min: 0 });
     numY(q("#y-cloan"), () => Rt.loan, v => Rt.loan = v, { min: 0 });
     numY(q("#y-ccash"), () => Rt.cash, v => Rt.cash = v, { min: 0 });
-    SY.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
+    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
   }
 
   // ---------------------------------------------------------- result strip

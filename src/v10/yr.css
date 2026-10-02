@@ -82,3 +82,7 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .ypts input{width:64px}
 #y-sstrip .cell.big{width:230px}
 #y-srow .ctl{margin-right:10px}
+
+/* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */
+.ybar.single .yb-only{display:none}
+.ybar.single #y-chipB{border-style:dashed;background:none}

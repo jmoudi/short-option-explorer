@@ -62,3 +62,36 @@
 - `node --test test/*.test.js` runs the tests.
 - `node tools/reg/pixdiff.js --a <ref.html> --b <new.html> [--map-b tools/reg/maps/v10_to_v9.js] [--fast]` runs the
   harness (in the working folder it lives in scratch/reg; see its README).
+
+## Fixed after part I
+
+- Compounding: dropping run B threw (stale control syncs of B's editor, kept since v8/v9) before the results redrew, so
+  the old B row stayed on screen. Binders built in the run dock now register in the dock's own list, which is replaced
+  on every rebuild. With B off the bar is a single-run bar (no vs, swap or "B differs in"; a dashed "+ compare with a
+  second run"). Check: `node tools_checks/compounding_drop_b.js`.
+- The app's name is "Short Options Comparer" (one constant, `CORE_CONFIG.appName`; header, title, exports).
+
+## Collected improvements (not started)
+
+Fills and credit
+1. Fill override per leg (your actual fill), or one net credit; source shown (your fill / mid / natural, ✎); feeds
+   credit, EV, breakevens, recovery, export.
+2. Fill as a % of the spread between mid and natural, natural one click away.
+3. Bid / ask / mid and spread width on each leg row; a warning when the spread is large against the credit.
+4. Credit at mid and at natural side by side on the card ("$405 mid · $350 natural").
+
+Quotes and their age
+5. Quote time and age prominent ("quotes: 1 Oct close, 1 day old").
+6. Live quote refresh through the IBKR connector.
+7. An entry snapshot: spot and IV at your fill time.
+
+IV labelling
+8. Name each IV: "ATM IV 124% (smile fit, sets σ)" on the card, each leg's own IV on its row (C 112% · P 128%), the
+   period vol with its own label.
+9. One info popup: σ and the move range from the ATM IV, prices from the leg quotes, odds from the smile or the
+   period vol, EV from the period vol.
+10. Skew at the chosen strikes (put IV − call IV).
+
+Sizing and single positions
+11. Say what "×0.68" is on the card (B contracts per A contract); B's credit per contract and as sized.
+12. Compare tab: a single-position mode (B off), like the Compounding tab now has.

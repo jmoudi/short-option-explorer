@@ -150,6 +150,7 @@ const RunDiff = Object.freeze({
 const TABS = Object.freeze(Object.values(Tab)), THEMES = Object.freeze(Object.values(Theme));
 
 const CORE_CONFIG = Object.freeze({
+  appName: "Short Options Comparer",                             // the product's name: page title, header, exports
   // their frame runs before execute() returns, unless the bus is delivering (see the timing contract above)
   renderAtOnce: /** @type {readonly string[]} */ (Object.freeze([Command.ShowTab])),
   failedChangeText: "That change could not be applied",        // the toast for a handler that threw (v9's text)

@@ -198,6 +198,9 @@ const YR = ((YRE, YRS) => {
 
   // ---------------------------------------------------------- tiny binders (own registry, so the comparer never repaints)
   const SY = [];
+  // where a binder registers its sync: SY for controls built once, the run dock's own list while the dock is being
+  // (re)built, so a rebuilt dock drops the syncs of controls that no longer exist (a dropped B's editor)
+  let syncTarget = SY;
   let T_ = 0;
   function schedule(ms = 140) { clearTimeout(T_); T_ = setTimeout(() => render("full"), ms); syncAll(); }
   function syncAll() { for (const f of SY) f(); }
@@ -205,15 +208,15 @@ const YR = ((YRE, YRS) => {
     host.innerHTML = opts.map(([v, l, t, dis]) => `<button type="button" data-v="${v}"${t ? ` title="${t}"` : ""}${dis ? " disabled" : ""}>${l}</button>`).join("");
     host.onclick = e => { const b = e.target.closest("button"); if (!b || b.disabled) return; set(b.dataset.v); schedule(30); };
     const sync = () => host.querySelectorAll("button").forEach(b => { const on = b.dataset.v === String(get()); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
-    SY.push(sync); sync();
+    syncTarget.push(sync); sync();
   }
   function numY(inp, get, set, opt = {}) {
     inp.onchange = () => { const v = parseFloat(inp.value); if (Number.isFinite(v)) set(opt.min != null ? Math.max(opt.min, opt.max != null ? Math.min(opt.max, v) : v) : v); schedule(30); };
-    const sync = () => { if (document.activeElement !== inp) inp.value = get(); }; SY.push(sync); sync();
+    const sync = () => { if (document.activeElement !== inp) inp.value = get(); }; syncTarget.push(sync); sync();
   }
   function rangeY(inp, out, get, set, fmt) {
     inp.oninput = () => { set(+inp.value); out.textContent = fmt(get()); schedule(); };
-    const sync = () => { if (document.activeElement !== inp) inp.value = get(); out.textContent = fmt(get()); }; SY.push(sync); sync();
+    const sync = () => { if (document.activeElement !== inp) inp.value = get(); out.textContent = fmt(get()); }; syncTarget.push(sync); sync();
   }
 
   // ---------------------------------------------------------- sticky bar
@@ -236,7 +239,8 @@ const YR = ((YRE, YRS) => {
     q("#y-chipA").title = defTxt(A);
     const cb = q("#y-chipB");
     if (B) { cb.innerHTML = `<span class="key b">B</span><span class="nm">${runName(B, A)}</span><span class="sz y-dropb" title="Drop B" style="cursor:pointer">×</span>`; cb.title = defTxt(B); }
-    else { cb.innerHTML = `<span class="key b">B</span><span class="nm muted">+ add B</span>`; cb.title = "Compare with a second run"; }
+    else { cb.innerHTML = `<span class="nm muted">+ compare with a second run</span>`; cb.title = "Add run B to compare with A"; }
+    q("#ybar").classList.toggle("single", !B);
     q("#y-bmore").classList.toggle("on", BDIFF2.some(([v]) => v === ys.bDiff));
     // vol group: one pair per ticker in use; B's pair in orange when B differs in vol
     const tks = [...new Set([A.tk, B && B.tk].filter(Boolean))], host = q("#y-vol");
@@ -382,7 +386,11 @@ const YR = ((YRE, YRS) => {
   }
   const SYD = [];
   function buildDock() {
-    SYD.length = 0; const db = q("#y-db"), B = runB();
+    SYD.length = 0; syncTarget = SYD;
+    try { buildDockControls(); } finally { syncTarget = SY; }
+  }
+  function buildDockControls() {
+    const db = q("#y-db"), B = runB();
     db.innerHTML = `<span class="ds" id="y-dsA"><h3><span class="key a">A</span>Run A</h3><span id="y-edA"></span></span>
       <span class="ds" id="y-dsB"><h3><span class="key b">B</span>Run B${B ? "" : ` <span class="sub">off</span>`}</h3><span id="y-edB"></span></span>
       <span class="ds"><details class="sub" id="y-costs"><summary>Costs and rates <span class="sv" id="y-costsum"></span></summary><span class="sb" id="y-costb"></span></details></span>`;
@@ -470,7 +478,7 @@ const YR = ((YRE, YRS) => {
     numY(q("#y-ccomm"), () => CO.comm, v => CO.comm = v, { min: 0 });
     numY(q("#y-csh"), () => CO.commSh, v => CO.commSh = v, { min: 0 });
     numY(q("#y-cliq"), () => CO.liq, v => CO.liq = Math.round(v), { min: 0 });
-    const w = q("#y-cwhole"); w.onchange = () => { CO.whole = w.checked; schedule(30); }; SY.push(() => { w.checked = CO.whole; });
+    const w = q("#y-cwhole"); w.onchange = () => { CO.whole = w.checked; schedule(30); }; syncTarget.push(() => { w.checked = CO.whole; });
     segY(q("#y-cgK"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.KORU), v => CO.grid.KORU = +v);
     segY(q("#y-cgR"), [["1", "$1"], ["0.5", "$0.50"]], () => String(CO.grid.RAM), v => CO.grid.RAM = +v);
     numY(q("#y-cmK"), () => CO.mOvr.KORU, v => CO.mOvr.KORU = v, { min: 0.25, max: 1 });
@@ -479,7 +487,7 @@ const YR = ((YRE, YRS) => {
     numY(q("#y-cbm"), () => Rt.bm, v => Rt.bm = v, { min: 0 });
     numY(q("#y-cloan"), () => Rt.loan, v => Rt.loan = v, { min: 0 });
     numY(q("#y-ccash"), () => Rt.cash, v => Rt.cash = v, { min: 0 });
-    SY.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
+    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
   }
 
   // ---------------------------------------------------------- result strip
