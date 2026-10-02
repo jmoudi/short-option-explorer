@@ -4,14 +4,24 @@
  * consumers of every frame: one ordered render (theme and tabs, then summary → dock → title → views: the dock must
  * render before the charts measure their width) and the persistence that writes the stored blob and the address.
  * The Compounding tab lives in YR (init({port}), render(mode), getState, setState, reset) and stays off the bus: it
- * renders on its own schedule and calls port.saveView when its state settles.
+ * renders on its own schedule, calls port.saveView when its state settles, and reads and writes the period vol through
+ * port.periodVol (its writes are commands; their frames on that tab persist without a render).
+
+ * The store holds the one state tree (comparison, assumptions, prefs, periodVol) plus the visible tab; the page writes
+ * it, with the Compounding tab's state, as a "#v10." code and the "rk-lab-v10" blob, and reads older views once.
  */
 
 const PAGE_CONFIG = Object.freeze({
   resizeDebounceMs: 120, colorSchemeQuery: "(prefers-color-scheme: dark)",
   // the console method each fault severity prints with. v9 printed nothing for what are now warnings (a refused
   // storage, a malformed command), so they stay below the error and warning levels a console filter shows by default
-  consoleBySeverity: Object.freeze({ [FaultSeverity.Error]: "error", [FaultSeverity.Warning]: "info" })
+  consoleBySeverity: Object.freeze({ [FaultSeverity.Error]: "error", [FaultSeverity.Warning]: "info" }),
+  // commands that change only what is saved, not what either tab shows: their frames persist without a render (v9
+  // saved the export section choice without redrawing)
+  saveOnlyCauses: /** @type {readonly string[]} */ (Object.freeze([Command.SetExportSection])),
+  // commands a tab runs through its port while it renders itself on its own schedule: their frames on that tab
+  // persist without a render (the Compounding tab's vol slider stays one debounced render per drag, as before)
+  selfRenderedCauses: Object.freeze({ [Tab.Compounding]: /** @type {readonly string[]} */ (Object.freeze([Command.SetPeriodVol])) })
 });
 
 // what only the page keeps: the event loop once main() built it, each tab's scroll position, the shell's own title,
@@ -70,20 +80,19 @@ function logFault(envelope) {
 }
 
 // ---------------------------------------------------------------- persistence: one blob for both tabs, the address
-// localStorage "rk-lab-v9" holds the blob; the address carries the same view as a #v9. code. The persistence
-// subscriber saves the frame's state; a save without a frame (the export's save, the Compounding tab's port) saves
-// the store's current state.
+// localStorage "rk-lab-v10" holds the blob; the address carries the same view as a #v10. code (the older keys and
+// codes are only read). The persistence subscriber saves the frame's state; a save without a frame (the Compounding
+// tab's port) saves the store's current state.
 /** @param {{ state?: any }} [options] */
 function saveView({ state } = {}) {
-  const viewState = state || page.store.read(), s9 = STATE.pickComparer(viewState);
-  const meta = { tab: viewState.tab, theme: viewState.view.theme, yr: readYrState() };
-  writeStoredBlob(JSON.stringify(STATE.blob(s9, meta)));
-  writeAddressCode(STATE.code(s9, meta));
+  const viewState = state || page.store.read(), yr = readYrState();
+  writeStoredBlob(JSON.stringify(STATE.writeStoredView({ state: viewState, yr })));
+  writeAddressCode(STATE.writeViewCode({ state: viewState, yr }));
 }
 function writeStoredBlob(blob) {
   if (blob === page.saved.blob) { return; }
   page.saved.blob = blob;
-  const written = storage.write({ key: KEY9, text: blob });
+  const written = storage.write({ key: STORAGE_KEY.V10, text: blob });
   if (!written.ok) { reportStorageFault({ error: written.error, handling: FaultHandling.ViewNotStored }); }
 }
 function writeAddressCode(code) {
@@ -139,10 +148,15 @@ function renderCompounding() {
 // (its builder failed: one context_failed fault) still switches the tab and the theme; the panels keep their last
 // render, as v9's did
 function renderActiveTab(frame) {
+  const isSaveOnly = frame.causes.length > 0 && frame.causes.every(cause => PAGE_CONFIG.saveOnlyCauses.includes(cause));
+  if (isSaveOnly) { return; }
   const state = frame.state;
-  applyTheme(state.view.theme);
+  const selfRendered = PAGE_CONFIG.selfRenderedCauses[state.tab] || [];
+  const isRenderedByTab = frame.causes.length > 0 && frame.causes.every(cause => selfRendered.includes(cause));
+  if (isRenderedByTab) { return; }
+  applyTheme(state.prefs.theme);
   syncTabs(state.tab);
-  document.body.classList.toggle("dock-off", !state.view.dock);
+  document.body.classList.toggle("dock-off", !state.prefs.dock);
   if (state.tab === Tab.Compounding) {
     renderCompounding();
     return;
@@ -152,10 +166,10 @@ function renderActiveTab(frame) {
 }
 
 // ---------------------------------------------------------------- boot, tabs, view codes
-// first load: a code in the address wins over the stored blob; with no v9 blob, the v8 blob or the v5 store migrates.
-// -> {state: S9 with the theme applied and the visible tab, yr, notices, faults, isBadHash}
+// first load: a code in the address wins over the stored blob (v10, else the v9 blob, else the v8 blob or the v5 store,
+// see BOOT). -> {state: the tree with the theme applied, plus the visible tab; yr, notices, faults, isBadHash}
 function readBootState() {
-  let s9 = null, tab = Tab.Compare, theme = Theme.Auto, yr = null, notices = [];
+  let tree = null, tab = Tab.Compare, theme = Theme.Auto, yr = null, notices = [];
   const faults = [];
   const stored = BOOT.blob || BOOT.legacy, fromStore = stored ? STATE.readStoredView(stored) : null;
   if (fromStore && !fromStore.ok) {
@@ -163,12 +177,12 @@ function readBootState() {
     faults.push(createFault({ code: FaultCode.StoredViewFailed, severity: FaultSeverity.Warning, text: fromStore.error.message, handling: FaultHandling.LoggedWhereCaught, where: "boot", cause: fromStore.error.cause }));
   }
   if (fromStore && fromStore.ok) {
-    ({ state: s9, tab, theme, yr, notices } = fromStore.value);
+    ({ state: tree, tab, theme, yr, notices } = fromStore.value);
   }
   const fromHash = STATE.readViewCode(BOOT.hash), isBadHash = !fromHash.ok && fromHash.error.code === ViewCodeError.Undecodable;
   if (fromHash.ok) {
     const h = fromHash.value;
-    s9 = h.state;
+    tree = h.state;
     notices = h.notices;
     tab = h.tab;
     if (h.theme !== undefined) { theme = h.theme; }
@@ -176,7 +190,7 @@ function readBootState() {
   }
   if (!TABS.includes(tab)) { tab = Tab.Compare; }
   if (!THEMES.includes(theme)) { theme = Theme.Auto; }
-  const withTheme = STATE.applyChange(s9 || STATE.defaults(), s => { s.view.theme = theme; });
+  const withTheme = STATE.applyChange(tree || STATE.defaults(), s => { s.prefs.theme = theme; });
   return { state: Object.assign(withTheme, { tab }), yr, notices, faults, isBadHash };
 }
 // switching keeps each tab's own scroll position. ShowTab renders before execute() returns when it runs from a DOM
@@ -265,7 +279,7 @@ function wireCompare() {
   DOCK9.init();
   VIEWS.wire({ host: $("#views") });
   VIEWS.notes();
-  EXPORT9.wire({ tab: () => page.store.read().tab, readState: () => page.store.read(), code: () => page.saved.code, save: saveView });
+  EXPORT9.wire({ readState: () => page.store.read(), code: () => page.saved.code });
 }
 function wireTabStrip() {
   const tabs = $("#tabs");
@@ -285,7 +299,7 @@ function wireTabStrip() {
 // ⋯ page menu: theme, view code, resets
 function wirePageMenu() {
   const menu = /** @type {HTMLDetailsElement} */ ($("#pmenu")), field = /** @type {HTMLInputElement} */ ($("#vload"));
-  seg({ el: "#c-theme", options: [[Theme.Auto, "Auto"], [Theme.Light, "Light"], [Theme.Dark, "Dark"]], read: state => state.view.theme, command: v => ({ type: Command.SetPref, patch: { theme: v } }), everyTab: true });
+  seg({ el: "#c-theme", options: [[Theme.Auto, "Auto"], [Theme.Light, "Light"], [Theme.Dark, "Dark"]], read: state => state.prefs.theme, command: v => ({ type: Command.SetPref, patch: { theme: v } }), everyTab: true });
   $("#vcopy").addEventListener("click", () => copyText({ text: $("#vcode").value, fallbackField: $("#vcode") }));
   $("#vgo").addEventListener("click", () => loadTypedCode({ menu, field }));
   $("#vreset").addEventListener("click", () => {
@@ -311,13 +325,33 @@ function wireWindow() {
   if (!window.matchMedia) { return; }
   matchMedia(PAGE_CONFIG.colorSchemeQuery).addEventListener?.("change", () => page.frames.mark({ cause: FrameCause.ColorScheme }));
 }
+// The Compounding tab's port. The tab stays off the bus: it saves through the page, toasts through the bus, and reads
+// and writes the period vol, the one number per ticker Compare A vs B reads too. read(ticker) goes through the same
+// reader as the comparer (CTX.readTickerVol) as reader Compounding, whose floor is 0: the tab's 0 means "exactly on the
+// path", where the comparer reads its 1% floor. write({ticker, pct, source?, expiry?}) runs SetPeriodVol through the
+// executor (source Set unless the tab names a preset; ATM carries the expiry it was read at; reader Compounding) and
+// returns its Result; a value it clamps comes back
+// as a toast. refs(ticker) is the reference list the comparer's period-vol box shows (CTX.listPeriodVolRefs: the listed
+// vol, ATM at A's horizon, the data's realized vols), so the two tabs cannot list different references
+function createCompoundingPort() {
+  const read = ticker => CTX.readTickerVol({ periodVol: page.store.read().periodVol, id: ticker, reader: Tab.Compounding }).pct;
+  /** @param {{ ticker: string, pct: number, source?: string, expiry?: string }} edit */
+  const write = ({ ticker, pct, source, expiry }) => {
+    const command = { type: Command.SetPeriodVol, ticker, source: source || VolSource.Set, pct, reader: Tab.Compounding };
+    if (expiry) { Object.assign(command, { expiry }); }
+    return page.executor.execute(command);
+  };
+  const refs = ticker => CTX.listPeriodVolRefs({ id: ticker, comparison: page.store.read().comparison });
+  return { saveView, showNotice: text => page.bus.emit(createNoticeEnvelope({ text })), periodVol: { read, write, refs } };
+}
 // the Compounding tab: off the bus, it reaches the page through its port
 function startCompounding(yr) {
   const host = $("#tab-yr");
   if (!host.children.length) { host.innerHTML = `<p class="yrnone">The Compounding tab is not part of this build.</p>`; }
-  const port = { saveView, showNotice: text => page.bus.emit(createNoticeEnvelope({ text })) };
+  const port = createCompoundingPort();
   try {
     YR.init({ port });
+
     if (yr != null) { YR.setState(yr); }
   } catch (error) {
     reportCaught({ where: "YR.init", error });

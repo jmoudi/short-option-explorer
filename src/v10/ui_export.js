@@ -1,21 +1,22 @@
 // ============================================================ ui9_export: "Export as Markdown" (page menu ⋯)
-// EXPORT9.toMarkdownCompare(C, S9, opts) and EXPORT9.toMarkdownCompounding(ys, res, opts) are pure: they read their
+// EXPORT9.toMarkdownCompare(C, state, opts) and EXPORT9.toMarkdownCompounding(ys, res, opts) are pure: they read their
 // arguments (and the model / format globals) and return GitHub-flavoured markdown, prose and tables, numbers formatted
 // as on screen. EXPORT9.wire(opts) wires the menu entry (Copy, Download .md, Sections ▾) for the active tab.
 // Top-level name: EXPORT9.
-// The section choice lives in the Compounding state's view (ys.view.exportCmp / exportYr): S9.view is sanitized to its
-// own keys, and ys.view rides in the same saved blob and view code.
+// The section choice is a preference in the state tree (prefs.exportSections, per tab; STATE holds the defaults) and
+// changes through the SetExportSection command, so it rides in the saved blob and the view code with the rest.
 
 const EXPORT9 = (() => {
-  // ---------------------------------------------------------- sections (key, label, on by default)
-  /** @type {[string, string, boolean][]} */
-  const CMP_SECTIONS = [["header", "Header", true], ["comparison", "Comparison", true], ["assumptions", "Assumptions", true], ["results", "Results", true],
-    ["recovery", "Recovery dynamics", true], ["pins", "Pinned scenarios", true], ["overview", "Overview table", false], ["notes", "Notes", true]];
-  /** @type {[string, string, boolean][]} */
-  const YR_SECTIONS = [["runs", "Runs", true], ["base", "Base", true], ["strip", "Result", true], ["weeks", "Week by week", false],
-    ["stress", "Stress", true], ["random", "Random years", true]];
-  const defaults = list => Object.fromEntries(list.map(([k, , on]) => [k, on]));
-  const pick = (list, sec) => { const d = defaults(list); if (sec && typeof sec === "object") for (const k of Object.keys(d)) if (typeof sec[k] === "boolean") d[k] = sec[k]; return d; };
+  // ---------------------------------------------------------- sections (key, label) in document order; which are on by
+  // default is STATE.EXPORT_SECTION_DEFAULTS
+  /** @type {[string, string][]} */
+  const CMP_SECTIONS = [[ExportSection.Header, "Header"], [ExportSection.Comparison, "Comparison"], [ExportSection.Assumptions, "Assumptions"],
+    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Pins, "Pinned scenarios"],
+    [ExportSection.Overview, "Overview table"], [ExportSection.Notes, "Notes"]];
+  /** @type {[string, string][]} */
+  const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Weeks, "Week by week"],
+    [ExportSection.Stress, "Stress"], [ExportSection.Random, "Random years"]];
+  const SECTION_LISTS = Object.freeze({ [Tab.Compare]: CMP_SECTIONS, [Tab.Compounding]: YR_SECTIONS });
 
   // ---------------------------------------------------------- markdown helpers
   const cell = s => String(s == null || s === "" ? "" : s).replace(/\|/g, "\\|").replace(/\n/g, " ");
@@ -95,7 +96,7 @@ const EXPORT9 = (() => {
     const n = b.net;
     let net = `**Net ${n.isDebit ? "debit" : "credit"} ${usd(n.perContract)} per contract** · ${Math.abs(n.pctOfSpot).toFixed(1)}% of spot`;
     if (b.intr > 0) net += ` · time value ${usd(b.tv * 100)} (intrinsic ${usd(b.intr * 100)} is paid back at expiry)`;
-    if (side === "B" && !C.A.na) net += ` · sized ×${contractsK(C).toFixed(2)} B contracts per A contract (${C.cmp.sizing.rule === "auto" ? "auto: " : ""}${sizeName(C)}; h = ${C.h.toFixed(3)} × A's notional)`;
+    if (side === "B" && !C.A.na) net += ` · sized ×${contractsK(C).toFixed(2)} B contracts per A contract (${C.comparison.sizing.rule === "auto" ? "auto: " : ""}${sizeName(C)}; h = ${C.h.toFixed(3)} × A's notional)`;
     const fl = b.flags.filter(f => f.code !== "WING_NA").map(flagLine);
     return para(head, intro, legs, naW.join(" "), net, fl.length ? "Flags:\n" + bullets(fl) : "");
   }
@@ -109,30 +110,31 @@ const EXPORT9 = (() => {
   }
 
   function secAssumptions(C) {
-    const sc = C.scen, rows = [];
+    const sc = C.assumptions, rows = [];
     const both = (label, f) => rows.push([label, f("A"), f("B")]);
     const bOf = s => s === "A" ? C.A : C.B, iOf = s => s === "A" ? C.instA : C.instB;
     both("Instrument", s => { const I = iOf(s); return I ? `${I.name || I.id}` : bOf(s).tk; });
     both("Spot", s => { const I = iOf(s); if (!I) return "–"; const o = Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed; return o ? `${fPx2(I.spot)} (override; listed ${fPx2(I.spotListed)})` : `${fPx2(I.spot)} (listed)`; });
     both("IV shift on every quote", s => { const I = iOf(s); return I && I.ivShift ? `${ivTxt(I.ivShift)} (re-prices the entry)` : "none"; });
-    both(`${labelListedVol()} (IBKR)`, s => { const I = iOf(s); return I ? fP(readListedVol(I), 0) : "–"; });
+    both("Period vol (EV readings)", s => { const I = iOf(s); return I ? C.volOf(I.id).label : "–"; });
     both("Leverage", s => { const I = iOf(s); return I ? `${I.lev}×` : "–"; });
     both("Expiry", s => { const b = bOf(s); return b.exp ? `${fmtE(b.exp)} · ${Number.isFinite(b.dte) ? b.dte + " days" : "n/a"}` : "–"; });
     both("ATM IV at expiry", s => { const b = bOf(s); return b.E ? fP(b.E.atm, 1) : "–"; });
     both("Forward", s => { const b = bOf(s); return b.na ? "–" : fPx2(b.F); });
     const T = table(["", "A", "B"], rows, ["l", "r", "r"]);
-    const odds = sc.dist === "rn" ? "implied, the risk-neutral distribution from each smile (EV is then fill vs mid, 0 at mid)" : `${labelListedVol()} × ${sc.hvk.toFixed(2)}, a zero-drift lognormal at IBKR's 30-day historical vol`;
-    const rng = `${C.uLab(C.lo, C.unit)} to ${C.uLab(C.hi, C.unit)}${C.unit === "sig" && C.sigAxisLabel !== "σ" ? ` (${C.sigAxisLabel})` : ""}: ${sideTk(C, "A")} ${fPx2(C.toSA(C.lo))}–${fPx2(C.toSA(C.hi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.lo))}–${fPx2(C.toSB(C.hi))}`}`;
+    const odds = sc.dist === Odds.Implied ? "implied, the risk-neutral distribution from each smile (the table's EV is then fill vs mid, 0 at mid)" : `period vol, a zero-drift lognormal at each ticker's period vol (${[...new Set([C.A.tk, C.B.tk].filter(Boolean))].map(id => `${id} ${Math.round(C.volOf(id).pct)}%`).join(", ")})`;
+    const rng = `${C.uLab(C.lo, C.unit)} to ${C.uLab(C.hi, C.unit)}${C.unit === MoveUnit.Sigma && C.sigAxisLabel !== "σ" ? ` (${C.sigAxisLabel})` : ""}: ${sideTk(C, "A")} ${fPx2(C.toSA(C.lo))}–${fPx2(C.toSA(C.hi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.lo))}–${fPx2(C.toSB(C.hi))}`}`;
     const unitW = { sig: "σ = each instrument's ATM vol at A's horizon × √T", pct: "% of spot", pts: `price points on ${sideTk(C, "A")}` }[C.unit];
-    const wl = sc.wl === "view" ? "the view range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
+    const wl = sc.wl === WorstLossRange.View ? "the view range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
     const shock = [sc.ivs ? `IV shock ${sc.ivs > 0 ? "+" : MINUS}${Math.abs(sc.ivs)} pts` : "", sc.svs ? `+${sc.svs} vol pts per −10% spot${sc.svd ? " (down only)" : ""}` : ""].filter(Boolean).join(", ");
     const items = [
-      `Odds: ${odds}.`,
+      `Odds: ${odds}. They set the profit odds and the Results table's EV row; every other EV reading uses the period vol.`,
+      `Period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}; one number per ticker for every expiry, annualized like IV. σ (the move axis, the worst-loss range, sizing) stays implied.`,
       `Move range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
       C.unitsNote ? `Values: ${C.unitsNote}.` : "",
-      `Pair sizing: ${C.cmp.sizing.rule === "auto" ? `auto (${sizeName(C)})` : sizeName(C)}, h = ${C.h.toFixed(3)}: B's notional is ${C.h.toFixed(2)}× A's${C.A.na || C.B.na ? "" : `, i.e. ×${contractsK(C).toFixed(2)} B contracts per A contract`}${C.hNote ? ` (${C.hNote})` : ""}.`,
+      `Pair sizing: ${C.comparison.sizing.rule === "auto" ? `auto (${sizeName(C)})` : sizeName(C)}, h = ${C.h.toFixed(3)}: B's notional is ${C.h.toFixed(2)}× A's${C.A.na || C.B.na ? "" : `, i.e. ×${contractsK(C).toFixed(2)} B contracts per A contract`}${C.hNote ? ` (${C.hNote})` : ""}.`,
       shock ? `Shocks after entry (marks before expiry and the pins only): ${shock}.` : "",
-      C.cmp.expMap === "same" ? "B uses A's expiry only when its chain lists it." : ""
+      C.comparison.expMap === "same" ? "B uses A's expiry only when its chain lists it." : ""
     ];
     return para("## Assumptions", T, bullets(items));
   }
@@ -151,7 +153,7 @@ const EXPORT9 = (() => {
   };
   const levTxt = () => INST.list().map(x => `${x.id} ${x.lev}×`).join(", ");
   function secResults(C) {
-    const { A, B, sa, sb, h } = C, nA = A.na, nB = B.na, sc = C.scen, rows = [], notes = [], fU = C.fU;
+    const { A, B, sa, sb, h } = C, nA = A.na, nB = B.na, sc = C.assumptions, rows = [], notes = [], fU = C.fU;
     const a = (f, nn) => nn ? NaN : f, sB = v => v * h;
     const add = (label, va, vb, fmt, diff = true, rat = true) => rows.push([label, fmt(va), fmt(vb), diff && Number.isFinite(va) && Number.isFinite(vb) ? fmt(va - vb) : "", rat ? ratioTxt(va, vb, fmt) : ""]);
     const pair = C.same && C.sameExp && !nA && !nB;
@@ -167,11 +169,11 @@ const EXPORT9 = (() => {
     rows.push([`Credit${anyI ? " (cash · time value)" : ""}`, cv(A, nA, 1), cv(B, nB, h), Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` · ${fU(ta - tb)}` : "") : "", anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)]);
     add(`Credit/σ (size-free, own σ to expiry)${tvC}`, a(A.tv / (A.S * A.sig), nA), a(B.tv / (B.S * B.sig), nB), v => fN0(v, 3), false);
     add(`Credit per day${tvC}`, a(A.tv / A.S / A.dte, nA), a(sB(B.tv / B.S / B.dte), nB), v => fU(v, 3));
-    add(`Expected value · ${sc.dist === "rn" ? "implied odds: fill vs mid, 0 at mid" : `${labelListedVol()} ×${sc.hvk.toFixed(2)} odds`}`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
-    rows.push([`Profit odds · ${sc.dist === "rn" ? "implied" : labelListedVol()} (P&L above 0 at expiry)`, nA || !sa ? "–" : fP(sa.pop, 0), nB || !sb ? "–" : fP(sb.pop, 0), pair ? fP(pairPop(C), 0) : "", ""]);
+    add(`Expected value · ${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
+    rows.push([`Profit odds · ${C.oddsText()} (P&L above 0 at expiry)`, nA || !sa ? "–" : fP(sa.pop, 0), nB || !sb ? "–" : fP(sb.pop, 0), pair ? fP(pairPop(C), 0) : "", ""]);
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const wr = `${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}: ${C.same ? A.tk : sideTk(C, "A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}`;
-    rows.push([`Worst loss within ${sc.wl === "view" ? "the view range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
+    rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the view range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
     add("Vega per vol point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
     add(`Margin (approx.: 20% × leverage, ${levTxt()}, Reg-T style)`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
     add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false);
@@ -192,7 +194,7 @@ const EXPORT9 = (() => {
   function recRun(C, b, who, vw) {
     if (!b || b.na) return null;
     const capPS = vw.rdCap === "margin" ? b.margin : b.S;
-    const hv = C.statsHV(b), ev = hv ? hv.ev : NaN, g = vw.rdG === "custom" ? vw.rdGc / 100 : ev / capPS;
+    const hv = C.statsAtPeriodVol(b), ev = hv ? hv.ev : NaN, g = vw.rdG === GrowthRate.Custom ? vw.rdGc / 100 : ev / capPS;
     let L, xMove = null;
     if (vw.rdHit === "fixed") L = vw.rdL / 100;
     else {
@@ -218,14 +220,14 @@ const EXPORT9 = (() => {
   }
   const growthTxt = g => { if (!Number.isFinite(g)) return "–"; const t = Math.abs(g * 100).toFixed(2); return (+t === 0 ? "" : g > 0 ? "+" : MINUS) + t + "%"; };
   function secRecovery(C) {
-    const vw = C.view, base = vw.rdBase, runs = [recRun(C, C.A, "A", vw), recRun(C, C.B, "B", vw)];
+    const vw = C.prefs, base = vw.rdBase, runs = [recRun(C, C.A, "A", vw), recRun(C, C.B, "B", vw)];
     const asof = calendar.readUtcDayStart(INST.asof), t0 = Number.isFinite(asof) ? asof : calendar.nowMs();
     const hitTxt = vw.rdHit === "fixed" ? `a fixed ${vw.rdL}% hit` : `a ${vw.rdK}σ move to its own expiry, ${vw.rdDir === "worse" ? "the worse side" : vw.rdDir}`;
     const col = f => runs.map(r => r ? f(r) : "n/a");
     const rows = [
       ["Position", ...col(r => r.b.label.full)],
       ["Cycle", ...col(r => `${r.days} days`)],
-      [`Growth per cycle${vw.rdG === "ev" ? ` (EV at ${labelListedVol()} odds on ${vw.rdCap === "margin" ? "margin" : "notional"})` : " (set by hand)"}`, ...col(r => growthTxt(r.g))],
+      [`Growth per cycle${vw.rdG === GrowthRate.Ev ? ` (EV ${C.volOddsText({ isCompact: true })} on ${vw.rdCap === "margin" ? "margin" : "notional"})` : " (set by hand)"}`, ...col(r => growthTxt(r.g))],
       [`Hit (% of ${base === "nav" ? "NAV when it lands" : "starting capital"})`, ...col(r => (r.L > 0 ? MINUS + (r.L * 100).toFixed(0) + "%" : "no loss") + (r.xMove ? ` at ${fPx2(r.xMove)}` : ""))],
       ["Recovery (hit first)", ...col(r => recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, t0))],
       ["Buffer (climb first)", ...col(r => recTime(recCycles(r.L, r.g, "buf", base), r.days, base === "nav" ? r.L : 0, t0))]
@@ -235,7 +237,7 @@ const EXPORT9 = (() => {
   }
 
   function secPins(C) {
-    const pins = C.view.pins || [];
+    const pins = C.prefs.pins || [];
     if (!pins.length) return "";
     const { A, B } = C, hb = Math.abs(C.h - 1) > 0.005 ? ` ×${C.h.toFixed(2)}` : "";
     const rows = pins.map((p, k) => {
@@ -260,13 +262,13 @@ const EXPORT9 = (() => {
     const rows = cells.map(({ b, sx }) => {
       const wf = b.na ? null : b.flags.find(f => f.code === "WING_NA"), name = b.na ? b.label.short : `${b.label.short} · ${b.label.tab.slice(b.tk.length + 1)}${wf ? ` (${wf.leg === "wingPut" ? "put" : "call"} wing n/a)` : ""}`;
       if (b.na || !sx) return [name, "n/a: " + b.naReason, "", "", "", "", "", "", "", ""];
-      const own = (v, d, z) => (z ? fS : fP0)(v, d), hv = C.statsHV(b), wp = b.cap ? sx.pCap : b.capP ? sx.pCapP : NaN;
+      const own = (v, d, z) => (z ? fS : fP0)(v, d), hv = C.statsAtPeriodVol(b), wp = b.cap ? sx.pCap : b.capP ? sx.pCapP : NaN;
       return [name, own(b.tv / b.S, 1) + (b.intr > 0 ? ` (cash ${own(b.cr / b.S, 1)})` : ""), fN0(b.tv / (b.S * b.sig), 3), own(b.tv / b.S / b.dte, 3), hv ? own(hv.ev / b.S, 2, true) : "–", fP(sx.pop, 0), own(sx.worst / b.S, 1, true),
         b.wingPx > 0 ? `${own(b.wingPx / b.S, 1)} · pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}` : "–", fP0(b.tv / b.margin, 1), sx.bes.length ? sx.bes.map(fPx2).join(" / ") : "none"];
     });
     const P = C.Ap, place = P.structure === "straddle" ? (P.values.center === "atm" ? "the strike nearest the forward" : `center ${RULE.fmtV(+P.values.center, P.basis)}`) : `${RULE.fmtV(+P.values.put, P.basis)} put, ${RULE.fmtV(+P.values.call, P.basis)} call`;
-    return para("## Overview", `A's ${P.structure} placed by A's rule (${place}), filled at ${P.fill === "mid" ? "mid" : "natural"}, on every listed expiry at listed spot and IV, with and without wings. Values are % of each position's own notional. Profit odds are ${C.scen.dist === "rn" ? "implied" : labelListedVol()}; EV uses ${labelListedVol()}.`,
-      table(["Position", anyI ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV (${labelListedVol()})`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"], rows));
+    return para("## Overview", `A's ${P.structure} placed by A's rule (${place}), filled at ${P.fill === "mid" ? "mid" : "natural"}, on every listed expiry at listed spot and IV, with and without wings. Values are % of each position's own notional. Profit odds are ${C.assumptions.dist === Odds.Implied ? "implied" : "at each ticker's period vol"}; EV uses the period vol (${INST.ids().map(id => `${id} ${C.volOf(id).label}`).join(", ")}).`,
+      table(["Position", anyI ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"], rows));
   }
 
   function secNotes(C, withFlags, withResults) {
@@ -280,8 +282,8 @@ const EXPORT9 = (() => {
     return para("## Notes", bullets(xs));
   }
 
-  function toMarkdownCompare(C, S9, opts = {}) {
-    const on = pick(CMP_SECTIONS, opts.sections), out = [];
+  function toMarkdownCompare(C, state, opts = {}) {
+    const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
       const I = INST.list().map(x => INST.base(x.id)).filter(Boolean);
       out.push(para(`# ${C.labels.title}`, `RAM · KORU options lab, Compare A vs B · IBKR quotes at ${asofTxt()} (spot ${I.map(x => `${x.id} ${fPx2(x.spotListed)}`).join(", ")}) · exported ${exportedOn(opts.now)}`,
@@ -321,13 +323,16 @@ const EXPORT9 = (() => {
     const m = res.mult || [], endM = m.length ? m[m.length - 1] : 1;
     const pathTxt = p.mode === "flat" ? `flat at ${fKs(sc.S0[tkA])}` : p.mode === "line" ? `a line from ${fKs(sc.S0[tkA])} to ${fKs(p.end * sc.S0[tkA])}${p.geo ? " (same % each week)" : ""}` : p.mode === "growth" ? `growth of ${p.gUnit === "yr" ? fPc(p.g, 1) + " a year" : (+p.g).toFixed(3) + "% a week"}, ending at ${fKs(endM * sc.S0[tkA])}` : `${p.pts.length} point${p.pts.length === 1 ? "" : "s"} (${p.pts.map(x => `wk ${x[0]} ${fKs(x[1] * sc.S0[tkA])}`).join(", ")}), ending at ${fKs(endM * sc.S0[tkA])}`;
     const start = hasYRE() ? ` from ${calendar.formatShortUtcDay(YRE.START)} to ${calendar.formatShortUtcDay(YRE.weekDate(W))}` : "";
-    const vol = [];
-    for (const tk of tks) vol.push([tk, `${sc.iv[tk]}%`, `${sc.rv[tk]}%`]);
-    if (res.B && ys.bDiff === "vol") vol.push([`B ${res.B.run.tk}`, `${sc.ivB[res.B.run.tk]}%`, `${sc.rvB[res.B.run.tk]}%`]);
+    // a ticker's moves as its run read them (res.X.vol, fractions): the period vol, or a run's own while B differs in vol
+    const vol = [], fmtMoves = v => v ? `${Math.round(v.rv * 100)}%` : "–";
+    const runOfTicker = tk => res.B && res.A.run.tk !== tk ? res.B : res.A;
+    for (const tk of tks) vol.push([tk, `${sc.iv[tk]}%`, fmtMoves(runOfTicker(tk).vol)]);
+    if (res.B && ys.bDiff === RunDiff.Vol) vol.push([`B ${res.B.run.tk}`, `${sc.ivB[res.B.run.tk]}%`, fmtMoves(res.B.vol)]);
     const ivp = ys.ivp, ivA = sc.iv[tkA];
     const ivpTxt = ivp.mode === "flat" ? "flat, IV stays at the input all year" : `${ivp.mode === "line" ? `a line to ${Math.round(ivp.end * ivA)}% at week ${W}` : ivp.mode === "growth" ? `${ivp.g}% a year` : `${ivp.pts.length} points (${ivp.pts.map(x => `wk ${x[0]} ${Math.round(x[1] * ivA)}%`).join(", ")})`}; ${ivp.rule === "gap" ? "realized moves keep their gap to IV" : "realized moves stay constant"}`;
     return para("## Base", bullets([`Start $${fInt(sc.cap0)}, ${W} weeks${start}.`, `Price path (${tkA}, typical price each week, never falls): ${pathTxt}.`, `IV path ${ivpTxt}.`]),
-      table(["Ticker", "Implied vol (prices every option)", "Realized moves around the path"], vol), "The gap between implied vol and realized moves is the edge: premium is priced at IV, payouts settle over moves at the realized number.");
+      table(["Ticker", "Implied vol (prices every option)", "Realized moves around the path"], vol), "The gap between implied vol and realized moves is the edge: premium is priced at IV, payouts settle over moves at the realized number. Realized moves are each ticker's period vol, shared with Compare A vs B (a run's own while B differs in vol).");
+
   }
   function ySecStrip(ys, res) {
     const typ = ys.view.reading === "typ", cap0 = ys.sc.cap0, W = ys.sc.W;
@@ -387,7 +392,7 @@ const EXPORT9 = (() => {
       table(["Run", "5%", "10%", "Median", "90%", "95%", "Worst 5% avg", "Drawdown med / 90%", "≥ 1 margin call", "NAV ≤ 0"], rows), "Check against the engine: " + chk.join("; ") + ".");
   }
   function toMarkdownCompounding(ys, res, opts = {}) {
-    const on = pick(YR_SECTIONS, opts.sections), out = [];
+    const on = STATE.pickExportSections({ tab: Tab.Compounding, chosen: opts.sections }), out = [];
     if (!ys || !res || !res.A) return "# Compounding\n\nNo results yet: open the Compounding tab once.\n";
     const stress = ys.view && ys.view.v === "stress";
     out.push(para(`# Compounding · ${runsOf(res).map(([w, R]) => `${w} ${R.run.tk} ${cadTxt(R.run)} ${famTxt(R.run)}`).join(" vs ")}`,
@@ -403,31 +408,27 @@ const EXPORT9 = (() => {
   }
 
   // ============================================================ the menu entry
-  // opts = {tab(), readState(), code(), save()}
+  // opts = {readState(), code()}: the store's state (the visible tab, prefs.exportSections) and the current view code
   let H = null;
-  const yrView = () => { try { const s = typeof YR !== "undefined" && YR._state ? YR._state() : null; return s && s.view ? s.view : null; } catch (e) { return null; } };
-  const MEM = { compare: null, yr: null };
-  const secKey = t => t === "yr" ? "exportYr" : "exportCmp";
-  function getSecs(t) { const v = yrView(), list = t === "yr" ? YR_SECTIONS : CMP_SECTIONS; return pick(list, (v && v[secKey(t)]) || MEM[t]); }
-  function setSec(t, k, on) {
-    const cur = getSecs(t); cur[k] = on; MEM[t] = cur;
-    const v = yrView(); if (v) v[secKey(t)] = cur;
-    if (H && H.save) H.save();
-  }
+  const readSections = tab => STATE.readExportSections({ prefs: H.readState().prefs, tab });
   function makeExport() {
-    const t = H.tab();
-    if (t === "yr") {
+    const state = H.readState();
+    if (state.tab === Tab.Compounding) {
       const y = YR._state(), r = YR._res();
-      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: getSecs("yr"), sres: YR._sres ? YR._sres() : null, mc: YR._mc ? YR._mc() : null, code: H.code() }), name: "compounding" };
+      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: YR._sres ? YR._sres() : null, mc: YR._mc ? YR._mc() : null, code: H.code() }), name: "compounding" };
     }
-    const s = H.readState();
-    return { md: EXPORT9.toMarkdownCompare(CTX.ctx9(s), s, { sections: getSecs("compare"), code: H.code() }), name: "compare" };
+    return { md: EXPORT9.toMarkdownCompare(CTX.ctx9(state), state, { sections: readSections(Tab.Compare), code: H.code() }), name: "compare" };
   }
   function syncSecs() {
-    const t = H.tab(), list = t === "yr" ? YR_SECTIONS : CMP_SECTIONS, on = getSecs(t), host = document.querySelector("#xsecs");
-    const tw = document.querySelector("#xtab"); if (tw) tw.textContent = t === "yr" ? "· Compounding" : "· Compare A vs B";
+    const tab = H.readState().tab, list = SECTION_LISTS[tab] || CMP_SECTIONS, on = readSections(tab), host = document.querySelector("#xsecs");
+    const tw = document.querySelector("#xtab"); if (tw) tw.textContent = tab === Tab.Compounding ? "· Compounding" : "· Compare A vs B";
     if (!host) return;
     host.innerHTML = list.map(([k, l]) => `<label class="chk"><input type="checkbox" data-x="${k}"${on[k] ? " checked" : ""}>${l}</label>`).join("");
+  }
+  // a Sections checkbox: the choice is saved with the view, the screen does not change
+  function setSection(box) {
+    const command = { type: Command.SetExportSection, tab: H.readState().tab, section: box.dataset.x, isOn: box.checked, source: "export" };
+    page.executor.execute(command);
   }
   function wire(opts) {
     H = opts; const q = s => document.querySelector(s);
@@ -439,7 +440,7 @@ const EXPORT9 = (() => {
       if (saved.ok) { page.bus.emit(createNoticeEnvelope({ text: saved.value.status === "declined" ? "Download cancelled" : "Downloaded " + saved.value.filename })); return; }
       console.error("download", saved.error); page.bus.emit(createNoticeEnvelope({ text: "The download failed: " + saved.error.message }));
     });
-    q("#xsecs").addEventListener("change", e => { const c = e.target.closest("input[data-x]"); if (c) setSec(H.tab(), c.dataset.x, c.checked); });
+    q("#xsecs").addEventListener("change", e => { const c = e.target.closest("input[data-x]"); if (c) setSection(c); });
     q("#pmenu").addEventListener("toggle", () => { if (q("#pmenu").open) { q("#xfall").hidden = true; syncSecs(); } });
     syncSecs();
   }

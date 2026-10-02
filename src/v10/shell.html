@@ -382,6 +382,8 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .s9l3{font:400 12px/17px var(--f-ui);color:var(--ink-3)}
 .s9l3 .s9wn{color:var(--diff-warn)}
 .s9l3 .s9fl{cursor:help}
+.s9l3 .s9vol{color:var(--ink-2);cursor:pointer}
+.s9l3 .s9vol:hover{color:var(--ink);text-decoration:underline dotted}
 .s9bot{display:block;margin-top:5px;height:24px;line-height:24px;white-space:nowrap}
 .s9rng{float:right;margin-left:14px;font-size:12px;color:var(--ink-2)}
 .s9rng input[type=number]{width:50px;height:22px;padding:1px 5px;margin:0 2px}
@@ -431,12 +433,27 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .d9lk.off{color:var(--ink-3)}
 .d9btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;font-size:12px;color:var(--ink-2)}
 .d9btn:hover{background:var(--surface-2)}
-.d9ov{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 4px;font-size:11px;line-height:16px;color:var(--ink-2);margin-left:3px;vertical-align:middle}
+.d9ov{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 3px;font-size:11px;line-height:16px;color:var(--ink-2);margin-left:2px;vertical-align:middle}
+.d9ov[aria-expanded="true"]{border-color:var(--ink-3);color:var(--ink)}
 .d9ov.on{color:var(--ink);border-color:var(--ink-3)}
 .d9x{display:block;padding:6px 8px;border-radius:6px;background:var(--surface-2);font-size:12px;color:var(--ink-2);white-space:nowrap}
 .d9x input[type=number]{width:62px;margin:0 4px}
 .d9x .cap{display:block;white-space:normal;margin-top:3px}
 .d9x+.d9x{margin-top:-2px}
+.d9x>.d9sh{margin-bottom:3px}
+.d9pv{display:block;margin-top:7px;padding-top:6px;border-top:1px solid var(--line);white-space:normal}
+.d9pv .d9sh .info{margin-left:5px}
+.d9pv .d9pvs{margin:3px 6px 2px 0;vertical-align:middle}
+.d9pv .d9pvs button{padding:1px 6px}
+.d9pv .d9pvn{white-space:nowrap}
+.d9pv .d9pvn input[type=number]{width:52px;margin:0 3px 0 0}
+.d9pv .d9tr{margin-top:2px}
+.d9pv .d9pvref{display:block;font-size:11px;color:var(--ink-3);white-space:normal}
+.d9pv .d9nw{white-space:nowrap}
+.d9pv.a input[type=range]::-webkit-slider-thumb{background:var(--a)}
+.d9pv.b input[type=range]::-webkit-slider-thumb{background:var(--b)}
+.d9pv.a input[type=range]::-moz-range-thumb{background:var(--a)}
+.d9pv.b input[type=range]::-moz-range-thumb{background:var(--b)}
 .d9sl{display:block;padding:1px 0 0}
 .d9sl.m .d9sn,.d9sl.m .d9ro{color:var(--ink-3)}
 .d9sh{display:block;line-height:18px;white-space:nowrap}
@@ -458,6 +475,7 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .d9tk.r{transform:translateX(-100%)}
 .d9tk.r::before{margin:0 0 0 auto}
 .d9tk.bx{color:var(--b)}
+.d9tk.nl::before{height:5px}
 .d9note{display:block;font-size:11px;color:var(--ink-3);margin:-1px 0 2px}
 .d9note.w{color:var(--diff-warn)}
 .d9bl{display:block;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-3)}
@@ -527,9 +545,8 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
         <hr>
         <span class="mt">Reading</span>
         <span class="mrow"><span class="lbl">P&amp;L units</span><span class="seg" id="s9-units"></span></span>
-        <span class="mrow"><span class="lbl">Odds behind EV, profit odds and the odds strips</span><span class="seg" id="s9-dist"></span></span>
-        <span class="mrow" id="s9-hvrow"><span class="lbl"></span><input type="range" id="s9-hvk" min="0.5" max="1.6" step="0.05" aria-label=""> <output id="s9-ohvk"></output></span>
-        <span class="mrow cap" id="s9-hvinfo"></span>
+        <span class="mrow"><span class="lbl">Odds</span><span class="seg" id="s9-dist"></span></span>
+        <span class="mrow cap" id="s9-oddsinfo"></span>
       </span></details></span>
       <span class="s9pills" id="s9pills"></span>
     </div>

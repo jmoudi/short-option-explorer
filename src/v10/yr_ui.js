@@ -10,10 +10,13 @@ const YR = ((YRE, YRS) => {
   const spot = tk => D.u[tk].S;
   const firstExp = tk => Object.values(D.u[tk].exps)[0];
   const atmIV = tk => Math.round(firstExp(tk).atm * 100);
-  const hv30 = tk => Math.round(readListedVol(D.u[tk]) * 100);
+  // the listed vol through the one period-vol accessor (before the page's port is attached)
+  const listedPct = tk => readPeriodVol({ record: D.u[tk] }).pct;
   const weeklyOK = tk => D.cal && D.cal[tk] ? !!D.cal[tk].weekly : tk === "KORU";
   const listedTxt = tk => D.cal && D.cal[tk] ? D.cal[tk].listed.slice(0, 8).map(d => { const s = String(d).replace(/-/g, ""); return `${+s.slice(6, 8)} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+s.slice(4, 6) - 1]}${s.slice(0, 4) !== "2026" ? " " + s.slice(2, 4) : ""}`; }).join(", ") : "16 Oct, 20 Nov, 18 Dec, 19 Mar 27, Jan 28, Jan 29";
-  const REF = { KORU: { iv: [["weekly today", 121], ["monthly today", 130]], rv: [[labelListedVol(), null], ["1-year realized", 173], ["5-year realized", 101]] }, RAM: { iv: [["monthly today", null]], rv: [[labelListedVol(), null]] } };
+  // the pricing IV's reference buttons ([label, value (null: the first expiry's ATM)]); the moves' references are the
+  // page's period-vol reference list (port.periodVol.refs), the one list the comparer's period-vol box shows
+  const IV_REF = { KORU: [["weekly today", 121], ["monthly today", 130]], RAM: [["monthly today", null]] };
 
   // ---------------------------------------------------------- formats
   const f$ = v => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + "$" + (Math.abs(v) >= 1e9 ? (Math.abs(v) / 1e9).toFixed(2) + "B" : Math.abs(v) >= 1e6 ? (Math.abs(v) / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? (Math.abs(v) / 1e3).toFixed(1) + "k" : Math.round(Math.abs(v)).toLocaleString("en-US"));
@@ -25,6 +28,16 @@ const YR = ((YRE, YRS) => {
   const MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fD = d => `${d.getUTCDate()} ${MONS[d.getUTCMonth()]}${d.getUTCFullYear() !== 2026 ? " " + String(d.getUTCFullYear()).slice(2) : ""}`;
 
+  // ---------------------------------------------------------- the period vol (v10 part 2c)
+  // Every run's realized moves are the page's period vol of its ticker, read and written through the port: one number
+  // per ticker, shared with Compare A vs B, which also shows and edits it. A run keeps its own moves only while B
+  // differs in vol: that override belongs to a run (sc.volOverride = {run: "B", KORU: 150}; a ticker without one reads
+  // the shared value), and a swap flips run, so the shared number never changes on a swap and each run keeps its vol.
+  // The pricing IV (sc.iv; sc.ivB for B while B differs in vol) stays this tab's own.
+  // the moves (the shared period vol, and a run's own moves while B differs in vol) keep the period vol's stored range,
+  // PERIOD_VOL_CONFIG.range (0 = exactly on the path, where the comparer reads its 1% floor). The pricing IV's own range
+  const YR_CONFIG = Object.freeze({ ivRange: Object.freeze([40, 250]) });
+
   // ---------------------------------------------------------- state
   const MODUS0 = { credit: "reinvest", call: "ibkr", target: 1.0, move: "keep" };
   const RUN0 = { tk: "KORU", cad: "wk", fam: "cc", cd: 30, pd: 20, puts: false, lev: 1.2, use: 0.5, wcd: 0, wpd: 0, modus: { ...MODUS0 } };
@@ -33,16 +46,17 @@ const YR = ((YRE, YRS) => {
     B: { ...clone(RUN0), fam: "str", cd: 20, pd: 20 },
     bOn: true, bDiff: "strategy",
     sc: { cap0: 30000, W: 52, path: { mode: "flat", end: 1.5, pts: [[26, 1.2], [52, 1.5]], g: 0.5, gUnit: "yr", geo: false }, S0: { KORU: spot("KORU"), RAM: spot("RAM") },
-      iv: { KORU: 130, RAM: atmIV("RAM") }, rv: { KORU: hv30("KORU"), RAM: hv30("RAM") }, ivB: { KORU: 121, RAM: atmIV("RAM") }, rvB: { KORU: hv30("KORU"), RAM: hv30("RAM") } },
+      iv: { KORU: 130, RAM: atmIV("RAM") }, ivB: { KORU: 121, RAM: atmIV("RAM") }, volOverride: /** @type {Object<string, any>} */ ({ run: RunSlot.B }) },
+
     costs: { give: 0.25, comm: 0.65, commSh: 0.005, liq: 250, whole: true, grid: { KORU: 1, RAM: 1 }, mOvr: { KORU: 0.75, RAM: 0.5 } },
     rates: { tiered: true, bm: 4.0, loan: 5.5, cash: 3.5 },
     ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, rule: "gap" },
     view: { v: "year", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false }
   });
   let ys = DEF();
-  const FIELDS = { strategy: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], ticker: ["tk"], cadence: ["cad"], strikes: ["cd", "pd", "wcd", "wpd"], size: ["lev", "use"], modus: ["modus"], vol: [] };
-  const BDIFF = [["strategy", "Strategy"], ["ticker", "Ticker"], ["cadence", "Cadence"], ["strikes", "Strikes"]];
-  const BDIFF2 = [["size", "Size"], ["modus", "Modus"], ["vol", "Vol"], ["any", "Anything"]];
+  const FIELDS = { [RunDiff.Strategy]: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], [RunDiff.Ticker]: ["tk"], [RunDiff.Cadence]: ["cad"], [RunDiff.Strikes]: ["cd", "pd", "wcd", "wpd"], [RunDiff.Size]: ["lev", "use"], [RunDiff.Modus]: ["modus"], [RunDiff.Vol]: [] };
+  const BDIFF = [[RunDiff.Strategy, "Strategy"], [RunDiff.Ticker, "Ticker"], [RunDiff.Cadence, "Cadence"], [RunDiff.Strikes, "Strikes"]];
+  const BDIFF2 = [[RunDiff.Size, "Size"], [RunDiff.Modus, "Modus"], [RunDiff.Vol, "Vol"], [RunDiff.Any, "Anything"]];
   function fixRun(r) { if (!weeklyOK(r.tk)) r.cad = "mo"; r.cd = Math.min(90, Math.max(3, r.cd)); r.pd = Math.min(90, Math.max(3, r.pd)); r.lev = Math.min(r.lev, 1 / ys.costs.mOvr[r.tk]); return r; }
   function runA() { return fixRun({ ...ys.A, modus: { ...MODUS0, ...ys.A.modus } }); }
   function runB() {
@@ -65,7 +79,69 @@ const YR = ((YRE, YRS) => {
     if (v === "size") { B.lev = A.lev >= 1.1 ? 1.0 : 1.2; B.use = A.use >= 0.4 ? 0.3 : 0.5; }
     if (v === "modus") B.modus = { ...A.modus, credit: A.modus.credit === "reinvest" ? "rebal" : "reinvest" };
   }
-  const volOf = (run, isB) => { const useB = isB && ys.bDiff === "vol"; return { iv: (useB ? ys.sc.ivB : ys.sc.iv)[run.tk] / 100, rv: (useB ? ys.sc.rvB : ys.sc.rv)[run.tk] / 100 }; };
+  // the shared period vol of a ticker in % (the listed vol when the port has none)
+  function readSharedVol(tk) {
+    const pct = port.periodVol.read(tk);
+    if (Number.isFinite(pct)) { return pct; }
+    return listedPct(tk);
+  }
+  // a swap moves the runs between the slots. While B differs in vol, a run's own vols go with it, both of them: the
+  // pricing IVs trade places (sc.iv is A's, sc.ivB is B's) and the moves override's run flips, so the shared period vol
+  // never changes on a swap. Outside vol mode both own vols are dormant and stay with their slot, together, and wake
+  // there when vol mode returns
+  function flipOverrideRun() {
+    const override = ys.sc.volOverride;
+    override.run = override.run === RunSlot.A ? RunSlot.B : RunSlot.A;
+  }
+  function swapRuns() {
+    if (!ys.bOn) { return; }
+    const A = runA(), B = runB();
+    ys.A = clone(B);
+    ys.B = clone(A);
+    if (ys.bDiff === RunDiff.Vol) {
+      [ys.sc.iv, ys.sc.ivB] = [ys.sc.ivB, ys.sc.iv];
+      flipOverrideRun();
+    }
+    dockSig = "";
+    schedule(10);
+  }
+  // only while B differs in vol, and only the run slot the override names
+  const carriesOverride = slot => ys.bDiff === RunDiff.Vol && ys.sc.volOverride.run === slot;
+  // the moves a run slot reads, in %: its own while it carries the override (a ticker without one: the shared value)
+  /** @param {{ tk: string, slot: string }} input */
+  function readMovesPct({ tk, slot }) {
+    const own = ys.sc.volOverride[tk];
+    const hasOwn = carriesOverride(slot) && Number.isFinite(own);
+    if (hasOwn) { return own; }
+    return readSharedVol(tk);
+  }
+  // a run's own moves inside the stored range: {pct, note}; note says what moved, in the words of the period vol's toast
+  function placeOwnMoves({ tk, slot, pct }) {
+    const [lo, hi] = PERIOD_VOL_CONFIG.range, asked = +pct.toFixed(2), who = `${slot}'s own ${tk} moves`;
+    if (pct < lo) { return { pct: lo, note: `${who} floored at ${lo}% (asked ${asked}%)` }; }
+    if (pct > hi) { return { pct: hi, note: `${who} capped at ${hi}% (asked ${asked}%)` }; }
+    return { pct: Math.round(pct), note: "" };
+  }
+  // an edit of a slot's moves: the run's own while it carries the override, else the shared period vol (the page runs
+  // it as a command: floors, caps and their toast are the page's). A run's own moves outside the range toast the same way
+  /** @param {{ tk: string, slot: string, pct: number, source?: string, expiry?: string }} edit */
+  function writeMoves({ tk, slot, pct, source, expiry }) {
+    if (!Number.isFinite(pct)) { return; }
+    if (!carriesOverride(slot)) {
+      port.periodVol.write({ ticker: tk, pct, source, expiry });
+      return;
+    }
+    const placed = placeOwnMoves({ tk, slot, pct });
+    ys.sc.volOverride[tk] = placed.pct;
+    if (placed.note) { port.showNotice(placed.note); }
+  }
+  // the vols a run prices and moves at, as fractions: its pricing IV (B's own while B differs in vol) and its moves
+  /** @param {{ run: any, slot: string }} input */
+  function readRunVol({ run, slot }) {
+    const hasOwnIv = ys.bDiff === RunDiff.Vol && slot === RunSlot.B;
+    const iv = (hasOwnIv ? ys.sc.ivB : ys.sc.iv)[run.tk];
+    return { iv: iv / 100, rv: readMovesPct({ tk: run.tk, slot }) / 100 };
+  }
   function pathSpec() { const p = ys.sc.path, W = ys.sc.W;
     if (p.mode === "growth") { const g = p.gUnit === "yr" ? Math.pow(1 + Math.max(0, p.g), 1 / 52) - 1 : Math.max(0, p.g / 100); return { mode: "growth", g }; }
     if (p.mode === "line") return { mode: "line", end: Math.max(1, p.end), geo: p.geo };
@@ -78,6 +154,12 @@ const YR = ((YRE, YRS) => {
     if (p.mode === "growth") return YRE.pathMult({ mode: "growth", g: Math.pow(1 + Math.max(-0.95, p.g / 100), 1 / 52) - 1 }, W, false);
     if (p.mode === "pts") return YRE.pathMult({ mode: "pts", pts: p.pts.filter(x => x[0] > 0 && x[0] <= W).sort((a, b) => a[0] - b[0]) }, W, false);
     return Array(W + 1).fill(1); }
+  // the vols a run reads week by week (its flat vols on the IV path): what the Monte Carlo and the sweep keys hold
+  /** @param {{ run: any, slot: string }} input */
+  function readRunVolPath({ run, slot }) {
+    const flat = readRunVol({ run, slot });
+    return volArrays(flat.iv, flat.rv);
+  }
   const volArrays = (iv, rv) => { const m = ivMult(); if (ys.ivp.mode === "flat") return { iv, rv }; return { iv: m.map(k => iv * k), rv: m.map(k => ys.ivp.rule === "gap" ? Math.max(0, rv + iv * (k - 1)) : rv) }; };
   // points: sort, merge duplicate weeks, enforce a path that never falls; returns notes
   function normPts() { const p = ys.sc.path, notes = {}; const by = new Map();
@@ -90,8 +172,11 @@ const YR = ((YRE, YRS) => {
 
   // ---------------------------------------------------------- compute (cached)
   const CACHE = new Map();
-  function runFor(run, isB, extra = {}) {
-    const v0 = volOf(run, isB), m = mult(), v = volArrays(v0.iv, v0.rv);
+  // one run of the engine, memoized; the key holds the vols the run reads (the shared period vol included), so a vol
+  // changed on Compare A vs B recomputes on this tab's next render
+  /** @param {{ run: any, slot: string, extra?: any }} input */
+  function runFor({ run, slot, extra = {} }) {
+    const v0 = readRunVol({ run, slot }), m = mult(), v = volArrays(v0.iv, v0.rv);
     const sc = { cap0: ys.sc.cap0, W: ys.sc.W, S0: ys.sc.S0[run.tk], mult: m, iv: v.iv, rv: v.rv };
     const key = JSON.stringify([run, sc.cap0, sc.W, sc.S0, m, v, ys.costs, ys.rates, extra]);
     if (CACHE.has(key)) return CACHE.get(key);
@@ -104,8 +189,9 @@ const YR = ((YRE, YRS) => {
   function compute() {
     const A = runA(), B = runB();
     const t0 = performance.now();
-    RES = { A: { run: A, main: runFor(A, false), exact: runFor(A, false, { literal: true }) } };
-    if (B) RES.B = { run: B, main: runFor(B, true), exact: runFor(B, true, { literal: true }) };
+    const exact = { literal: true };
+    RES = { A: { run: A, vol: readRunVol({ run: A, slot: RunSlot.A }), main: runFor({ run: A, slot: RunSlot.A }), exact: runFor({ run: A, slot: RunSlot.A, extra: exact }) } };
+    if (B) RES.B = { run: B, vol: readRunVol({ run: B, slot: RunSlot.B }), main: runFor({ run: B, slot: RunSlot.B }), exact: runFor({ run: B, slot: RunSlot.B, extra: exact }) };
     RES.ms = performance.now() - t0; RES.mult = mult();
     return RES;
   }
@@ -151,14 +237,15 @@ const YR = ((YRE, YRS) => {
     const cb = q("#y-chipB");
     if (B) { cb.innerHTML = `<span class="key b">B</span><span class="nm">${runName(B, A)}</span><span class="sz y-dropb" title="Drop B" style="cursor:pointer">×</span>`; cb.title = defTxt(B); }
     else { cb.innerHTML = `<span class="key b">B</span><span class="nm muted">+ add B</span>`; cb.title = "Compare with a second run"; }
-    q("#y-bmore").classList.toggle("on", ["size", "modus", "vol", "any"].includes(ys.bDiff));
+    q("#y-bmore").classList.toggle("on", BDIFF2.some(([v]) => v === ys.bDiff));
     // vol group: one pair per ticker in use; B's pair in orange when B differs in vol
     const tks = [...new Set([A.tk, B && B.tk].filter(Boolean))], host = q("#y-vol");
-    const sig = tks.join() + ys.bDiff;
+    // redrawn when the tickers, the mode, the override's run or the reference list (ATM follows Compare's A horizon) change
+    const sig = tks.join() + ys.bDiff + ys.sc.volOverride.run + JSON.stringify(tks.map(tk => port.periodVol.refs(tk)));
     if (host.dataset.sig !== sig) {
       host.dataset.sig = sig; SYV.length = 0;
-      host.innerHTML = `<span class="lbl">IV / moves</span>` + tks.map(tk => volHTML(tk, "")).join(" ") + (B && ys.bDiff === "vol" ? volHTML(B.tk, "B") : "");
-      for (const tk of tks) wireVol(tk, ""); if (B && ys.bDiff === "vol") wireVol(B.tk, "B");
+      host.innerHTML = `<span class="lbl">IV / moves</span>` + tks.map(tk => volHTML(tk, "")).join(" ") + (B && ys.bDiff === RunDiff.Vol ? volHTML(B.tk, "B") : "");
+      for (const tk of tks) wireVol(tk, ""); if (B && ys.bDiff === RunDiff.Vol) wireVol(B.tk, "B");
     }
     for (const f of SYV) f();
     const w = [];
@@ -172,27 +259,88 @@ const YR = ((YRE, YRS) => {
   const defTxt = r => `${r.tk} · ${cadTxt(r)} · ${famTxt(r)} · ${r.fam === "cc" ? `call ${r.cd}Δ${r.puts ? `, put ${r.pd}Δ` : ""} · ${r.lev.toFixed(2)}x` : `put ${r.pd}Δ / call ${r.cd}Δ · ${Math.round(r.use * 100)}% of margin`} · ${modusTxt(r.modus)}`;
   const modusTxt = m => `${{ reinvest: "reinvest", rebal: "rebalance", cash: "keep as cash" }[m.credit]} · ${m.call === "ibkr" ? "IBKR minimum" : `back to ${(+m.target).toFixed(2)}x`} · ${m.move === "keep" ? "keeps trading" : "stops"}`;
   const SYV = [];
-  function volHTML(tk, who) {
-    const id = `y-v-${tk}${who}`;
-    return `<span class="vv"><span class="tk ${who ? "b" : ""}">${who ? "B " : ""}${tk}</span><input type="number" id="${id}-iv" min="40" max="250" step="1" title="Implied vol, %">/<input type="number" id="${id}-rv" min="0" max="250" step="1" title="Realized moves around your path, %; 0 = exactly on the path"><details class="menu sl" id="${id}-m"><summary>▾</summary><span class="mb" style="width:330px" id="${id}-mb"></span></details></span>`;
+  // what a pair's moves field edits: the shared period vol, or the run's own moves while it carries the override
+  /** @param {{ tk: string, slot: string }} input */
+  function describeMoves({ tk, slot }) {
+    if (carriesOverride(slot)) { return { title: `${slot}'s own realized moves around your path, %, while B differs in vol (Compare A vs B keeps the ${tk} period vol)`, label: `Realized moves around your path, % (${slot}'s own: B differs in vol)` }; }
+    return { title: `${tk} period vol: realized moves around your path, %, shared with Compare A vs B; 0 = exactly on the path`, label: "Realized moves around your path, % (the period vol, shared with Compare A vs B)" };
   }
+  // the pair's name on the bar: B's pair in B's colour; the pair that carries a run's own moves (B differs in vol) is
+  // named with its run, in its colour, and tagged "own", so the bar always shows which field is the shared period vol
+  /** @param {{ tk: string, slot: string, isBPair: boolean }} input */
+  function nameVolPair({ tk, slot, isBPair }) {
+    const isOwn = carriesOverride(slot), run = isBPair || isOwn ? `${slot} ` : "";
+    const own = isOwn ? `<span class="own" title="${slot}'s own moves while B differs in vol; the other pair is the ${tk} period vol, shared with Compare A vs B">own</span>` : "";
+    const colour = isBPair ? "b" : isOwn ? "a" : "";
+    return `<span class="tk ${colour}">${run}${tk}${own}</span>`;
+  }
+  function volHTML(tk, who) {
+    const id = `y-v-${tk}${who}`, [ivLo, ivHi] = YR_CONFIG.ivRange, [mLo, mHi] = PERIOD_VOL_CONFIG.range;
+    const slot = who ? RunSlot.B : RunSlot.A, moves = describeMoves({ tk, slot });
+    return `<span class="vv">${nameVolPair({ tk, slot, isBPair: !!who })}<input type="number" id="${id}-iv" min="${ivLo}" max="${ivHi}" step="1" title="Implied vol, %">/<input type="number" id="${id}-rv" min="${mLo}" max="${mHi}" step="1" title="${moves.title}"><details class="menu sl" id="${id}-m"><summary>▾</summary><span class="mb" style="width:330px" id="${id}-mb"></span></details></span>`;
+  }
+  // one ticker's pair (who "" = A's, or both runs' unless B differs in vol; "B" = B's): the pricing IV is this tab's
+  // own, the moves go through readMovesPct / writeMoves (the shared period vol or the run's override)
   function wireVol(tk, who) {
-    const id = `y-v-${tk}${who}`, IV = who ? ys.sc.ivB : ys.sc.iv, RV = who ? ys.sc.rvB : ys.sc.rv;
-    const ref = REF[tk], ivRefs = ref.iv.map(([l, v]) => [l, v ?? atmIV(tk)]), rvRefs = ref.rv.map(([l, v]) => [l, v ?? hv30(tk)]);
+    const id = `y-v-${tk}${who}`, slot = who ? RunSlot.B : RunSlot.A;
+    // the pricing IV table this pair edits, looked up at each read and write: a reset or a loaded view replaces ys.sc
+    // without redrawing the pair
+    const readIvTable = () => (who ? ys.sc.ivB : ys.sc.iv);
+    const [ivLo, ivHi] = YR_CONFIG.ivRange, [mLo, mHi] = PERIOD_VOL_CONFIG.range;
+    // [label, shown value, source?, expiry?, value written?]: a preset of the period vol keeps its source (the listed vol,
+    // ATM with its expiry) and writes the reference's own pct (ATM unrounded, as the comparer's ATM preset stores it)
+    const ivRefs = IV_REF[tk].map(([l, v]) => [l, v ?? atmIV(tk)]);
+    const rvRefs = port.periodVol.refs(tk).map(r => {
+      const isPreset = r.source !== VolSource.Set;
+      return [r.label, Math.round(r.pct), isPreset ? r.source : "", r.expiry || "", isPreset ? r.pct : Math.round(r.pct)];
+    });
     const mb = q(`#${id}-mb`);
     const sl = (k, lo, hi, refs, lab) => `<span class="mrow"><span class="lbl">${lab}</span><input type="range" id="${id}-${k}s" min="${lo}" max="${hi}" step="1" list="${id}-${k}l" style="width:200px"> <output id="${id}-${k}o"></output>
       <datalist id="${id}-${k}l">${refs.map(r => `<option value="${r[1]}"></option>`).join("")}</datalist>
-      <span class="cap" style="display:block">${refs.map(r => `<button type="button" class="btn" data-k="${k}" data-v="${r[1]}" style="padding:0 6px;margin:3px 4px 0 0">${r[0]} ${r[1]}</button>`).join("")}${k === "rv" ? `<button type="button" class="btn" data-k="rv" data-v="0" style="padding:0 6px;margin:3px 4px 0 0">exactly on the path 0</button>` : ""}</span></span>`;
-    mb.innerHTML = `<span class="mt">${who ? "B: " : ""}${tk} implied vol and realized moves</span>` + sl("iv", 40, 250, ivRefs, "Implied vol, % (prices every option)") + sl("rv", 0, 250, rvRefs, "Realized moves around your path, %") +
+      <span class="cap" style="display:block">${refs.map(r => `<button type="button" class="btn" data-k="${k}" data-v="${r[4] ?? r[1]}"${r[2] ? ` data-src="${r[2]}"` : ""}${r[3] ? ` data-exp="${r[3]}"` : ""} style="padding:0 6px;margin:3px 4px 0 0">${r[0]} ${r[1]}</button>`).join("")}${k === "rv" ? `<button type="button" class="btn" data-k="rv" data-v="0" style="padding:0 6px;margin:3px 4px 0 0">exactly on the path 0</button>` : ""}</span></span>`;
+    mb.innerHTML = `<span class="mt">${who ? "B: " : ""}${tk} implied vol and realized moves</span>` + sl("iv", ivLo, ivHi, ivRefs, "Implied vol, % (prices every option)") + sl("rv", mLo, mHi, rvRefs, describeMoves({ tk, slot }).label) +
       `<span class="cap">The gap between the two is the edge: premium is priced at IV, payouts are settled over moves at the realized number.</span>`;
+    // write({pct, source?, expiry?}): a typed or dragged pct is a whole %; a preset (source named) writes its own pct
+    const fields = {
+      iv: {
+        read: () => readIvTable()[tk],
+        write: ({ pct }) => { readIvTable()[tk] = Math.max(ivLo, Math.min(ivHi, Math.round(pct))); }
+      },
+      rv: {
+        read: () => readMovesPct({ tk, slot }),
+        write: ({ pct, source, expiry }) => writeMoves({ tk, slot, pct: source ? pct : Math.round(pct), source, expiry })
+      }
+    };
     for (const k of ["iv", "rv"]) {
-      const obj = k === "iv" ? IV : RV, inp = q(`#${id}-${k}`), s = q(`#${id}-${k}s`), o = q(`#${id}-${k}o`);
-      inp.onchange = () => { const v = parseFloat(inp.value); if (Number.isFinite(v)) obj[tk] = Math.max(k === "iv" ? 40 : 0, Math.min(250, Math.round(v))); schedule(30); };
-      s.oninput = () => { obj[tk] = +s.value; o.textContent = obj[tk] + "%"; if (document.activeElement !== inp) inp.value = obj[tk]; schedule(); };
-      SYV.push(() => { if (document.activeElement !== inp) inp.value = obj[tk]; if (document.activeElement !== s) s.value = obj[tk]; o.textContent = obj[tk] + "%"; });
+      const field = fields[k], inp = q(`#${id}-${k}`), s = q(`#${id}-${k}s`), o = q(`#${id}-${k}o`);
+      const shown = () => Math.round(field.read());
+      inp.onchange = () => {
+        const pct = parseFloat(inp.value);
+        if (Number.isFinite(pct)) { field.write({ pct }); }
+        // the field shows what was applied, also while it keeps focus (a value floored, capped or rounded)
+        inp.value = String(shown());
+        schedule(30);
+      };
+      s.oninput = () => {
+        field.write({ pct: +s.value });
+        o.textContent = shown() + "%";
+        if (document.activeElement !== inp) { inp.value = String(shown()); }
+        schedule();
+      };
+      SYV.push(() => {
+        if (document.activeElement !== inp) { inp.value = String(shown()); }
+        if (document.activeElement !== s) { s.value = String(field.read()); }
+        o.textContent = shown() + "%";
+      });
     }
-    mb.onclick = e => { const b = e.target.closest("button[data-k]"); if (!b) return; (b.dataset.k === "iv" ? IV : RV)[tk] = +b.dataset.v; schedule(30); };
+    mb.onclick = e => {
+      const b = /** @type {HTMLElement} */ (/** @type {Element} */ (e.target).closest("button[data-k]"));
+      if (!b) return;
+      fields[b.dataset.k].write({ pct: +b.dataset.v, source: b.dataset.src, expiry: b.dataset.exp });
+      schedule(30);
+    };
   }
+
   function renderPathCtl() {
     const p = ys.sc.path, tk = ys.A.tk, S0 = ys.sc.S0[tk], host = q("#y-pnum");
     const sig = p.mode + p.gUnit + tk;
@@ -295,7 +443,7 @@ const YR = ((YRE, YRS) => {
   function readouts(who) {
     const r = who === "A" ? runA() : runB(); if (!r) return;
     const res = RES && RES[who] ? RES[who].main : null, row = res ? res.rows[0] : null, id = s => q(`#y-${who}-${s}`);
-    const S0 = ys.sc.S0[r.tk], v = volOf(r, who === "B"), cy = YRE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
+    const S0 = ys.sc.S0[r.tk], v = readRunVol({ run: r, slot: who }), cy = YRE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
     const legTxt = (cp, d) => { const K = YRE.pickStrike(S0, T, v.iv, cp, d, g), D_ = YRE.deltaOf(S0, K, T, v.iv, cp) * 100, p = YRE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
       return `${fKs(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fKs(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fKs(tv)}` : ""}`; };
     if (id("cdr")) id("cdr").textContent = "Week 1: " + legTxt("C", r.cd);
@@ -392,7 +540,7 @@ const YR = ((YRE, YRS) => {
     const hdv = document.createElement("span"); hdv.className = "yhd"; hdv.innerHTML = `IV path <select id="y-ivpm"><option value="flat">Flat</option><option value="line">Line</option><option value="pts">Points</option><option value="growth">Growth</option></select> <span id="y-ivpn"></span> <span class="seg" id="y-ivpr" style="margin-left:8px"></span><span class="cap" id="y-ivpc"></span>`; host.appendChild(hdv);
     ivPathCtl();
     if (ys.ivp.mode !== "flat") { const Hv = 80, sV = sv("svg", { width: G.width, height: Hv + 6, viewBox: `0 0 ${G.width} ${Hv + 6}` }, host), tks = [...new Set(runs.map(([, R]) => R.run.tk))], im = ivMult();
-      let vlo = Infinity, vhi = -Infinity; const serV = []; for (const [cls, R] of runs) { const v0 = volOf(R.run, cls === "b"), va = volArrays(v0.iv, v0.rv); serV.push([cls, va]); for (let w = 0; w <= W; w++) { const a = Array.isArray(va.iv) ? va.iv[w] : va.iv, b = Array.isArray(va.rv) ? va.rv[w] : va.rv; vlo = Math.min(vlo, a, b); vhi = Math.max(vhi, a, b); } }
+      let vlo = Infinity, vhi = -Infinity; const serV = []; for (const [cls, R] of runs) { const v0 = readRunVol({ run: R.run, slot: cls === "b" ? RunSlot.B : RunSlot.A }), va = volArrays(v0.iv, v0.rv); serV.push([cls, va]); for (let w = 0; w <= W; w++) { const a = Array.isArray(va.iv) ? va.iv[w] : va.iv, b = Array.isArray(va.rv) ? va.rv[w] : va.rv; vlo = Math.min(vlo, a, b); vhi = Math.max(vhi, a, b); } }
       vlo = Math.max(0, vlo - 0.05); vhi += 0.05; const YV = yLin(vlo, vhi, 4, Hv - 4), axv = sv("g", { class: "yax" }, sV);
       for (const t of niceTicks(vlo, vhi, 2)) { sv("line", { x1: G.l, x2: G.l + G.pw, y1: YV(t), y2: YV(t) }, axv); st_(axv, G.l - 6, YV(t) + 3.5, Math.round(t * 100) + "%", { "text-anchor": "end" }); }
       for (const [cls, va] of serV) { for (const [k, dash, wdt] of [["iv", "", 1.8], ["rv", "4 3", 1.1]]) { let d = ""; for (let w = 0; w <= W; w++) d += (w ? "L" : "M") + G.x(w) + "," + YV(Array.isArray(va[k]) ? va[k][w] : va[k]); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": wdt, "stroke-dasharray": dash, opacity: cls === "b" && tks.length === 1 && ys.bDiff !== "vol" ? 0 : 1 }, sV); } }
@@ -549,14 +697,14 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       return { who, run, kind: "lev", xs, pols: ["reinvest", "rebal"] }; }
     const xs = [...new Set([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, run.use].map(x => +x.toFixed(2)))].sort((a, b) => a - b); return { who, run, kind: "use", xs, pols: [run.modus.credit] }; }
   function renderSweep() {
-    const host = q("#y-sweep"), S = sweepSpec(), key = JSON.stringify([S, ys.sc, ys.costs, ys.rates]);
+    const host = q("#y-sweep"), S = sweepSpec(), key = JSON.stringify([S, ys.sc, ys.costs, ys.rates, readRunVolPath({ run: S.run, slot: S.who })]);
     const seg2 = RES.B ? `<span class="seg" id="y-swrun" style="float:right"><button type="button" data-v="A" class="${S.who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${S.who === "B" ? "on" : ""}">B</button></span>` : "";
     host.innerHTML = `<h3>${S.kind === "lev" ? "Leverage" : "Margin used"} sweep<span class="sub">typical NAV at week ${ys.sc.W}; strip = odds of a margin call${S.kind === "lev" ? ` · solid = ${S.run.modus.credit === "rebal" ? "rebalance" : "reinvest"} (this run), dashed = ${S.run.modus.credit === "rebal" ? "reinvest" : "rebalance"}` : ""}</span>${seg2}</h3><span id="y-swb"><span class="cap">computing…</span></span>`;
     const sg = q("#y-swrun"); if (sg) sg.onclick = e => { const b = e.target.closest("button"); if (!b) return; ys.view.sweepRun = b.dataset.v; renderSweep(); };
     if (SW.key === key && SW.data) return drawSweep(S, SW.data);
     const job = ++SW.job, out = []; const todo = []; for (const pol of S.pols) for (const x of S.xs) todo.push([pol, x]);
     const step = () => { if (job !== SW.job) return; const t0 = performance.now();
-      while (todo.length && performance.now() - t0 < 30) { const [pol, x] = todo.shift(); const run = { ...S.run, modus: { ...S.run.modus, credit: pol } }; if (S.kind === "lev") run.lev = x; else run.use = x; const r = runFor(run, S.who === "B"); out.push({ pol, x, med: r.end.med, called: r.end.called, sh: r.end.shMed }); }
+      while (todo.length && performance.now() - t0 < 30) { const [pol, x] = todo.shift(); const run = { ...S.run, modus: { ...S.run.modus, credit: pol } }; if (S.kind === "lev") run.lev = x; else run.use = x; const r = runFor({ run, slot: S.who }); out.push({ pol, x, med: r.end.med, called: r.end.called, sh: r.end.shMed }); }
       if (todo.length) setTimeout(step, 0); else { SW = { key, data: out, job }; if (q("#y-swb")) drawSweep(S, out); } };
     setTimeout(step, 30);
   }
@@ -763,7 +911,13 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
 
   // ---------------------------------------------------------- Random years (Monte Carlo, opt-in, sliced on the main thread)
   let MC = { key: "", res: null, job: 0, prog: 0 };
-  function mcKey() { return JSON.stringify([runA(), runB(), ys.sc, ys.costs, ys.rates, ys.mc || {}]); }
+  // the Monte Carlo inputs: the runs, this tab's state and the vol paths the runs read (the shared period vol lives
+  // outside this tab's state, so a vol changed on Compare A vs B marks the last run stale; the IV path shapes them too)
+  function mcKey() {
+    const A = runA(), B = runB();
+    const vols = [readRunVolPath({ run: A, slot: RunSlot.A }), B ? readRunVolPath({ run: B, slot: RunSlot.B }) : null];
+    return JSON.stringify([A, B, ys.sc, ys.costs, ys.rates, ys.mc || {}, vols]);
+  }
   function renderMCTools() {
     const M = ys.mc || (ys.mc = { paths: 2000, seed: 20261001 });
     q("#y-mctools").innerHTML = `<span class="ctl"><span class="lbl">Paths</span><span class="seg" id="y-mcn"></span></span><span class="ctl"><span class="lbl">Seed</span><input type="number" id="y-mcs" style="width:96px"> <button type="button" class="btn" id="y-mcns">new seed</button></span><button type="button" class="btn fix" id="y-mcrun">Run</button> <span class="cap" id="y-mcp"></span>`;
@@ -776,7 +930,8 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
   }
   function runMC() {
     const M = ys.mc, job = ++MC.job, key = mcKey(), W = ys.sc.W, costs = costsOf();
-    const parts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => ({ who, R, snap: YRS.snapshot({ ...R.main, run: R.run }, 0, { cap0: ys.sc.cap0, W, mult: RES.mult }, costs), vol: (v0 => volArrays(v0.iv, v0.rv))(volOf(R.run, who === "B")), mA: ys.costs.mOvr[R.run.tk], out: [] }));
+    const parts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => ({ who, R, snap: YRS.snapshot({ ...R.main, run: R.run }, 0, { cap0: ys.sc.cap0, W, mult: RES.mult }, costs), vol: (v0 => volArrays(v0.iv, v0.rv))(readRunVol({ run: R.run, slot: who })),
+ mA: ys.costs.mOvr[R.run.tk], out: [] }));
     let i = 0; const N = M.paths, step = () => { if (job !== MC.job) return; const t0 = performance.now();
       while (i < N && performance.now() - t0 < 40) { const to = Math.min(N, i + 25); for (const P of parts) P.out.push(...YRS.mcRun(P.snap, RES.mult, P.vol.rv, W, M.seed, i, to, costs, P.mA, Array.isArray(P.vol.iv) ? P.vol.iv : null)); i = to; }
       MC.prog = i / N; const pe = q("#y-mcp"); if (pe) pe.textContent = `running… ${Math.round(MC.prog * 100)}%`;
@@ -806,12 +961,66 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
       <p class="cap" style="margin-top:6px">Solid line and bands: random years (median, 25–75%, 5–95%). Dashed: the engine's typical track. Each run sees the same random ${ys.A.tk} paths. Plain lognormal daily moves, Monday carrying three days; no jumps. Options are marked with the time actually left, so strangle margin calls come out more often here than in the engine, which marks at half the cycle.</p>`;
   }
   // ---------------------------------------------------------- persistence (the app saves; we expose state)
-  // the page's port (YR.init({port})): saveView writes the blob and the address, showNotice toasts; inert until init
-  /** @type {{ saveView: () => void, showNotice: (text: string) => void }} */
-  let port = { saveView: () => {}, showNotice: (text) => {} };
+  // the page's port (YR.init({port})): saveView writes the blob and the address, showNotice toasts, periodVol reads
+  // and writes the page's period vol (read(ticker) -> % as stored, 0 allowed; write({ticker, pct, source?, expiry?}) runs the
+  // page's command, source Set unless a preset is named). Until init it is inert, with a period vol of its own
+  /** @typedef {{ source: string, label: string, short: string, pct: number, expiry?: string }} YrVolRef */
+  /** @typedef {{ read: (ticker: string) => number, write: (edit: { ticker: string, pct: number, source?: string, expiry?: string }) => any, refs: (ticker: string) => YrVolRef[] }} YrPeriodVolPort */
+  // The period vol of the tab on its own, before (or without) the page's port.
+  // Why a class: it keeps per-ticker values between writes and reads, the state a port of plain functions would hide
+  // in a loose object; the page's port replaces it at init
+  class StandalonePeriodVol {
+    constructor() {
+      /** @type {Map<string, number>} */
+      this.pcts = new Map();
+    }
+    /** @param {string} ticker */
+    read(ticker) {
+      if (this.pcts.has(ticker)) { return this.pcts.get(ticker); }
+      return listedPct(ticker);
+    }
+    /** @param {{ ticker: string, pct: number, source?: string, expiry?: string }} edit */
+    write({ ticker, pct, source }) {
+      if (source === VolSource.Hv30) {
+        this.pcts.delete(ticker);
+        return;
+      }
+      this.pcts.set(ticker, pct);
+    }
+    // the listed vol and the data's realized vols (the page's list adds ATM at Compare's A horizon)
+    /** @param {string} ticker */
+    refs(ticker) {
+      const listedName = nameVolSource({ source: VolSource.Hv30 });
+      const realized = Array.isArray(D.u[ticker].realized) ? D.u[ticker].realized : [];
+      /** @type {YrVolRef[]} */
+      const refs = [{ source: VolSource.Hv30, label: listedName, short: listedName, pct: listedPct(ticker) }];
+      return refs.concat(realized.map(r => ({ source: VolSource.Set, label: r.label, short: r.short, pct: r.vol * 100 })));
+    }
+  }
+  /** @type {{ saveView: () => void, showNotice: (text: string) => void, periodVol: YrPeriodVolPort }} */
+  let port = { saveView: () => {}, showNotice: (text) => {}, periodVol: new StandalonePeriodVol() };
   let saveT = 0; const saveSoon = () => { clearTimeout(saveT); saveT = setTimeout(() => port.saveView(), 400); };
+  // the state the page saves: the moves are not in it (they are the page's period vol, plus a run's own override)
   function getState() { return clone(ys); }
+  // the vol fields of a loaded state: the old per-tab moves (rv, rvB) are gone, since the page's view readers turned
+  // them into the period vol and the run override before the state arrives here (any left are dropped); the override
+  // is {run: A | B, [ticker]: pct in range}
+  function sanitizeVolFields(sc) {
+    const out = { ...sc }, [lo, hi] = PERIOD_VOL_CONFIG.range;
+    delete out.rv;
+    delete out.rvB;
+    const given = out.volOverride && typeof out.volOverride === "object" ? out.volOverride : {};
+    const override = { run: given.run === RunSlot.A ? RunSlot.A : RunSlot.B };
+    for (const tk of TKS) {
+      const pct = given[tk];
+      const isUsable = typeof pct === "number" && Number.isFinite(pct);
+      if (isUsable) { override[tk] = Math.max(lo, Math.min(hi, pct)); }
+    }
+    out.volOverride = override;
+    return out;
+  }
   function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) } };
+    ys.sc = sanitizeVolFields(ys.sc);
     for (const r of [ys.A, ys.B]) { r.modus = { ...MODUS0, ...(r.modus || {}) }; if (r.tk === "RAM" && r.cad === "wk") { r.cad = "mo"; setTimeout(() => port.showNotice("RAM lists monthly options only: the run was set to monthly"), 0); } } dockSig = ""; }
   function reset() { ys = DEF(); dockSig = ""; CACHE.clear(); SW.key = ""; }
 
@@ -822,7 +1031,7 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     if (inited) return; inited = true;
     segY(q("#y-bdiff"), BDIFF.map(([v, l]) => [v, l]), () => ys.bDiff, v => { ys.bOn = true; setBDiff(v); });
     segY(q("#y-bdiff2"), BDIFF2.map(([v, l]) => [v, l]), () => ys.bDiff, v => { ys.bOn = true; setBDiff(v); q("#y-bmore").open = false; });
-    q("#y-swap").onclick = () => { if (!ys.bOn) return; const A = runA(), B = runB(); ys.A = clone(B); ys.B = clone(A); if (ys.bDiff === "vol") { [ys.sc.iv, ys.sc.ivB] = [ys.sc.ivB, ys.sc.iv]; [ys.sc.rv, ys.sc.rvB] = [ys.sc.rvB, ys.sc.rv]; } dockSig = ""; schedule(10); };
+    q("#y-swap").onclick = swapRuns;
     q("#y-chipB").onclick = e => { if (e.target.closest(".y-dropb")) { ys.bOn = false; schedule(10); return; } if (!ys.bOn) { ys.bOn = true; schedule(10); } };
     numY(q("#y-cap0"), () => ys.sc.cap0, v => ys.sc.cap0 = v, { min: 1000 });
     numY(q("#y-W"), () => ys.sc.W, v => { ys.sc.W = Math.round(v); ys.view.pin = Math.min(ys.view.pin, ys.sc.W); }, { min: 4, max: 104 });
@@ -842,7 +1051,8 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     renderBar(); renderPathCtl(); renderDock(); syncAll();
     const stress = ys.view.v === "stress";
     q("#y-yearv").hidden = stress; q("#y-stressv").hidden = !stress; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
-    q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${ys.sc.rv[t]}`).join(" · ");
+    q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}`).join(" · ");
+
     if (stress) { renderStress(); renderMCTools(); saveSoon(); return; }
     renderStrip(mode === "live");
     renderStack(); renderGrowth(); renderCreditMargin(); renderTable();

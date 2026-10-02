@@ -6,6 +6,9 @@
 // and drags the mouse, reloads, resizes and edits the address. See README.md.
 //
 //   node pixdiff.js [--a FILE] [--b FILE] [--only REGEX] [--combos LIST] [--fast] [--list] [--jobs N] [--out DIR] [--verbose]
+//                   [--map-b FILE] [--mask SELECTORS]...
+// A scenario with bOnly: true runs page B alone (a feature A does not have): its checkpoints are written as PNGs to
+// OUT/bonly/, and only its console, run failures and the expectations it states (d.expect) are reported.
 'use strict';
 const fs = require('fs'), path = require('path');
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
@@ -27,7 +30,7 @@ const FIXED_NOW = Date.UTC(2026, 9, 2, 15, 0, 0);   // the fake clock: 2 Oct 202
 
 // ------------------------------------------------------------------ CLI
 function parseArgs(argv) {
-  const o = { a: DEF_A, b: DEF_B, only: null, combos: Object.keys(COMBOS), list: false, jobs: 6, out: null, verbose: false };
+  const o = { a: DEF_A, b: DEF_B, only: null, combos: Object.keys(COMBOS), list: false, jobs: 6, out: null, verbose: false, mapB: null, mapBFile: null, masks: [] };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], v = () => { if (i + 1 >= argv.length) die(`${k} needs a value`); return argv[++i]; };
     if (k === '--a') o.a = path.resolve(v());
@@ -38,14 +41,31 @@ function parseArgs(argv) {
     else if (k === '--list') o.list = true;
     else if (k === '--jobs') o.jobs = Math.max(1, +v() || 1);
     else if (k === '--out') o.out = path.resolve(v());
+    else if (k === '--map-b') { o.mapBFile = path.resolve(v()); o.mapB = loadMap(o.mapBFile); }
+    else if (k === '--mask') o.masks.push(v());   // a CSS selector list; repeatable
     else if (k === '--verbose' || k === '-v') o.verbose = true;
-    else if (k === '--help' || k === '-h') { console.log('node pixdiff.js [--a FILE] [--b FILE] [--only REGEX] [--combos 1200-light,1200-dark,1440-light,1440-dark] [--fast] [--list] [--jobs N] [--out DIR] [--verbose]'); process.exit(0); }
+    else if (k === '--help' || k === '-h') { console.log('node pixdiff.js [--a FILE] [--b FILE] [--only REGEX] [--combos 1200-light,1200-dark,1440-light,1440-dark] [--fast] [--list] [--jobs N] [--out DIR] [--map-b FILE] [--mask SELECTORS]... [--verbose]'); process.exit(0); }
     else die(`unknown argument ${k}`);
   }
   for (const c of o.combos) if (!COMBOS[c]) die(`unknown combo ${c} (known: ${Object.keys(COMBOS).join(', ')})`);
   return o;
 }
 function die(m) { console.error('pixdiff: ' + m); process.exit(2); }
+// --map-b FILE: a node module exporting one function (B's captured state channel) -> the same in A's format. Used when
+// B writes its view codes and stored blob in another format on purpose (v10 vs v9): the codes are compared by content
+function loadMap(file) {
+  if (!fs.existsSync(file)) die(`--map-b: no file ${file}`);
+  const fn = require(file);
+  if (typeof fn !== 'function') die(`--map-b: ${file} must export a function (state) -> state, got ${typeof fn}`);
+  return fn;
+}
+// with --map-b the #vcode field shows codes of different formats on the two pages: its text is made transparent on
+// both (the state channel compares its mapped value), so the pixels compare everything around it
+let MASK_CODE_FIELD = false;
+// --mask SELECTORS (repeatable): elements an intended change touches. They are blanked (visibility: hidden, so the
+// layout stays) in every screenshot on both pages and removed from the DOM comparison and the form values, so a
+// verifier can isolate an intended change and prove that nothing else moved. "" = no mask
+let MASK = '';
 
 // ------------------------------------------------------------------ browser context setup
 const FONTS = path.resolve(HERE, '../ui/fonts');
@@ -64,7 +84,7 @@ async function fontRoutes(ctx) {   // the routing of lib_v9.js: Google Fonts ser
 }
 // runs in the page before any of its scripts: a fixed clock, a mutation/scroll activity stamp for the idle wait, and a
 // recorder of clipboard writes (browser APIs only; nothing of the app is touched)
-function initScript({ now, faces }) {
+function initScript({ now, faces, maskCodeField, mask }) {
   for (const f of faces) {
     try {
       const bin = atob(f.b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -76,7 +96,8 @@ function initScript({ now, faces }) {
   window.Date = FD;
   const st = window.__pixdiff = { last: performance.now(), clip: [] };
   // no blinking caret in screenshots (in <head>, outside the compared body HTML)
-  document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '*{caret-color:transparent!important}'; document.head.appendChild(s); });
+  // --mask: the masked elements are hidden only while a screenshot is taken (class on <html>, outside the compared body)
+  document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '*{caret-color:transparent!important}' + (maskCodeField ? '#vcode{color:transparent!important}' : '') + (mask ? `html.__pixdiff_mask :is(${mask}){visibility:hidden!important}` : ''); document.head.appendChild(s); });
   const bump = () => { st.last = performance.now(); };
   // every toast is logged and held the moment it shows (a pointerenter on #toast: the page's own handler clears the
   // hide timer, as when the pointer rests on it), so whether it is still up later never depends on timing
@@ -110,7 +131,14 @@ function initScript({ now, faces }) {
 }
 
 class Driver {
-  constructor(page, side, combo, file, scen) { this.page = page; this.side = side; this.combo = combo; this.file = file; this.scen = scen; this.snaps = []; this.W = combo.W; this.H = VIEW_H; this.hoverMode = false; this.logs = []; this.quiet = scen.quiet || 150; this.minWait = scen.minWait || 50; this.T = { shot: 0, nshot: 0, idle: 0, state: 0 }; this.toastShots = []; }
+  constructor(page, side, combo, file, scen) { this.page = page; this.side = side; this.combo = combo; this.file = file; this.scen = scen; this.snaps = []; this.W = combo.W; this.H = VIEW_H; this.hoverMode = false; this.logs = []; this.quiet = scen.quiet || 150; this.minWait = scen.minWait || 50; this.T = { shot: 0, nshot: 0, idle: 0, state: 0 }; this.toastShots = []; this.expectFails = []; }
+  // a stated expectation (B-only scenarios): fn runs in the page with arg and must return true; anything else (false,
+  // a text) is reported with the description
+  async expect(desc, fn, arg) {
+    let r;
+    try { r = await this.page.evaluate(fn, arg); } catch (e) { r = 'threw: ' + String(e && e.message || e); }
+    if (r !== true) this.expectFails.push(`${desc}: ${r === false ? 'false' : r}`);
+  }
   url(hash) { return 'file://' + this.file + (hash ? '#' + hash.replace(/^#/, '') : ''); }
   async goto(hash) {
     await this.page.goto(this.url(hash)); await this.ready();
@@ -283,7 +311,9 @@ class Driver {
   async shot() {
     const t = Date.now();
     if (!this.cdp) this.cdp = await this.page.context().newCDPSession(this.page);
+    if (MASK) await this.page.evaluate(() => new Promise(r => { document.documentElement.classList.add('__pixdiff_mask'); requestAnimationFrame(() => requestAnimationFrame(r)); }));
     const r = Buffer.from((await this.cdp.send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true })).data, 'base64');
+    if (MASK) await this.page.evaluate(() => { document.documentElement.classList.remove('__pixdiff_mask'); });
     this.T.shot += Date.now() - t; this.T.nshot++; return r;
   }
   async frames() { await this.page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); }
@@ -308,7 +338,7 @@ class Driver {
   async snap(label, opt = {}) {
     const p = this.page, hover = !!(opt.hover || this.hoverMode);
     if (!hover) { await p.mouse.move(0, 0); await this.idle({ min: 60 }); }
-    const t0 = Date.now(); const st = await p.evaluate(captureState); this.T.state += Date.now() - t0;
+    const t0 = Date.now(); const st = await p.evaluate(captureState, MASK); this.T.state += Date.now() - t0;
     const png = this.toastShots; this.toastShots = [];
     if (st.state.toast != null) {   // a toast up at the checkpoint itself (kept by the last step, or shown by a timer)
       png.push(await this.shot());
@@ -327,9 +357,10 @@ class Driver {
 }
 
 // runs in the page: normalized body HTML and the state channel
-function captureState() {
+function captureState(mask) {
   const body = document.body.cloneNode(true);
   body.querySelectorAll('script').forEach(s => s.remove());
+  if (mask) body.querySelectorAll(mask).forEach(e => e.remove());
   const dom = body.innerHTML.replace(/\s+$/, '');
   const desc = e => {
     if (!e || e === document.body) return e ? 'body' : null;
@@ -345,7 +376,8 @@ function captureState() {
   const t = document.querySelector('#toast'), toast = t && !t.hidden ? t.innerText : null;
   const vc = document.querySelector('#vcode');
   const form = {};
-  document.querySelectorAll('input, select, textarea').forEach((e, i) => {
+  // a masked input is left out before the fields are numbered, so the other fields keep their keys
+  [...document.querySelectorAll('input, select, textarea')].filter(e => !(mask && e.closest(mask))).forEach((e, i) => {
     const k = desc(e) + (e.id ? '' : '@' + i);
     form[k] = e.type === 'checkbox' || e.type === 'radio' ? (e.checked ? 'checked' : 'unchecked') : e.value;
   });
@@ -371,7 +403,7 @@ async function runSide(browser, file, side, combo, scen, ctxData) {
     locale: 'en-US', timezoneId: 'UTC', acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write']
   });
   await fontRoutes(ctx);
-  await ctx.addInitScript(initScript, { now: FIXED_NOW, faces: FACES });
+  await ctx.addInitScript(initScript, { now: FIXED_NOW, faces: FACES, maskCodeField: MASK_CODE_FIELD, mask: MASK });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`console.${m.type()}: ${m.text()}`); });
@@ -384,7 +416,7 @@ async function runSide(browser, file, side, combo, scen, ctxData) {
   } catch (e) { fail = String(e && e.stack || e).split('\n').slice(0, 4).join('\n'); }
   await ctx.close().catch(() => { });
   if (process.env.PIXDIFF_PROFILE) d.logs.push('profile ' + JSON.stringify(d.T));
-  return { snaps: d.snaps, errors, fail, logs: d.logs };
+  return { snaps: d.snaps, errors, fail, logs: d.logs, expectFails: d.expectFails };
 }
 
 // stack viewport tiles into one image (decoded RGBA)
@@ -410,7 +442,28 @@ function stateDiffs(a, b, pfx = '') {
 }
 const safeName = s => s.replace(/[^A-Za-z0-9._-]+/g, '_');
 
+// a B-only scenario: page B alone; its checkpoints go to OUT/bonly as PNGs (tiles stacked), and its console, run
+// failures and failed expectations are the differences
+async function runBOnlyJob(browser, opt, scen, comboName, ctxData) {
+  const combo = COMBOS[comboName], t0 = Date.now();
+  const rb = await runSide(browser, opt.b, 'B', combo, scen, ctxData);
+  const res = { scenario: scen.id, combo: comboName, bOnly: true, ms: 0, snaps: rb.snaps.length, px: 0, pxSnaps: 0, dom: 0, state: 0, console: 0, failures: [], diffs: [] };
+  if (rb.fail) res.failures.push({ channel: 'run', side: 'B', error: rb.fail });
+  for (const e of rb.errors) { res.console++; res.diffs.push({ channel: 'console', side: 'B', message: e }); }
+  for (const e of rb.expectFails) res.diffs.push({ channel: 'expect', side: 'B', message: e });
+  for (const l of rb.logs) if (opt.verbose) console.log(`  [${scen.id} ${comboName} B] ${l}`);
+  const dir = path.join(OUT, 'bonly'); fs.mkdirSync(dir, { recursive: true });
+  rb.snaps.forEach((sn, i) => {
+    if (!sn.png.length) return;
+    try { fs.writeFileSync(path.join(dir, safeName(`${scen.id}__${comboName}__${String(i).padStart(2, '0')}_${sn.label}`) + '.png'), PNG.encode(stitch(sn.png))); }
+    catch (e) { res.diffs.push({ channel: 'run', message: `could not write the ${sn.label} PNG: ${e}` }); }
+  });
+  res.ms = Date.now() - t0;
+  return res;
+}
+
 async function runJob(browser, opt, scen, comboName, ctxData) {
+  if (scen.bOnly) return runBOnlyJob(browser, opt, scen, comboName, ctxData);
   const combo = COMBOS[comboName], t0 = Date.now();
   const [ra, rb] = await Promise.all([runSide(browser, opt.a, 'A', combo, scen, ctxData), runSide(browser, opt.b, 'B', combo, scen, ctxData)]);
   const res = { scenario: scen.id, combo: comboName, ms: 0, snaps: Math.max(ra.snaps.length, rb.snaps.length), px: 0, pxSnaps: 0, dom: 0, state: 0, console: 0, failures: [], diffs: [] };
@@ -442,8 +495,12 @@ async function runJob(browser, opt, scen, comboName, ctxData) {
       const k = firstDiff(a.dom, b.dom); res.dom++;
       res.diffs.push({ channel: 'dom', checkpoint: label, offset: k, lengths: [a.dom.length, b.dom.length], a: ctxAround(a.dom, k), b: ctxAround(b.dom, k) });
     }
-    // state
-    const sd = stateDiffs(a.state, b.state);
+    // state (B's mapped into A's format with --map-b; a map that throws is a difference)
+    let bState = b.state;
+    if (opt.mapB) {
+      try { bState = opt.mapB(b.state); } catch (e) { bState = Object.assign({}, b.state, { mapError: String(e && e.message || e) }); }
+    }
+    const sd = stateDiffs(a.state, bState);
     if (sd.length) { res.state += sd.length; res.diffs.push({ channel: 'state', checkpoint: label, keys: sd }); }
   }
   res.ms = Date.now() - t0;
@@ -455,14 +512,18 @@ async function main() {
   const opt = parseArgs(process.argv.slice(2));
   const all = SCEN.list();
   const scens = all.filter(s => !opt.only || opt.only.test(s.id));
-  if (opt.list) { for (const s of all) console.log(`${s.id.padEnd(30)} ${s.family.padEnd(10)} ${s.desc}`); console.log(`${all.length} scenarios; combos: ${Object.keys(COMBOS).join(', ')}`); return; }
+  if (opt.list) { for (const s of all) console.log(`${s.id.padEnd(30)} ${s.family.padEnd(10)} ${s.bOnly ? '[B only] ' : ''}${s.desc}`); console.log(`${all.length} scenarios; combos: ${Object.keys(COMBOS).join(', ')}`); return; }
   if (!scens.length) die('no scenario matches --only');
   for (const f of [opt.a, opt.b]) if (!fs.existsSync(f)) die(`missing page ${f}`);
   if (opt.out) OUT = opt.out;
+  MASK_CODE_FIELD = !!opt.mapB;
+  MASK = opt.masks.join(', ');
   fs.mkdirSync(OUT, { recursive: true });
   for (const f of fs.readdirSync(OUT)) if (/\.(png|json)$/.test(f)) fs.rmSync(path.join(OUT, f));   // only our own outputs
+  const bonlyDir = path.join(OUT, 'bonly');
+  if (fs.existsSync(bonlyDir)) for (const f of fs.readdirSync(bonlyDir)) if (/\.png$/.test(f)) fs.rmSync(path.join(bonlyDir, f));
   const T0 = Date.now();
-  console.log(`pixdiff  A = ${opt.a}\n         B = ${opt.b}\n         ${scens.length} scenarios x ${opt.combos.length} combos (${opt.combos.join(', ')}), ${opt.jobs} parallel jobs`);
+  console.log(`pixdiff  A = ${opt.a}\n         B = ${opt.b}${opt.mapB ? `\n         B's state mapped by ${opt.mapBFile} (#vcode text masked on both pages)` : ''}${MASK ? `\n         masked (blank pixels, out of the DOM and form comparison): ${MASK}` : ''}\n         ${scens.length} scenarios x ${opt.combos.length} combos (${opt.combos.join(', ')}), ${opt.jobs} parallel jobs`);
   // one Chromium per worker: a single browser funnels every page's compositing through one display process
   const launch = () => chromium.launch({ args: process.env.PIXDIFF_FLAGS != null ? process.env.PIXDIFF_FLAGS.split(' ').filter(Boolean) : CHROME_FLAGS });
   const browser = await launch();
@@ -493,11 +554,11 @@ async function main() {
   // summary table
   const bad = r => r.px || r.dom || r.state || r.console || r.failures.length || r.diffs.length;
   const rows = [['scenario', 'combo', 'snaps', 'pixels', 'dom', 'state', 'console', 'run', 'result']];
-  for (const r of results) rows.push([r.scenario, r.combo, r.snaps, r.px ? `${r.px} (${r.pxSnaps})` : 0, r.dom, r.state, r.console, r.failures.length ? 'FAIL' : '', bad(r) ? 'DIFF' : 'ok']);
+  for (const r of results) rows.push([r.scenario + (r.bOnly ? ' [B only]' : ''), r.combo, r.snaps, r.bOnly ? '-' : r.px ? `${r.px} (${r.pxSnaps})` : 0, r.bOnly ? '-' : r.dom, r.bOnly ? `${r.diffs.filter(d => d.channel === 'expect').length} expect` : r.state, r.console, r.failures.length ? 'FAIL' : '', bad(r) ? 'DIFF' : 'ok']);
   const w = rows[0].map((_, j) => Math.max(...rows.map(r => String(r[j]).length)));
   console.log('\n' + rows.map((r, i) => r.map((c, j) => String(c).padEnd(w[j])).join('  ') + (i === 0 ? '\n' + w.map(x => '-'.repeat(x)).join('  ') : '')).join('\n'));
   const nBad = results.filter(bad).length, nSnaps = results.reduce((t, r) => t + r.snaps, 0);
-  const report = { a: opt.a, b: opt.b, combos: opt.combos, scenarios: scens.length, jobs: results.length, checkpoints: nSnaps, seconds: +secs.toFixed(1), differing: nBad, results: results.map(r => ({ scenario: r.scenario, combo: r.combo, ms: r.ms, snaps: r.snaps, pixels: r.px, dom: r.dom, state: r.state, console: r.console, failures: r.failures, diffs: r.diffs })) };
+  const report = { a: opt.a, b: opt.b, mapB: opt.mapBFile, masks: opt.masks, combos: opt.combos, scenarios: scens.length, jobs: results.length, checkpoints: nSnaps, seconds: +secs.toFixed(1), differing: nBad, results: results.map(r => ({ scenario: r.scenario, combo: r.combo, bOnly: !!r.bOnly, ms: r.ms, snaps: r.snaps, pixels: r.px, dom: r.dom, state: r.state, console: r.console, failures: r.failures, diffs: r.diffs })) };
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   console.log(`\n${results.length} runs, ${nSnaps} checkpoints compared, ${nBad} with differences, ${secs.toFixed(0)} s. Report: ${path.join(OUT, 'report.json')}`);
   for (const r of results.filter(bad).slice(0, 12)) {

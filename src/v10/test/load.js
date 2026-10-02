@@ -20,8 +20,8 @@ function load(D, opt = {}) {
   let src = '"use strict";\n' + ["core.js", "adapters.js", "eng_head.js"].map(f => fs.readFileSync(path.join(V9, f), "utf8")).join("\n") + "\n";
   for (const f of files) src += fs.readFileSync(path.join(V9, f), "utf8") + "\n";
   const names = ["INST", "RULE", "POS", "DIST", "CMP", "STATE", "CTX", "cdfT", "cdfAt", "quantAt", "fK", "fmtE", "R", "bs", "N", "smile", "wingAnchors", "impliedVol",
-    "Command", "EnvelopeType", "FaultCode", "FaultSeverity", "FaultHandling", "Tab", "Theme", "NoticeStyle", "FrameCause", "ViewCodeError", "ViewCodeVersion", "ActionStep", "CmpOperation", "CmpEventType", "CoreErrorCode", "ResetTarget",
-    "TABS", "THEMES", "CORE_CONFIG", "Result", "createFault", "isCommand", "createNoticeEnvelope", "createFaultEnvelope", "readListedVol", "labelListedVol",
+    "Command", "EnvelopeType", "FaultCode", "FaultSeverity", "FaultHandling", "Tab", "Theme", "NoticeStyle", "FrameCause", "ViewCodeError", "ViewCodeVersion", "ExportSection", "ActionStep", "CmpOperation", "CmpEventType", "CoreErrorCode", "ResetTarget",
+    "TABS", "THEMES", "CORE_CONFIG", "Result", "createFault", "isCommand", "createNoticeEnvelope", "createFaultEnvelope", "readPeriodVol", "nameVolSource", "labelPeriodVol", "VolSource", "Odds", "PERIOD_VOL_CONFIG", "MoveUnit", "WorstLossRange", "Align", "ReadingUnit", "GrowthRate", "RunSlot", "RunDiff",
     "Registry", "Bus", "Store", "CommandExecutor", "FrameLoop", "storage", "clipboard", "download", "calendar", "AdapterError"];
   src += "\n;globalThis.__x = {" + names.map(n => `${n}: typeof ${n} === "undefined" ? undefined : ${n}`).join(", ") + "};";
   vm.runInContext(src, ctx, { filename: "v9-model-bundle.js" });

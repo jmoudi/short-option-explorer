@@ -12,8 +12,8 @@ Outputs: /home/user/short-option-explorer/dist/ram_koru_lab_v10.html (standalone
 
 The build fails (exit 1) when (§3.1):
   - a v9 module other than inst9 matches D.u, TKS/EXPS, a quoted ticker, `st.` or a bare call to a v8 engine function;
-  - any source (bundle files, shells, CSS) reads a `.hv` property outside inst.js and core.js's readListedVol, or
-    spells "HV30" outside core.js's labelListedVol;
+  - any source (bundle files, shells, CSS) reads a `.hv` property outside inst.js and core.js's readPeriodVol (the
+    period-vol accessor), or spells "HV30" outside core.js's nameVolSource (the label helper's source name);
   - a v9 model module declares a top-level name other than its namespace object (dist9 may keep cdfT/cdfAt/quantAt),
     or a UI / app module declares a name outside its declared list, or two bundled files declare the same name;
   - any UI string (page, CSS, bundle) contains wrinkle, seam or smell;
@@ -104,7 +104,7 @@ for f in V9_MODULES:
             ln = src.count('\n', 0, m.start()) + 1
             problems.append(f'{f}:{ln}: {what}: {m.group(0).strip()!r}')
 
-# the listed vol: one accessor and one label helper (core.js); inst.js builds the instruments from the data
+# the period vol: one accessor and one label helper (core.js); inst.js builds the instruments from the data
 # a function's span: from its line-start `function name` to the first `}` at the start of a line. The exemption must
 # stay that function's own body, so a span longer than VOL_EXEMPT_MAX_LINES (a one-liner whose search would run on
 # into the next block, say) is itself a problem.
@@ -113,8 +113,8 @@ def function_span(src, name):
     m = re.search(r'^function\s+' + name + r'\b.*?^}', src, re.M | re.S)
     return (m.start(), m.end()) if m else (0, 0)
 VOL_RULES = [
-    (r'\.hv\b', 'reads .hv outside inst.js and readListedVol', {'inst.js': None, 'core.js': 'readListedVol'}),
-    (r'HV30', 'spells HV30 outside labelListedVol', {'core.js': 'labelListedVol'}),
+    (r'\.hv\b', 'reads .hv outside inst.js and readPeriodVol', {'inst.js': None, 'core.js': 'readPeriodVol'}),
+    (r'HV30', 'spells HV30 outside nameVolSource', {'core.js': 'nameVolSource'}),
 ]
 VOL_SOURCES = [(f, r(f)) for f in files + ['app.js']] + [(f, r(f, V9)) for f in ['shell.html', 'yr_shell.html', 'yr.css', 'views.css'] if ex(f, V9)]
 for f, src in VOL_SOURCES:
@@ -151,11 +151,11 @@ def top_names(src):
 # every bundled file's top-level names (the model files: their namespace object only)
 ALLOWED = {
     'core.js': {'Command', 'EnvelopeType', 'FaultCode', 'FaultSeverity', 'FaultHandling', 'Tab', 'Theme', 'NoticeStyle', 'FrameCause',
-                'ViewCodeError', 'ViewCodeVersion', 'ActionStep', 'CmpOperation', 'CmpEventType', 'CoreErrorCode', 'ResetTarget', 'TABS', 'THEMES', 'CORE_CONFIG', 'Result', 'createCoreError', 'describeThrown', 'createFault',
+                'ViewCodeError', 'ViewCodeVersion', 'ExportSection', 'VolSource', 'Odds', 'PERIOD_VOL_CONFIG', 'MoveUnit', 'WorstLossRange', 'Align', 'ReadingUnit', 'GrowthRate', 'HitBasis', 'RunSlot', 'RunDiff', 'ActionStep', 'CmpOperation', 'CmpEventType', 'CoreErrorCode', 'ResetTarget', 'TABS', 'THEMES', 'CORE_CONFIG', 'Result', 'createCoreError', 'describeThrown', 'createFault',
                 'createFaultEnvelope', 'createNoticeEnvelope', 'hasTypeField', 'isPlainData', 'describeValue', 'isCommand', 'isHandlerOutcome',
-                'readListedVol', 'labelListedVol', 'Registry', 'Bus', 'Store', 'CommandExecutor', 'FrameLoop'},
+                'readPeriodVol', 'nameVolSource', 'labelPeriodVol', 'Registry', 'Bus', 'Store', 'CommandExecutor', 'FrameLoop'},
     'adapters.js': {'ADAPTERS_CONFIG', 'AdapterError', 'describeError', 'isFilledString', 'isDate', 'storage', 'clipboard', 'download', 'calendar'},
-    'app_store.js': {'KEY9', 'KEY8', 'KEY5', 'readKey', 'BOOT'},
+    'app_store.js': {'STORAGE_KEY', 'readKey', 'BOOT'},
     'eng_head.js': {'$', 'css', 'MINUS', 'MON', 'TKS', 'EXPS', 'PCT_CAND', 'R', 'N', 'Ninv', 'erf', 'npdf', 'bs', 'bsDelta', 'bsVega',
                     'impliedVol', 'smile', 'wingAnchors', 'clamp', 'ticks', 'pctTicks', 'pctLab', 'fK', 'fN', 'fP', 'fPx', 'fPx2', 'fS', 'fmtE'},
     'dist.js': {'DIST', 'cdfT', 'cdfAt', 'quantAt'}, 'inst.js': {'INST'}, 'rule.js': {'RULE'}, 'pos.js': {'POS'},
@@ -167,7 +167,7 @@ ALLOWED = {
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',
                'writeStoredBlob', 'writeAddressCode', 'persistFrame', 'applyTheme', 'syncTabs', 'renderCompare', 'renderCompounding',
                'renderActiveTab', 'readBootState', 'showTab', 'findNextTab', 'loadView', 'loadTypedCode', 'loadAddressCode',
-               'resetCompounding', 'buildEventLoop', 'reportBootFaults', 'wireCompare', 'wireTabStrip', 'wirePageMenu', 'wireWindow',
+               'resetCompounding', 'createCompoundingPort', 'buildEventLoop', 'reportBootFaults', 'wireCompare', 'wireTabStrip', 'wirePageMenu', 'wireWindow',
                'startCompounding', 'showBootNotices', 'redrawWhenFontsLoad', 'main'},
 }
 seen = {}

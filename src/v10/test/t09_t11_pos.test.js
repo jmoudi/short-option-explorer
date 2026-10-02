@@ -136,7 +136,7 @@ test("T11: profit odds match brute-force integration (debits, guts with a wing b
   for (const pos of cases) {
     const b = POS.build(pos); assert.ok(!b.na, pos.exp);
     for (const mode of ["rn", "hv"]) {
-      const d = DIST.make(b.E, b.S, mode, b.inst.hv, 1), s = POS.stats(b, d), bf = brute(b, d);
+      const d = DIST.make({ expiry: b.E, odds: mode, vol: b.inst.hv }), s = POS.stats(b, d), bf = brute(b, d);
       assert.ok(Math.abs(s.pop - bf) < 1e-3, `${b.label.full} ${mode}: pop ${s.pop} vs brute ${bf}`);
       for (const x of s.bes) assert.ok(Math.abs(POS.payoff(b, x)) < 1e-6 * b.S, `breakeven ${x} of ${b.label.full}`);
       if (s.bes.length === 0) assert.ok(s.pop < 1e-9 || s.pop > 1 - 1e-9);
@@ -145,11 +145,11 @@ test("T11: profit odds match brute-force integration (debits, guts with a wing b
   }
   // a net debit that can never profit: odds 0, no breakevens
   const debit = POS.build(P("RAM", "20261016", { values: { center: "atm", put: 5, call: 15 }, wings: { call: { on: true, value: 5 }, put: { on: false, value: 15 } }, fill: "nat", legs: "detached" }));
-  const sd = POS.stats(debit, DIST.make(debit.E, debit.S, "rn", debit.inst.hv, 1));
+  const sd = POS.stats(debit, DIST.make({ expiry: debit.E, odds: "rn" }));
   if (debit.cr < 0 && [0.1, 0.5, 1, 1.5, 3].every(k => POS.payoff(debit, debit.S * k) <= 0)) { assert.equal(sd.pop, 0); assert.equal(sd.bes.length, 0); }
   // HV EV is the lognormal expectation of the payoff
-  const b = POS.build(cases[5]), d = DIST.make(b.E, b.S, "hv", b.inst.hv, 1), s = POS.stats(b, d);
-  let ev = 0; const n = 20000, v = d.hs * Math.sqrt(b.T), mu = -0.5 * v * v;
+  const b = POS.build(cases[5]), d = DIST.make({ expiry: b.E, odds: "hv", vol: b.inst.hv }), s = POS.stats(b, d);
+  let ev = 0; const n = 20000, v = d.vol * Math.sqrt(b.T), mu = -0.5 * v * v;
   for (let i = 0; i < n; i++) { const z = -8 + 16 * (i + 0.5) / n, x = b.S * Math.exp(mu + v * z); ev += POS.payoff(b, x) * Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI) * 16 / n; }
   assert.ok(Math.abs(ev - s.ev) < 1e-3 * b.S, `${ev} vs ${s.ev}`);
 });
@@ -165,7 +165,7 @@ test("T11: the exact-gap case — P&L exactly 0 above the wing is not a profit",
   assert.equal(pr.cr, 1);                            // 0.5 + 0.75 − 0.25: payoff above 12 is exactly 0
   assert.equal(S.POS.payoff(pr, 20), 0);
   const fake = Object.assign({}, pr, { key: "gap", na: false });
-  const d = S.DIST.make(pr.E, pr.S, "hv", 0.8, 1), s = S.POS.stats(fake, d);
+  const d = S.DIST.make({ expiry: pr.E, odds: "hv", vol: 0.8 }), s = S.POS.stats(fake, d);
   assert.deepEqual(JSON.parse(JSON.stringify(s.bes)), [8, 12]);
   assert.ok(Math.abs(s.pop - (S.DIST.cdfK(d, 12) - S.DIST.cdfK(d, 8))) < 1e-9, "profit region (8, 12): above 12 the P&L is exactly 0");
 });

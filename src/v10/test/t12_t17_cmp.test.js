@@ -160,7 +160,7 @@ test("T12: setFrom touches only aspects that differ (finding 2: B keeps followin
 test("T12: one-click fixes are data and a fix on B never changes A (finding 7)", () => {
   let c = CMP.setA(D0(), "exp", "20270319").c;
   c = CMP.setA(c, "wings.call", { on: true, value: 17 }).c;
-  const C = CTX.ctx9(STATE.sanitize9({ cmp: c }));
+  const C = CTX.ctx9(STATE.sanitizeTree({ comparison: c }));
   const f = C.flags.find(x => x.code === "WING_NA" && x.side === "A") || C.flags.find(x => x.code === "WING_NA");
   assert.ok(f && f.fix && f.fix.side && f.fix.path && Number.isFinite(f.fix.value));
   const bf = C.flags.find(x => x.side === "B" && x.fix);
@@ -173,24 +173,24 @@ test("T12: one-click fixes are data and a fix on B never changes A (finding 7)",
 test("T13: swap exchanges resolved A and B; swap∘swap restores legs, h and pins; a custom h becomes 1/h", () => {
   const variants = [
     s => s,
-    s => STATE.cmpOp(s, "setB", "structure", "straddle").S9,
-    s => STATE.cmpOp(STATE.cmpOp(s, "setB", "basis", "sigma").S9, "setA", "wings.call", { on: true, value: 12 }).S9,
-    s => STATE.cmpOp(STATE.cmpOp(s, "setB", "exp", "20270319").S9, "setB", "fill", "nat").S9,
-    s => STATE.cmpOp(s, "setB", "inst.spot", 23.2).S9,
-    s => STATE.cmpOp(STATE.cmpOp(s, "setA", "structure", "straddle").S9, "detach", "B").S9
+    s => STATE.cmpOp(s, "setB", "structure", "straddle").state,
+    s => STATE.cmpOp(STATE.cmpOp(s, "setB", "basis", "sigma").state, "setA", "wings.call", { on: true, value: 12 }).state,
+    s => STATE.cmpOp(STATE.cmpOp(s, "setB", "exp", "20270319").state, "setB", "fill", "nat").state,
+    s => STATE.cmpOp(s, "setB", "inst.spot", 23.2).state,
+    s => STATE.cmpOp(STATE.cmpOp(s, "setA", "structure", "straddle").state, "detach", "B").state
   ];
   for (const f of variants) {
-    let S9 = STATE.applyChange(f(STATE.defaults()), s => { s.cmp.sizing = { rule: "custom", h: 2 }; s.view.pins = [{ SA: 15, SB: 20, dA: 40, dB: 120 }]; });
+    let S9 = STATE.applyChange(f(STATE.defaults()), s => { s.comparison.sizing = { rule: "custom", h: 2 }; s.prefs.pins = [{ SA: 15, SB: 20, dA: 40, dB: 120 }]; });
     deepFreeze(S9);
-    const a0 = resA(S9.cmp), b0 = resB(S9.cmp);
+    const a0 = resA(S9.comparison), b0 = resB(S9.comparison);
     const r1 = STATE.swap(S9);
-    assert.equal(resA(r1.S9.cmp), b0); assert.equal(resB(r1.S9.cmp), a0);
-    assert.equal(r1.S9.cmp.sizing.h, 0.5);
-    assert.deepEqual(J(r1.S9.view.pins), [{ SA: 20, SB: 15, dA: 120, dB: 40 }]);
-    const r2 = STATE.swap(r1.S9);
-    assert.equal(resA(r2.S9.cmp), a0); assert.equal(resB(r2.S9.cmp), b0);
-    assert.equal(r2.S9.cmp.sizing.h, 2); assert.deepEqual(J(r2.S9.view.pins), J(S9.view.pins));
-    const C1 = CTX.ctx9(r1.S9), C0 = CTX.ctx9(S9);
+    assert.equal(resA(r1.state.comparison), b0); assert.equal(resB(r1.state.comparison), a0);
+    assert.equal(r1.state.comparison.sizing.h, 0.5);
+    assert.deepEqual(J(r1.state.prefs.pins), [{ SA: 20, SB: 15, dA: 120, dB: 40 }]);
+    const r2 = STATE.swap(r1.state);
+    assert.equal(resA(r2.state.comparison), a0); assert.equal(resB(r2.state.comparison), b0);
+    assert.equal(r2.state.comparison.sizing.h, 2); assert.deepEqual(J(r2.state.prefs.pins), J(S9.prefs.pins));
+    const C1 = CTX.ctx9(r1.state), C0 = CTX.ctx9(S9);
     assert.equal(C1.labels.A.full, C0.labels.B.full); assert.equal(C1.labels.B.full, C0.labels.A.full);
   }
   // a mapped expiry: the swapped linked expiry would differ → exp is unlinked with an event

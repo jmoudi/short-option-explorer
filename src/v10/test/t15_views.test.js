@@ -8,7 +8,7 @@ const { load, deepFreeze, V9 } = require("./load.js");
 const L = load();
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_views.js"), "utf8") + "\n;globalThis.__v = {VIEWS};", L.ctx, { filename: "ui_views.js" });
 const { VIEWS } = L.ctx.__v, { STATE, CTX, CMP, RULE, INST } = L;
-const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).S9; return S; };
+const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).state; return S; };
 const onCurve = (C, d, side) => { const s = d.sides[side], i = d.xs.indexOf(s.x0), ser = side === "A" ? d.sa : d.sb; return i >= 0 && VIEWS.sameTrade(ser[i].b, side === "A" ? C.A : C.B); };
 
 test("T15 sweep: each position sits on its own curve at its marker, on the current basis, legs together or detached", () => {
@@ -53,11 +53,11 @@ test("T15 smile click: the clicked leg lands on exactly that strike on every bas
       const b = tag === "A" ? C.A : C.B;
       for (const o of b.E.rows) for (const opt of VIEWS.smileOptions(C, tag, b, o.K, o.cp)) {
         const r = VIEWS.smilePlace(S0, C, tag, opt.role, o.K);
-        if (opt.why) { assert.equal(r.refused, opt.why); assert.equal(r.S9, S0); continue; }
+        if (opt.why) { assert.equal(r.refused, opt.why); assert.equal(r.state, S0); continue; }
         const other = opt.role === "short put" ? b.legs.find(l => l.role === "short call") : opt.role === "short call" ? b.legs.find(l => l.role === "short put") : null;
         const crossing = other && (opt.role === "short put" ? o.K >= other.K : o.K <= other.K);
         if (!crossing) { assert.equal(r.landed, o.K, `${basis} ${cfg} ${tag} ${opt.role} ${o.K}${o.cp}`); n++; }
-        const ch = Object.keys(S0.cmp.links).filter(k => S0.cmp.links[k] !== r.S9.cmp.links[k]);
+        const ch = Object.keys(S0.comparison.links).filter(k => S0.comparison.links[k] !== r.state.comparison.links[k]);
         if (tag === "A") assert.deepEqual(ch, []);
         else for (const k of ch) assert.equal(k, opt.role === "long call" ? "wingCall" : opt.role === "long put" ? "wingPut" : "placement");
       }
@@ -73,17 +73,17 @@ test("T15 smile click with legs together: the clicked leg lands, the other follo
   const S = deepFreeze(STATE.defaults()), C = CTX.ctx9(S);
   const r = VIEWS.smilePlace(S, C, "A", "short put", 12);
   assert.equal(r.landed, 12);
-  const v = r.S9.cmp.A.values; assert.ok(Math.abs((v.call - v.put) - 0) < 1e-9, "offset kept (30/30 together)");
+  const v = r.state.comparison.A.values; assert.ok(Math.abs((v.call - v.put) - 0) < 1e-9, "offset kept (30/30 together)");
   const ev = r.events.find(e => e.actions && e.actions.some(a => /detach legs/.test(a.label)));
   assert.ok(ev, "toast action to detach");
-  const r2 = STATE.applyAction(r.S9, ev.actions[0]);
-  assert.equal(r2.S9.cmp.A.legs, "detached");
-  assert.equal(r2.S9.cmp.A.values.call, 30, "the other leg goes back");
-  assert.equal(CMP.buildA(r2.S9.cmp).legs.find(l => l.role === "short put").K, 12);
+  const r2 = STATE.applyAction(r.state, ev.actions[0]);
+  assert.equal(r2.state.comparison.A.legs, "detached");
+  assert.equal(r2.state.comparison.A.values.call, 30, "the other leg goes back");
+  assert.equal(CMP.buildA(r2.state.comparison).legs.find(l => l.role === "short put").K, 12);
 });
 
 test("T15 recovery: the headline counts whole cycles (finding 26), the hit uses the position's own σ", () => {
-  const C = CTX.ctx9(STATE.defaults()), vw = Object.assign({}, C.view, { rdK: 1 });
+  const C = CTX.ctx9(STATE.defaults()), vw = Object.assign({}, C.prefs, { rdK: 1 });
   const r = VIEWS.recRun(C, C.A, "A", vw), n = VIEWS.recCycles(r.L, r.g, "rec", vw.rdBase);
   assert.ok(n > 2 && n < 3, `n = ${n}`);
   const t = VIEWS.recTime(n, r.days, r.L, d => String(d));
@@ -93,7 +93,7 @@ test("T15 recovery: the headline counts whole cycles (finding 26), the hit uses 
 });
 
 test("T15 calendar alignment: an expired position keeps its expiry odds (finding 28)", () => {
-  const S = STATE.applyChange(ops(STATE.defaults(), [["setB", "exp", "20261218"]]), s => { s.scen.align = "cal"; });
+  const S = STATE.applyChange(ops(STATE.defaults(), [["setB", "exp", "20261218"]]), s => { s.assumptions.align = "cal"; });
   const C = CTX.ctx9(S), rows = VIEWS.gridRows(C);
   assert.ok(C.cal && rows.length > 2);
   for (const w of rows) { assert.equal(w.tA, Math.min(w.d, C.A.dte) / 365); assert.equal(w.tB, Math.min(w.d, C.B.dte) / 365); }
@@ -110,8 +110,8 @@ test("T15 overview: every instrument × expiry × wing variant, named by label; 
   // KORU 20 Nov with a call wing as B: only wingCall unlinks
   const cell = cells.find(c => c.id === C.B.tk && c.e === C.B.exp && c.j === 1);
   const r = STATE.cmpOp(S, "setFrom", "B", { inst: cell.slot, exp: cell.e, wings: { call: { on: true, value: cell.wings.call.value }, put: false } });
-  assert.deepEqual(Object.keys(S.cmp.links).filter(k => S.cmp.links[k] !== r.S9.cmp.links[k]), ["wingCall"]);
-  assert.ok(VIEWS.sameTrade(CMP.buildB(r.S9.cmp), cell.b));
+  assert.deepEqual(Object.keys(S.comparison.links).filter(k => S.comparison.links[k] !== r.state.comparison.links[k]), ["wingCall"]);
+  assert.ok(VIEWS.sameTrade(CMP.buildB(r.state.comparison), cell.b));
   // Set as A onto B's position: allowed, and the identical event says so (finding 40)
   const cb = cells.find(c => VIEWS.sameTrade(c.b, C.B));
   const r2 = STATE.cmpOp(S, "setFrom", "A", { inst: cb.slot, exp: cb.e, wings: { call: false, put: false } });
@@ -122,7 +122,7 @@ test("T15 views read a frozen S9 without writing; source rules hold for ui_views
   const S = deepFreeze(ops(STATE.defaults(), [["setA", "wings.put.on", true], ["setB", "structure", "straddle"]]));
   const C = CTX.ctx9(S);
   VIEWS.ovCells(C); VIEWS.sweepData(C, "both", 12); VIEWS.sweepData(C, "wingCall", 12); VIEWS.gridRows(C); VIEWS.smileGroups(C);
-  VIEWS.recRun(C, C.B, "B", S.view); VIEWS.pairWorst(C, C.A, C.B, C.h); VIEWS.pairPop(C);
+  VIEWS.recRun(C, C.B, "B", S.prefs); VIEWS.pairWorst(C, C.A, C.B, C.h); VIEWS.pairPop(C);
   for (const tag of ["A", "B"]) VIEWS.smileOptions(C, tag, tag === "A" ? C.A : C.B, 14, "P");
   const src = fs.readFileSync(path.join(V9, "ui_views.js"), "utf8") + fs.readFileSync(path.join(V9, "views.css"), "utf8");
   for (const re of [/\bD\.u\b/, /\b(TKS|EXPS)\b/, /["'](RAM|KORU)["']/, /\bst\./, /(^|[^.\w$])(smile|wingAnchors|chain|maxDelta|build|dist|val|legPx|ivAt|statsBase|context)\(/m, /\b(wrinkle|seam|smell)/i, /ATM\/ATM|ATMΔ/])

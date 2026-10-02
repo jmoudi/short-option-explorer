@@ -1,6 +1,6 @@
 // ============================================================ ui9_views: the comparer's view panels (v9)
 // Panels: overview, payoff + comparison table, P&L grid + pins + numbers, joint moves, strike sweep, recovery
-// dynamics, smile + leg popover, notes. They read only the render context C (CTX.ctx9), the S9 scenario and view
+// dynamics, smile + leg popover, notes. They read only the render context C (CTX.ctx9), the state tree's assumptions and prefs
 // state, and INST. Every position name comes from built.label; every strike loop runs over b.legs.
 // Page contract: VIEWS.wire({host}) once, then VIEWS.render(C) on every Compare frame. State changes are commands on
 // the page's executor; the one compound change that needs the views' own helpers (a click on a smile quote) is the
@@ -9,7 +9,7 @@ const VIEWS = (() => {
   let C = null, HOST = null;
   const q = s => HOST.querySelector(s);
   const S = () => page.store.read();
-  const V = () => S().view, SC = () => S().scen;
+  const V = () => S().prefs, SC = () => S().assumptions;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const safe = (f, n) => { try { f(); } catch (e) { console.error("views: " + n, e); } };
 
@@ -104,7 +104,7 @@ const VIEWS = (() => {
     cr: { l: "Credit", f: b => b.tv / b.S, kind: "money" },
     crs: { l: "Credit/σ", f: b => b.tv / (b.S * b.sig), kind: "ratio", fmt: v => fN0(v, 3), tip: "Credit ÷ (spot × ATM IV × √T): credit per unit of the expiry's own implied move, σ to its own expiry. In-the-money legs count time value only" },
     crd: { l: "Credit per day", f: b => b.tv / b.S / b.dte, kind: "money", d: 3 },
-    ev: { l: `Expected value · ${labelListedVol()}`, f: b => { const s = C.statsHV(b); return s ? s.ev / b.S : NaN; }, kind: "money", d: 2, zero: true },
+    ev: { l: "EV at period vol", f: b => { const s = C.statsAtPeriodVol(b); return s ? s.ev / b.S : NaN; }, kind: "money", d: 2, zero: true, tip: "" },
     pop: { l: "Profit odds", f: (b, s) => s.pop, kind: "pct" },
     worst: { l: "Worst loss in range", f: (b, s) => s.worst / b.S, kind: "money", zero: true, tip: "Worst expiry P&L over the worst-loss range; a positive value means no loss anywhere in the range" },
     wingc: { l: "Wing cost", f: b => b.wingPx > 0 ? b.wingPx / b.S : NaN, kind: "money", tip: "Premium paid for the protective wings; positions with a wing only" },
@@ -154,12 +154,15 @@ const VIEWS = (() => {
     for (let i = 0; i < nI; i++) for (let j = 0; j < 2; j++) { const y = serStyle(i, j); lg += `<span><svg width="30" height="12" aria-hidden="true"><line x1="0" x2="30" y1="6" y2="6" stroke="${y.col}" stroke-width="1.8" stroke-dasharray="${y.dash}"/>${mk(y.shape, 15, 6, 3.5, y.fill, y.col)}</svg>${esc(serName(OV, i, j))}</span>`; }
     q("#ovlgd").innerHTML = lg + `<span><svg width="20" height="14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="var(--a)" stroke-width="2"/></svg>A <svg width="20" height="14" aria-hidden="true" style="margin-left:6px"><circle cx="7" cy="7" r="6" fill="none" stroke="var(--b)" stroke-width="2"/></svg>B</span>`;
     const Ap = C.Ap, place = Ap.structure === "straddle" ? (Ap.values.center === "atm" ? "the strike nearest the forward" : `center ${RULE.fmtV(+Ap.values.center, Ap.basis)}`) : `${RULE.fmtV(+Ap.values.put, Ap.basis)} put, ${RULE.fmtV(+Ap.values.call, Ap.basis)} call`;
-    q("#ovcap").innerHTML = `Each point is A's ${Ap.structure} placed by A's rule (${place}) and filled at ${Ap.fill === "mid" ? "mid" : "natural"}, on each instrument's own chain at its listed spot and IV${aOwnOn ? "; " + ownTxt("A") : ""}${bOwnOn ? "; " + ownTxt("B") : ""}. Set as A or B loads that listed instrument, without spot or IV overrides. Values are % of each position's own notional, $ per contract in the tooltips. Profit odds are ${SC().dist === "rn" ? "implied" : labelListedVol()}; EV always uses ${labelListedVol()}, since under implied odds it is just fill vs mid. Worst loss covers ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${C.unit === "sig" ? " (each instrument's σ over A's horizon)" : C.unit === "pts" ? ` on ${C.A.tk}, the same % elsewhere` : ""}.`;
+    const vols = INST.ids().map(id => `${id} ${C.volOf(id).label}`).join(", ");
+    q("#ovcap").innerHTML = `Each point is A's ${Ap.structure} placed by A's rule (${place}) and filled at ${Ap.fill === "mid" ? "mid" : "natural"}, on each instrument's own chain at its listed spot and IV${aOwnOn ? "; " + ownTxt("A") : ""}${bOwnOn ? "; " + ownTxt("B") : ""}. Set as A or B loads that listed instrument, without spot or IV overrides. Values are % of each position's own notional, $ per contract in the tooltips. Profit odds are ${SC().dist === Odds.Implied ? "implied" : "at each ticker's period vol"}; EV always uses the period vol (${esc(vols)}), since under implied odds it is just fill vs mid. Worst loss covers ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${C.unit === "sig" ? " (each instrument's σ over A's horizon)" : C.unit === "pts" ? ` on ${C.A.tk}, the same % elsewhere` : ""}.`;
     if (table) return renderOvTable(isA, isB);
     const host = q("#ovgrid"); host.innerHTML = "";
     const dts = [...new Set(OV.map(c => c.dte).filter(Number.isFinite))].sort((a, b) => a - b), expAt = d => OV.find(c => c.dte === d).e;
     const anyI = OV.some(c => !c.b.na && c.b.intr > 0) || (aOwnOn && C.A.intr > 0) || (bOwnOn && C.B.intr > 0);
     OVM.rom.tip = `Approximate margin: Reg-T style, 20% × leverage (${levTxt()}). In-the-money legs count time value only`;
+    OVM.ev.l = `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`;
+    OVM.ev.tip = `Expected P&L at expiry under a zero-drift lognormal at each ticker's period vol: ${INST.ids().map(id => `${id} ${C.volOf(id).label}`).join(", ")}`;
     for (const k of Object.keys(OVM)) {
       const M0 = OVM[k], M = k === "cr" && anyI ? Object.assign({}, M0, { l: "Credit, time value", tip: "Credit minus intrinsic value at entry; for out-of-the-money legs it is the whole credit. Cash credit is in the tooltip" }) : M0;
       const box = document.createElement("span"); box.className = "ovc"; host.appendChild(box);
@@ -211,7 +214,7 @@ const VIEWS = (() => {
   // overview Breakevens cell: one price per line, low first ("none" when the position never profits at expiry)
   const besTxt = bes => bes && bes.length ? bes.map(fPx2).join("<br>") : "none";
   function renderOvTable(isA, isB) {
-    const cols = [OV.some(c => !c.b.na && c.b.intr > 0) ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV (${labelListedVol()})`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"];
+    const cols = [OV.some(c => !c.b.na && c.b.intr > 0) ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"];
     let h = `<thead><tr><th class="st l">Set</th><th class="st2 l">Position</th>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
     const order = OV.map((c, i) => Object.assign({ idx: i }, c)).sort((a, b) => a.dte - b.dte || a.j - b.j || a.i - b.i);
     let lastD = null;
@@ -221,11 +224,11 @@ const VIEWS = (() => {
       const btns = `<button type="button" data-i="${c.idx}" data-set="A"${a ? " disabled" : ""} title="Set as A">A</button> <button type="button" data-i="${c.idx}" data-set="B"${bb ? " disabled" : ""} title="Set as B">B</button>`;
       const wf = wingFlag(b), name = `<span title="${esc(b.label.full)}">${esc(b.label.short)}</span><small>${esc(b.na ? "n/a" : b.label.tab.slice(b.tk.length + 1))}${wf ? `<span class="warnc wn" title="${esc(wf.text)}">! ${wf.leg === "wingPut" ? "put" : "call"} wing n/a</span>` : ""}</small>`;
       if (b.na || !x) { h += `<tr class="${cls}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td class="l" colspan="${cols.length}">n/a: ${esc(b.naReason)}</td></tr>`; continue; }
-      const o = (k, v) => fOwn(v, b, OVM[k], true), hv = C.statsHV(b);
+      const o = (k, v) => fOwn(v, b, OVM[k], true), hv = C.statsAtPeriodVol(b);
       // the cash credit sits under the time value, as the Position cell stacks its parts (keeps the table narrow)
       const cash = b.intr > 0 ? `<small class="cash">cash ${o("cr", b.cr / b.S)}</small>` : "";
       const wp = OVM.wingp.f(b, x);
-      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV (${labelListedVol()}) $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td>${o("cr", b.tv / b.S)}${cash}</td><td>${fN0(b.tv / (b.S * b.sig), 3)}</td><td>${o("crd", b.tv / b.S / b.dte)}</td><td>${hv ? o("ev", hv.ev / b.S) : "–"}</td><td>${fP(x.pop, 0)}</td><td>${o("worst", x.worst / b.S)}</td><td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)}<small class="cash">pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}</small>` : "–"}</td><td>${fP0(b.tv / b.margin, 1)}</td><td>${besTxt(x.bes)}</td></tr>`;
+      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV ${C.volOddsText({ ids: [b.tk] })} $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td>${o("cr", b.tv / b.S)}${cash}</td><td>${fN0(b.tv / (b.S * b.sig), 3)}</td><td>${o("crd", b.tv / b.S / b.dte)}</td><td>${hv ? o("ev", hv.ev / b.S) : "–"}</td><td>${fP(x.pop, 0)}</td><td>${o("worst", x.worst / b.S)}</td><td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)}<small class="cash">pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}</small>` : "–"}</td><td>${fP0(b.tv / b.margin, 1)}</td><td>${besTxt(x.bes)}</td></tr>`;
     }
     q("#full").innerHTML = h + "</tbody>";
   }
@@ -365,7 +368,7 @@ const VIEWS = (() => {
     rows.push(`<tr><td>Credit${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)}</td></tr>`);
     add(`Credit/σ<span class="cap">size-free, own σ to expiry</span>${tvC}`, a(A.tv / (A.S * A.sig), nA), a(B.tv / (B.S * B.sig), nB), v => fN0(v, 3), false);
     add(`Credit per day${tvC}`, a(A.tv / A.S / A.dte, nA), a(sB(B.tv / B.S / B.dte), nB), v => fU(v, 3), true, true, "grp");
-    add(`Expected value<span class="cap">${sc.dist === "rn" ? "implied odds: fill vs mid, 0 at mid" : `${labelListedVol()} ×${sc.hvk.toFixed(2)} odds`}</span>`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
+    add(`Expected value<span class="cap">${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}</span>`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
     rows.push(`<tr><td>Profit odds<span class="cap">P&amp;L above 0 at expiry</span></td><td>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
     const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
     const own = sc.wl === "own" ? ` −<input type="number" data-wlo value="${+sc.wlo.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> to +<input type="number" data-whi value="${+sc.whi.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> ${STATE.UNAME[C.unit]}` : "";
@@ -454,7 +457,7 @@ const VIEWS = (() => {
     q("#c-gtab").hidden = !num; q("#gwrap").hidden = num; q("#numwrap").hidden = !num;
     q("#shockSum").innerHTML = shockOn() ? `Shocks <span class="chip">${shockTxt()}</span>` : "Shocks";
     q("#c-cts").hidden = vw.ct !== "lev"; q("#crxW").hidden = vw.cr !== "fix";
-    q("#gInfo").dataset.tip = `Across: the move range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
+    q("#gInfo").dataset.tip = `Across: the move range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. Column odds (× odds, the bottom strip): ${C.oddsText()}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
     const nX = 120, G = GRID.data = gridData(nX);
     GRID.gw = gutW(); q("#gwrap").style.setProperty("--gutw", GRID.gw + "px");
     if (num) { renderNumbers(); q("#gfoot").innerHTML = shockOn() ? `<span class="chip" style="margin-left:0">shocks: ${shockTxt()}</span>` : ""; return; }
@@ -696,7 +699,7 @@ const VIEWS = (() => {
   // The current position sits on its curve at x0: the curve point at x0 is exactly the position as set.
   function sweepSide(Cx, side, mode) {
     const b = side === "A" ? Cx.A : Cx.B; if (!b || b.na || !b.E) return null;
-    const basis = Cx.Ap.basis, E = b.E, opts = side === "B" ? { expMap: Cx.cmp.expMap } : undefined;
+    const basis = Cx.Ap.basis, E = b.E, opts = side === "B" ? { expMap: Cx.comparison.expMap } : undefined;
     let P = side === "A" ? Cx.Ap : Cx.Bp;
     const plainW = w => ({ on: !!w.on, value: +w.value });
     if (P.basis !== basis || P.wings.call.basis || P.wings.put.basis) {
@@ -742,7 +745,7 @@ const VIEWS = (() => {
     const uniq = xs.filter((x, i) => i === 0 || x - xs[i - 1] > 1e-12);
     const toS = { A: Cx.toSA, B: Cx.toSB }, scale = { A: 1, B: Cx.h };
     const run = s => uniq.map(x => {
-      const b = POS.build(s.at(x), s.opts), k = scale[s.side] / b.S, st9 = b.na ? null : Cx.statsHV(b);
+      const b = POS.build(s.at(x), s.opts), k = scale[s.side] / b.S, st9 = b.na ? null : Cx.statsAtPeriodVol(b);
       return { x, b, cr: b.na ? NaN : b.tv * k, ev: st9 ? st9.ev * k : NaN, worst: b.na ? NaN : POS.worstIn(b, toS[s.side](Cx.wlo), toS[s.side](Cx.whi)) * k, itm: !b.na && b.legs.some(l => l.qty < 0 && l.itm) };
     });
     const sa = sides.A ? run(sides.A) : null, sb = sides.B ? run(sides.B) : null, pairOK = Cx.same && Cx.sameExp;
@@ -767,8 +770,9 @@ const VIEWS = (() => {
     q("#sw-cap").textContent = `Varies on the ${basis === "delta" ? "Δ" : basis === "money" ? "% OTM" : "σ"} basis. ${sideTxt("A")} · ${sideTxt("B")}. Shaded: a short leg is in the money against the forward. Dashed lines: the positions as set.`;
     // ATM on the x axis: 0 on % and σ; on Δ the forward strike's Δ (none for the mean of a strangle's two legs)
     const atmX = s => { const x = sides[s]; if (!x || mode === "wingCall") return NaN; if (basis !== "delta") return 0; if (mode === "both" && !x.straddle) return NaN; const c = x.b.E.callDelta(x.b.E.Fpar) * 100; return mode === "put" ? 100 - c : c; };
-    for (const [k, label] of [["cr", anyI ? "Credit, time value" : "Credit"], ["ev", `Expected value · ${labelListedVol()} odds`], ["worst", `Worst loss, ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}`]]) {
-      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}</h3>`; host.appendChild(box);
+    for (const [k, label] of [["cr", anyI ? "Credit, time value" : "Credit"], ["ev", `Expected value ${C.volOddsText({ isCompact: true })}`], ["worst", `Worst loss, ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}`]]) {
+      const evTip = `At expiry under a zero-drift lognormal at each ticker's period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}`;
+      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
       const W = Math.max(box.clientWidth, 220), H = 178, m = { l: 52, r: 16, t: 14, b: 34 };
       const ys = [...(sa || []), ...(sb || []), ...(sd || [])].map(p => p[k]).filter(Number.isFinite);
       if (!ys.length) { box.insertAdjacentHTML("beforeend", `<span class="gna">n/a for every value</span>`); continue; }
@@ -809,7 +813,7 @@ const VIEWS = (() => {
   function recRun(Cx, b, who, vw) {
     if (!b || b.na) return null;
     const capPS = vw.rdCap === "margin" ? b.margin : b.S;
-    const hv = Cx.statsHV(b), ev = hv ? hv.ev : NaN, g = vw.rdG === "custom" ? vw.rdGc / 100 : ev / capPS;
+    const hv = Cx.statsAtPeriodVol(b), ev = hv ? hv.ev : NaN, g = vw.rdG === GrowthRate.Custom ? vw.rdGc / 100 : ev / capPS;
     let L, xMove = null;
     if (vw.rdHit === "fixed") L = vw.rdL / 100;
     else {
@@ -849,7 +853,7 @@ const VIEWS = (() => {
     const base = vw.rdBase;
     let L = `<span class="rl">` + runs.map(r => {
       const rc = recCycles(r.L, r.g, "rec", base), bf = recCycles(r.L, r.g, "buf", base), a = recTime(rc, r.days, r.L, dstr), c = recTime(bf, r.days, base === "nav" ? r.L : 0, dstr);
-      return `<span class="rrun">${key(r.who)}<span class="rh">${esc(r.b.label.full)} · ${r.days}-day cycles · growth ${growthTxt(r.g)} a cycle${vw.rdG === "ev" ? ` (EV at ${labelListedVol()} odds` + (vw.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>` +
+      return `<span class="rrun">${key(r.who)}<span class="rh">${esc(r.b.label.full)} · ${r.days}-day cycles · growth ${growthTxt(r.g)} a cycle${vw.rdG === GrowthRate.Ev ? ` (EV ${C.volOddsText({ ids: [r.b.tk] })}` + (vw.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>` +
       `<span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${r.L > 0 ? MINUS + (r.L * 100).toFixed(0) + "%" : "no loss"}</span><span class="d">${r.xMove ? "at " + fPx2(r.xMove) + " · " : ""}of ${base === "nav" ? "NAV when it lands" : "starting capital"}</span></span>` +
       `<span class="rv"><span class="l">Recovery (hit first)</span><span class="v">${a.v}<small>${a.s ? ` (${a.s})` : ""}</small></span><span class="d">${a.d}</span></span>` +
       `<span class="rv"><span class="l">Buffer (climb first)</span><span class="v">${c.v}<small>${c.s ? ` (${c.s})` : ""}</small></span><span class="d">${c.d}</span></span></span>`;
@@ -907,37 +911,37 @@ const VIEWS = (() => {
     return out;
   }
   const ROLEWORD = { center: "straddle strike", "short put": "short put", "short call": "short call", "long call": "protective call", "long put": "protective put" };
-  // pure: S9 -> {S9, events}. The value is the clicked strike's unrounded achieved value on the side's current basis,
+  // pure: state -> {state (the tree), events}. The value is the clicked strike's unrounded achieved value on the side's current basis,
   // so it resolves back to exactly that strike. On B it goes through setB, which unlinks placement (or that wing) only.
-  function smilePlace(S9x, Cx, tag, role, K) {
+  function smilePlace(stateX, Cx, tag, role, K) {
     // setOp names the side's CMP mutator for STATE.cmpOp and is the same step in the toast's action
     const isB = tag === "B", setOp = isB ? ActionStep.SetB : ActionStep.SetA, P = isB ? Cx.Bp : Cx.Ap, b = isB ? Cx.B : Cx.A, E = b.E, basis = P.basis;
     const opt = smileOptions(Cx, tag, b, K, RULE.cpOf(role === "center" ? "short put" : role)).find(o => o.role === role) || smileOptions(Cx, tag, b, K, "C").find(o => o.role === role);
     const why = opt ? opt.why : `${fK(K)} cannot take that role`;
-    if (why) return { S9: S9x, events: [{ type: "note", aspects: [], text: `Not placed: ${why}`, actions: [] }], refused: why };
+    if (why) return { state: stateX, events: [{ type: "note", aspects: [], text: `Not placed: ${why}`, actions: [] }], refused: why };
     let r, extra = [];
-    if (role === "center") r = STATE.cmpOp(S9x, setOp, "values.center", RULE.valueAt(E, K, "center", basis));
+    if (role === "center") r = STATE.cmpOp(stateX, setOp, "values.center", RULE.valueAt(E, K, "center", basis));
     else if (role === "short put" || role === "short call") {
       const leg = role === "short put" ? "put" : "call", other = leg === "put" ? "call" : "put", v = RULE.valueAt(E, K, role, basis);
       if (P.legs === "together") {
         const nv = RULE.shiftTogether(P.values, leg, v), keep = +P.values[other];
-        r = STATE.cmpOp(S9x, setOp, "values", { put: nv.put, call: nv.call });
+        r = STATE.cmpOp(stateX, setOp, "values", { put: nv.put, call: nv.call });
         extra.push({ type: "note", aspects: [], text: `${tag}'s ${leg} is on ${fK(K)}${leg === "put" ? "P" : "C"}; the legs are together, so the ${other} moved by the same step`, actions: [CMP.createAction({ label: "detach legs to move only this leg", steps: [[setOp, "legs", "detached"], [setOp, "values." + other, keep]] })] });
-      } else r = STATE.cmpOp(S9x, setOp, "values." + leg, v);
+      } else r = STATE.cmpOp(stateX, setOp, "values." + leg, v);
     } else {
       const s = role === "long call" ? "call" : "put", Ks = (b.legs.find(l => l.role === (s === "call" ? "short call" : "short put")) || {}).K;
-      r = STATE.cmpOp(S9x, setOp, `wings.${s}.value`, RULE.valueAt(E, K, role, basis, Ks));
+      r = STATE.cmpOp(stateX, setOp, `wings.${s}.value`, RULE.valueAt(E, K, role, basis, Ks));
     }
     // check that the clicked leg landed on the clicked strike
-    const nb = isB ? CMP.buildB(r.S9.cmp) : CMP.buildA(r.S9.cmp), want = role === "center" ? "short put" : role, got = nb.na ? null : nb.legs.find(l => l.role === want);
+    const nb = isB ? CMP.buildB(r.state.comparison) : CMP.buildA(r.state.comparison), want = role === "center" ? "short put" : role, got = nb.na ? null : nb.legs.find(l => l.role === want);
     if (!got || got.K !== K) extra.push({ type: "note", aspects: [], text: `${tag}'s ${ROLEWORD[role]} resolved to ${got ? fK(got.K) : "n/a"}, not ${fK(K)}${(nb.flags.find(f => f.code === "WIDENED") || {}).text ? ": " + nb.flags.find(f => f.code === "WIDENED").text : ""}`, actions: [] });
-    return { S9: r.S9, events: r.events.concat(extra), landed: got ? got.K : null };
+    return { state: r.state, events: r.events.concat(extra), landed: got ? got.K : null };
   }
   // PlaceLeg: a click on a smile quote puts one leg on exactly that strike. Pure: the context is rebuilt from the state
   // the command runs on, so the handler sees what the popover showed
   function placeLeg({ state, command }) {
     const r = smilePlace(state, CTX.ctx9(state), command.side, command.role, command.strike);
-    return { state: { cmp: r.S9.cmp, scen: r.S9.scen, view: r.S9.view, tab: state.tab }, notices: r.events.map(STATE.convertEventToNotice), faults: [] };
+    return STATE.convertToOutcome({ state, result: r });
   }
   function registerCommandHandlers(registry) { registry.register(Command.PlaceLeg, placeLeg); return registry; }
   function openLegPop(p, gr, ev) {
@@ -947,7 +951,7 @@ const VIEWS = (() => {
     if (!opts.length) h += `<span class="s" style="font-family:var(--f-ui)">No leg of A or B uses this chain and expiry.</span>`;
     opts.forEach((o, i) => {
       const P = o.tag === "A" ? C.Ap : C.Bp, now = (o.tag === "A" ? C.A : C.B).legs.find(l => l.role === (o.role === "center" ? "short put" : o.role));
-      h += `<button type="button" data-i="${i}"${o.why ? ` disabled title="${esc(o.why)}"` : ""}>${key(o.tag)}Use as ${ROLEWORD[o.role]}${now ? ` <span class="muted">now ${fK(now.K)}</span>` : ""}${o.tag === "B" && C.cmp.links.placement && !o.role.startsWith("long") ? ` <span class="muted">· B's strikes then set on their own</span>` : ""}${P.legs === "together" && P.structure !== "straddle" && !o.role.startsWith("long") ? ` <span class="muted">· both legs move</span>` : ""}</button>${o.why ? `<span class="why">${esc(o.why)}</span>` : ""}`;
+      h += `<button type="button" data-i="${i}"${o.why ? ` disabled title="${esc(o.why)}"` : ""}>${key(o.tag)}Use as ${ROLEWORD[o.role]}${now ? ` <span class="muted">now ${fK(now.K)}</span>` : ""}${o.tag === "B" && C.comparison.links.placement && !o.role.startsWith("long") ? ` <span class="muted">· B's strikes then set on their own</span>` : ""}${P.legs === "together" && P.structure !== "straddle" && !o.role.startsWith("long") ? ` <span class="muted">· both legs move</span>` : ""}</button>${o.why ? `<span class="why">${esc(o.why)}</span>` : ""}`;
     });
     openPopAt(h, ev.clientX, ev.clientY, e => {
       const btn = e.target.closest("button[data-i]"); if (!btn || btn.disabled) return;
@@ -1015,7 +1019,7 @@ const VIEWS = (() => {
       "Smile: refitted on the forward from the out-of-the-money mids (weighted cubic in log-moneyness, one pass dropping outliers); beyond the quoted strikes, total variance continues linearly with its edge slope, capped at Lee's bound.",
       "Marks before expiry: Black-76 on the moved forward with the smile sticky in moneyness. An out-of-the-money leg carries a vol offset that pins it to its traded mid at entry. An in-the-money leg is priced from its out-of-the-money twin through parity, plus the quote premium of its mid over parity, which decays to zero at expiry. So a position filled at mid marks to exactly 0 today with no move, and at natural fill to minus its full spread, whatever the target that chose its strikes.",
       "Fills: mid, or natural (sell at the bid, buy at the ask). With natural fills, marks before expiry also pay half the quoted spread on each leg to close.",
-      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). ${labelListedVol()} is a zero-drift lognormal at IBKR's 30-day historical vol times the scaler. Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; the sweep, the overview's EV and recovery use ${labelListedVol()}.`,
+      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). Period vol is a zero-drift lognormal at the ticker's period vol: one number per ticker for every expiry, annualized like IV, by default IBKR's listed 30-day historical vol (${nameVolSource({ source: VolSource.Hv30 })}), set under Positions, spot / IV / period vol. Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; every other EV reading (the sweep, the overview's EV, recovery, the export) uses the period vol whatever the odds switch says. σ stays implied everywhere: the move axis, the worst-loss range, sizing and placement.`,
       "σ: the move axis uses each instrument's ATM vol at A's horizon (interpolated in total variance when B does not list A's date), so every panel sees the same scenarios. Strike placement on the σ basis, credit/σ and the recovery hit use the position's own σ to its own expiry; the grid's cones and odds strips use each position's own clock. Labels say which applies when the expiries differ.",
       "Credit and time value: an in-the-money leg's cash credit includes its intrinsic value against spot, paid back at expiry. Time value = credit − intrinsic. Credit/σ, credit per day, credit/margin, the overview, the sweep, × credit units and the equal-credit sizing rule use time value; × credit units fall back to % of notional, and say so, when A's time value is not positive.",
       `Margin (approximate): Reg-T style, 20% × leverage (${levTxt()}) on the naked side, at least 10% × leverage; a side with a wing is charged the smaller of the spread width and the naked charge. IBKR's real leveraged-ETF requirement may differ.`,
@@ -1101,36 +1105,36 @@ const VIEWS = (() => {
     // a control on one prefs / assumptions key: its value goes into the patch as is
     const pref = k => v => ({ type: Command.SetPref, patch: { [k]: v } }), assume = k => v => ({ type: Command.SetAssumption, patch: { [k]: v } });
     const prefNumber = k => v => ({ type: Command.SetPref, patch: { [k]: +v } });
-    seg({ el: q("#c-ovv"), options: [["chart", "Charts"], ["table", "Table"]], read: state => state.view.ovv, command: pref("ovv") });
+    seg({ el: q("#c-ovv"), options: [["chart", "Charts"], ["table", "Table"]], read: state => state.prefs.ovv, command: pref("ovv") });
     q("#p-over").addEventListener("toggle", () => { if (C) safe(renderOverview, "overview"); });
     q("#ovtable").addEventListener("click", e => { const b = e.target.closest("button[data-set]"); if (!b || b.disabled) return; const c = OV[+b.dataset.i]; if (c) setFromCell(b.dataset.set, c); });
-    bindChk({ input: "#c-pso", read: state => state.view.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.view.pss, command: pref("pss") });
+    bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
       // "own" starts from the move range in view (the render context's bounds)
       if (t.matches("[data-wl]")) { const v = t.value; setAssumption(v === "own" ? { wl: v, wlo: -C.lo, whi: C.hi } : { wl: v }); }
       if (t.matches("[data-wlo],[data-whi]")) { const v = Math.abs(parseFloat(t.value)); if (v > 0) setAssumption({ [t.matches("[data-wlo]") ? "wlo" : "whi"]: v }); else askFrame(); }
     });
-    seg({ el: q("#c-align"), options: [["frac", "% of life", "Rows are the same share of each position's life"], ["cal", "Same date", "Rows are calendar days; an expired position keeps its expiry payoff"]], read: state => state.scen.align, command: assume("align") });
-    seg({ el: q("#c-gval"), options: [["pnl", "P&L"], ["contrib", "× odds", "P&L weighted by the odds of each column: shows where the expected value comes from"]], read: state => state.view.gval, command: pref("gval") });
-    seg({ el: q("#c-gview"), options: [["heat", "Heatmap"], ["num", "Numbers"]], read: state => state.view.gview, command: pref("gview") });
-    seg({ el: q("#c-gtab"), options: [["A", "A"], ["B", "B"], ["D", "A − h·B"]], read: state => state.view.gtab, command: pref("gtab") });
-    bindRange({ input: "#c-ivs", output: "#o-ivs", read: state => state.scen.ivs, command: assume("ivs"), format: v => (v > 0 ? "+" : v < 0 ? MINUS : "±") + Math.abs(v) + " vol pts" });
-    bindRange({ input: "#c-svs", output: "#o-svs", read: state => state.scen.svs, command: assume("svs"), format: v => v ? `+${v} pts per −10%` : "off" });
-    bindChk({ input: "#c-svd", read: state => state.scen.svd, command: assume("svd") });
+    seg({ el: q("#c-align"), options: [["frac", "% of life", "Rows are the same share of each position's life"], ["cal", "Same date", "Rows are calendar days; an expired position keeps its expiry payoff"]], read: state => state.assumptions.align, command: assume("align") });
+    seg({ el: q("#c-gval"), options: [["pnl", "P&L"], ["contrib", "× odds", "P&L weighted by the odds of each column: shows where the expected value comes from"]], read: state => state.prefs.gval, command: pref("gval") });
+    seg({ el: q("#c-gview"), options: [["heat", "Heatmap"], ["num", "Numbers"]], read: state => state.prefs.gview, command: pref("gview") });
+    seg({ el: q("#c-gtab"), options: [["A", "A"], ["B", "B"], ["D", "A − h·B"]], read: state => state.prefs.gtab, command: pref("gtab") });
+    bindRange({ input: "#c-ivs", output: "#o-ivs", read: state => state.assumptions.ivs, command: assume("ivs"), format: v => (v > 0 ? "+" : v < 0 ? MINUS : "±") + Math.abs(v) + " vol pts" });
+    bindRange({ input: "#c-svs", output: "#o-svs", read: state => state.assumptions.svs, command: assume("svs"), format: v => v ? `+${v} pts per −10%` : "off" });
+    bindChk({ input: "#c-svd", read: state => state.assumptions.svd, command: assume("svd") });
     q("#shockReset").addEventListener("click", () => setAssumption({ ivs: 0, svs: 0 }));
-    bindChk({ input: "#c-gl", read: state => state.view.gl, command: pref("gl") });
-    seg({ el: q("#c-ct"), options: [["zero", "Break-even"], ["lev", "Levels"]], read: state => state.view.ct, command: pref("ct") });
-    bindSelect({ input: "#c-cts", options: [[1, "every 1%"], [2, "every 2%"], [5, "every 5%"], [10, "every 10%"], [20, "every 20%"]], read: state => state.view.cts, command: prefNumber("cts") });
-    for (const k of ["ovk", "ovc", "ovb", "ovs", "ovo"]) bindChk({ input: "#c-" + k, read: state => state.view[k], command: pref(k) });
-    seg({ el: q("#c-cs"), options: [["comp", "Compressed"], ["lin", "Linear"]], read: state => state.view.cs, command: pref("cs") });
-    seg({ el: q("#c-cr"), options: [["auto", "Full range"], ["fix", "Fixed"]], read: state => state.view.cr, command: pref("cr") });
+    bindChk({ input: "#c-gl", read: state => state.prefs.gl, command: pref("gl") });
+    seg({ el: q("#c-ct"), options: [["zero", "Break-even"], ["lev", "Levels"]], read: state => state.prefs.ct, command: pref("ct") });
+    bindSelect({ input: "#c-cts", options: [[1, "every 1%"], [2, "every 2%"], [5, "every 5%"], [10, "every 10%"], [20, "every 20%"]], read: state => state.prefs.cts, command: prefNumber("cts") });
+    for (const k of ["ovk", "ovc", "ovb", "ovs", "ovo"]) bindChk({ input: "#c-" + k, read: state => state.prefs[k], command: pref(k) });
+    seg({ el: q("#c-cs"), options: [["comp", "Compressed"], ["lin", "Linear"]], read: state => state.prefs.cs, command: pref("cs") });
+    seg({ el: q("#c-cr"), options: [["auto", "Full range"], ["fix", "Fixed"]], read: state => state.prefs.cr, command: pref("cr") });
     const crx = /** @type {HTMLInputElement} */ (q("#c-crx"));
     crx.addEventListener("change", () => { const v = parseFloat(crx.value); if (v > 0) setPref({ crx: v }); else askFrame(); });
-    subscribeSync({ sync: state => { if (document.activeElement !== crx) crx.value = state.view.crx; } });
-    bindChk({ input: "#c-shared", read: state => state.view.shared, command: pref("shared") });
-    bindSelect({ input: "#c-nm", options: [[9, "9"], [13, "13"], [17, "17"], [25, "25"]], read: state => state.view.nm, command: prefNumber("nm") });
-    bindSelect({ input: "#c-nd", options: [[1, "1 day"], [2, "2 days"], [5, "5 days"], [7, "7 days"], [14, "14 days"], [30, "30 days"]], read: state => state.view.nd, command: prefNumber("nd") });
+    subscribeSync({ sync: state => { if (document.activeElement !== crx) crx.value = state.prefs.crx; } });
+    bindChk({ input: "#c-shared", read: state => state.prefs.shared, command: pref("shared") });
+    bindSelect({ input: "#c-nm", options: [[9, "9"], [13, "13"], [17, "17"], [25, "25"]], read: state => state.prefs.nm, command: prefNumber("nm") });
+    bindSelect({ input: "#c-nd", options: [[1, "1 day"], [2, "2 days"], [5, "5 days"], [7, "7 days"], [14, "14 days"], [30, "30 days"]], read: state => state.prefs.nd, command: prefNumber("nd") });
     q("#csvBtn").addEventListener("click", () => copyText({ text: GRID.csv || "", fallbackField: q("#csvFallback") }));
     q("#pins").addEventListener("click", e => {
       const t = /** @type {HTMLElement} */ (e.target), b = /** @type {HTMLElement} */ (t.closest("button[data-k]"));
@@ -1139,21 +1143,21 @@ const VIEWS = (() => {
     });
     q("#p-joint").addEventListener("click", e => { if (/** @type {HTMLElement} */ (e.target).id !== "jgo") return; const other = INST.list().find(x => x.id !== C.A.tk); if (other) run({ type: Command.SetB, path: "inst", value: { id: other.id } }); });
     q("#p-joint").addEventListener("input", e => { const t = /** @type {HTMLInputElement} */ (e.target); if (t.id === "c-jday") setPref({ jday: +t.value }); });
-    seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.view.sweep, command: pref("sweep") });
+    seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
-    seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.view.rdHit, command: pref("rdHit") });
-    seg({ el: q("#c-rdbase"), options: [["nav", "NAV when it lands"], ["start", "starting capital"]], read: state => state.view.rdBase, command: pref("rdBase") });
-    seg({ el: q("#c-rdcap"), options: [["margin", "Margin"], ["notional", "Notional"]], read: state => state.view.rdCap, command: pref("rdCap") });
-    seg({ el: q("#c-rdg"), options: [["ev", `EV · ${labelListedVol()}`], ["custom", "Typed"]], read: state => state.view.rdG, command: pref("rdG") });
+    seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
+    seg({ el: q("#c-rdbase"), options: [["nav", "NAV when it lands"], ["start", "starting capital"]], read: state => state.prefs.rdBase, command: pref("rdBase") });
+    seg({ el: q("#c-rdcap"), options: [["margin", "Margin"], ["notional", "Notional"]], read: state => state.prefs.rdCap, command: pref("rdCap") });
+    seg({ el: q("#c-rdg"), options: [["ev", "EV at period vol"], ["custom", "Typed"]], read: state => state.prefs.rdG, command: pref("rdG") });
     q("#rd-hitin").innerHTML = `<span id="rd-mv"><input type="number" id="c-rdk" min="0.25" max="6" step="0.25" style="width:52px">σ <span class="seg" id="c-rddir"></span></span><span id="rd-fx"><input type="number" id="c-rdl" min="1" max="99" step="1" style="width:52px">%</span>`;
-    seg({ el: q("#c-rddir"), options: [["worse", "worse side"], ["down", "down"], ["up", "up"]], read: state => state.view.rdDir, command: pref("rdDir") });
+    seg({ el: q("#c-rddir"), options: [["worse", "worse side"], ["down", "down"], ["up", "up"]], read: state => state.prefs.rdDir, command: pref("rdDir") });
     const num = ({ id, key, lo, hi }) => {
       const i = /** @type {HTMLInputElement} */ (q(id));
       i.addEventListener("change", () => { const v = parseFloat(i.value); if (Number.isFinite(v)) setPref({ [key]: clamp(v, lo, hi) }); else askFrame(); });
-      subscribeSync({ sync: state => { if (document.activeElement !== i) i.value = state.view[key]; } });
+      subscribeSync({ sync: state => { if (document.activeElement !== i) i.value = state.prefs[key]; } });
     };
     num({ id: "#c-rdk", key: "rdK", lo: 0.25, hi: 6 }); num({ id: "#c-rdl", key: "rdL", lo: 1, hi: 99 }); num({ id: "#c-rdgc", key: "rdGc", lo: -20, hi: 50 });
-    subscribeSync({ sync: state => { const vw = state.view; q("#rd-mv").hidden = vw.rdHit !== "move"; q("#rd-fx").hidden = vw.rdHit !== "fixed"; q("#rd-gc").style.visibility = vw.rdG === "custom" ? "visible" : "hidden"; } });
+    subscribeSync({ sync: state => { const vw = state.prefs; q("#rd-mv").hidden = vw.rdHit !== "move"; q("#rd-fx").hidden = vw.rdHit !== "fixed"; q("#rd-gc").style.visibility = vw.rdG === "custom" ? "visible" : "hidden"; } });
     if (typeof ResizeObserver === "function") { let w0 = 0; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w0 && Math.abs(w - w0) > 2) askFrame(); w0 = w; }).observe(HOST); }
     notes();
     return HOST;

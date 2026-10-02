@@ -10,7 +10,7 @@ const { load, V9 } = require("./load.js");
 const L = load();
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_views.js"), "utf8") + "\n;globalThis.__v = {VIEWS, ticks};", L.ctx, { filename: "ui_views.js" });
 const { VIEWS, ticks } = L.ctx.__v, { STATE, CTX, CMP, POS } = L;
-const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).S9; return S; };
+const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).state; return S; };
 const MINUS = "−", H2 = 92;
 
 // the A − h·B panel's range exactly as renderPayoff builds it: a 600-step grid plus the strikes, padded by 14%
@@ -93,7 +93,7 @@ test("T20 (2): growth prints its sign from the printed value, with a typographic
 test("T20 (2): the verifier's repro: B's growth is a hair below zero and prints 0.00%; A's prints with −", () => {
   const REC = [["setA", "inst.id", "RAM"], ["setA", "exp", "20261016"], ["setA", "structure", "strangle"], ["setA", "basis", "sigma"], ["setA", "values", { put: 0.26995048522949217, call: 0.645901107788086, center: 0.7587093353271485 }], ["setA", "wings.call.on", true], ["setA", "wings.call.value", 1.0719598591327668], ["setA", "wings.put.on", true], ["setA", "wings.put.value", 0.7139980852603912]];
   const S = ops(STATE.defaults(), REC), C = CTX.ctx9(S);
-  const rB = VIEWS.recRun(C, C.B, "B", S.view), rA = VIEWS.recRun(C, C.A, "A", S.view);
+  const rB = VIEWS.recRun(C, C.B, "B", S.prefs), rA = VIEWS.recRun(C, C.A, "A", S.prefs);
   assert.ok(rB.g < 0 && rB.g > -0.00005, `B growth ${rB.g}`);
   assert.equal(VIEWS.growthTxt(rB.g), "0.00%");
   assert.equal(VIEWS.growthTxt(rA.g), MINUS + "1.41%");

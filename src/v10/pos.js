@@ -219,8 +219,8 @@ const POS = (() => {
 
   // ---------------------------------------------------------- generic statistics at expiry
   // Walk the piecewise-linear payoff over all leg strikes: profit = payoff > ε (ε = 1e-9·S); breakevens are the
-  // boundaries of the profit set. EV: RN = credit + Σ qty·mid (0 at mid fill); HV = the zero-drift lognormal
-  // expectation of the payoff (closed form), as v8.
+  // boundaries of the profit set. EV: implied odds = credit + Σ qty·mid (0 at mid fill); period-vol odds = the
+  // zero-drift lognormal expectation of the payoff at the period vol (closed form), as v8's HV mode.
   const stats = function (b, d) {
     if (!b || b.na || !d) return null;
     caches();
@@ -247,8 +247,8 @@ const POS = (() => {
     let pop = 0; for (const [lo, hi] of iv) pop += (Number.isFinite(hi) ? DIST.cdfK(d, hi) : 1) - DIST.cdfK(d, lo);
     pop = Math.min(1, Math.max(0, pop));
     let legsV = 0;
-    if (d.mode === "rn") for (const l of b.legs) legsV += l.qty * l.mid;
-    else for (const m of b.marks) legsV += m.qty * bs0(S, m.K, b.T, d.hs, m.cp);
+    if (d.mode === Odds.Implied) for (const l of b.legs) legsV += l.qty * l.mid;
+    else for (const m of b.marks) legsV += m.qty * bs0(S, m.K, b.T, d.vol, m.cp);
     const ev = b.cr + legsV;
     const first = iv[0], lastI = iv[iv.length - 1];
     const s = {

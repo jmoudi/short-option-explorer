@@ -12,7 +12,7 @@ const L = load();
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_views.js"), "utf8") + "\n;globalThis.__v = {VIEWS};", L.ctx, { filename: "ui_views.js" });
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_summary.js"), "utf8") + "\n;globalThis.__s = {SUM9};", L.ctx, { filename: "ui_summary.js" });
 const { VIEWS } = L.ctx.__v, { SUM9 } = L.ctx.__s, { STATE, CTX } = L;
-const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).S9; return S; };
+const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).state; return S; };
 const MINUS = "−";
 
 // ---------------------------------------------------------------- 2. shared shortening

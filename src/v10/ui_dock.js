@@ -1,8 +1,9 @@
 // ============================================================ ui9_dock: the Positions dock (Compare tab)
-// A table of aspects, A | link | B (instrument with spot/IV overrides, expiry, structure, legs, strikes by,
-// protective call, protective put, fill), full-width placement and wing sliders under their rows, then the
+// A table of aspects, A | link | B (instrument with its spot / IV / period vol controls, expiry, structure, legs,
+// strikes by, protective call, protective put, fill), full-width placement and wing sliders under their rows, then the
 // collapsed "Legs in detail" and "Pair sizing" sections. Reads only C and the store; changes state only through
-// commands. Top-level name: DOCK9.
+// commands. The period vol belongs to the ticker, not the side: editing it under A changes B too when B is on the same
+// ticker. Top-level name: DOCK9.
 const DOCK9 = (() => {
   const q = s => document.querySelector(s);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -22,6 +23,15 @@ const DOCK9 = (() => {
   const CH_ON = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6.6 9.4 9.4 6.6"/><path d="M7.2 4.8 8.7 3.3a2.6 2.6 0 0 1 3.7 3.7L10.9 8.5"/><path d="M8.8 11.2 7.3 12.7a2.6 2.6 0 0 1-3.7-3.7L5.1 7.5"/></svg>`;
   const CH_OFF = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8.4 3.6 9.6 2.4a2.6 2.6 0 0 1 3.7 3.7L12.1 7.3"/><path d="M7.6 12.4 6.4 13.6a2.6 2.6 0 0 1-3.7-3.7L3.9 8.7"/><path d="M5.6 2.2 6.2 4.2M2.2 5.6 4.2 6.2M10.4 13.8 9.8 11.8M13.8 10.4 11.8 9.8"/></svg>`;
 
+  const DOCK_CONFIG = Object.freeze({
+    // the instrument cell's button that opens the spot / IV / period vol box (its title and the box heading carry the
+    // full name): short enough to leave the B cell slack under any font (the cell clips: a longer label lost the button)
+    instButtonLabel: Object.freeze({ plain: "IV/vol ▾", overridden: "✎ on ▾" }),
+    instBoxName: "spot / IV / period vol",
+    // the period-vol slider's step in % (its span: the comparer's floor to the stored cap, PERIOD_VOL_CONFIG)
+    periodVolStep: 1,
+    periodVolInfo: "One number per ticker, used for every expiry; annualized like IV (calendar days). Every EV reading uses it (the overview's EV, the sweep, recovery, the export), and so do the odds when the odds switch says period vol. Leg prices and IVs stay at their quotes. The ticks mark the reference vols listed under the slider."
+  });
   let root = null, lastKey = "", C = null, SL = {};
   const ui = { inst: { A: false, B: false } };
   // the sizing select's sync (bindSelect hands it over): run in syncSizing, as v9's list was, so it runs only while
@@ -33,7 +43,7 @@ const DOCK9 = (() => {
   const run = command => page.executor.execute(Object.assign({ source: "dock" }, command));
   /** @param {{ side: string, path: string, value: any }} edit */
   const setSide = ({ side, path, value }) => run({ type: side === "A" ? Command.SetA : Command.SetB, path, value });
-  const readAValues = () => { const stateNow = page.store.read(); return stateNow.cmp.A.values; };
+  const readAValues = () => { const stateNow = page.store.read(); return stateNow.comparison.A.values; };
   const setPref = patch => run({ type: Command.SetPref, patch });
   const askFrame = () => page.frames.mark({ cause: FrameCause.Ui });
   const amber = (side, row) => C.diff.items.filter(it => !it.asked && it.side === side && it.dockRow === row);
@@ -46,7 +56,13 @@ const DOCK9 = (() => {
   function instCell(side) {
     const P = posOf(side), I = instOf(side);
     return `<select data-act="inst" data-side="${side}" aria-label="${side} instrument">${INST.list().map(x => `<option value="${esc(x.id)}"${x.id === P.inst.id ? " selected" : ""}>${esc(x.name || x.id)}</option>`).join("")}</select>` +
-      `<button type="button" class="d9ov${I && I.overridden ? " on" : ""}" data-act="instx" data-side="${side}" aria-expanded="${ui.inst[side]}" title="${I && I.overridden ? att(`Override: spot ${fPx2(I.spot)} (listed ${fPx2(I.spotListed)})${I.ivShift ? `, IV ${I.ivShift > 0 ? "+" : MINUS}${Math.abs(I.ivShift)} pts` : ""}`) : "Override spot or implied vol"}">${I && I.overridden ? "✎ on" : "spot/IV"} ▾</button>`;
+      `<button type="button" class="d9ov${I && I.overridden ? " on" : ""}" data-act="instx" data-side="${side}" aria-expanded="${ui.inst[side]}" title="${att(describeInstControls({ instrument: I, id: P.inst.id }))}">${I && I.overridden ? DOCK_CONFIG.instButtonLabel.overridden : DOCK_CONFIG.instButtonLabel.plain}</button>`;
+  }
+  // the instrument button's tip: spot / IV / period vol, with what is set
+  /** @param {{ instrument: any, id: string }} input */
+  function describeInstControls({ instrument: I, id }) {
+    const override = I && I.overridden ? `Override: spot ${fPx2(I.spot)} (listed ${fPx2(I.spotListed)})${I.ivShift ? `, IV ${I.ivShift > 0 ? "+" : MINUS}${Math.abs(I.ivShift)} pts` : ""}` : "Override spot or implied vol";
+    return `${DOCK_CONFIG.instBoxName}. ${override}; ${id} ${C.volOf(id).label}`;
   }
   function expCell(side) {
     const I = instOf(side), cur = bOf(side).exp;
@@ -80,10 +96,10 @@ const DOCK9 = (() => {
     const w = am.length > 0;
     return `<span class="d9m${w ? " w" : ""}"${w ? ` title="${att(am.map(x => x.text).join(" · "))}"` : ` title="B follows A: this is what B resolves to"`}>${w ? "! " : ""}${esc(t)}</span>`;
   }
-  const linkBtn = a => { const on = !!C.cmp.links[a]; return `<button type="button" class="d9lk${on ? "" : " off"}" data-act="link" data-aspect="${a}" title="${on ? "B follows A" : "B set on its own"}" aria-label="${on ? "B follows A; click to set B on its own" : "B set on its own; click to make B follow A"}" aria-pressed="${on}">${on ? CH_ON : CH_OFF}</button>`; };
+  const linkBtn = a => { const on = !!C.comparison.links[a]; return `<button type="button" class="d9lk${on ? "" : " off"}" data-act="link" data-aspect="${a}" title="${on ? "B follows A" : "B set on its own"}" aria-label="${on ? "B follows A; click to set B on its own" : "B set on its own; click to make B follow A"}" aria-pressed="${on}">${on ? CH_ON : CH_OFF}</button>`; };
 
   // ---------------------------------------------------------- sliders
-  // spec = {side, name, muted, lo, hi, value, step, readout, warnRo, ticks: [{v, t, bx, pri}], note, noteWarn, input(v)}
+  // spec = {side, name, muted, lo, hi, value, step, readout, warnRo, ticks: [{v, t, bx, pri}], keepMarks, note, noteWarn, input(v)}
   function slider(key, spec) {
     SL[key] = spec;
     return {
@@ -93,9 +109,9 @@ const DOCK9 = (() => {
     };
   }
   function updSlider(el, s) {
-    const inp = el.querySelector("input"), lo = s.lo, hi = Math.max(s.hi, s.lo + 1e-9);
+    const inp = el.querySelector('input[type="range"]'), lo = s.lo, hi = Math.max(s.hi, s.lo + 1e-9), fmt = s.format || (v => fV(v, s.basis));
     if (document.activeElement !== inp) { inp.min = lo; inp.max = hi; inp.value = clamp(s.value, lo, hi); }
-    inp.title = `${fV(s.lo, s.basis)} to ${fV(s.hi, s.basis)}`;
+    inp.title = `${fmt(s.lo)} to ${fmt(s.hi)}`;
     const ro = el.querySelector(".d9ro"); ro.innerHTML = s.readout; ro.classList.toggle("w", !!s.warnRo);
     // ticks, placed greedily by priority: centred on the mark, else starting or ending at it, else left out
     const W = Math.max(120, el.querySelector(".d9tr").clientWidth || 320), span = hi - lo, placed = [];
@@ -123,8 +139,11 @@ const DOCK9 = (() => {
       if (r) { placed.push(t); placed.forEach((u, k) => { u.al = r.al[k]; }); }
     }
     const shown = placed.sort((a, b) => a.x - b.x);
-    el.querySelector(".d9tr").classList.toggle("noticks", !shown.length);
-    el.querySelector(".d9tks").innerHTML = shown.map(t => `<span class="d9tk ${t.al}${t.bx ? " bx" : ""}" style="left:${t.x.toFixed(1)}px"${t.tip ? ` title="${att(t.tip)}"` : ""}>${esc(t.t)}</span>`).join("");
+    // spec.keepMarks: a tick left without a label still draws its mark (the label is named elsewhere)
+    const bare = s.keepMarks ? tk.filter(t => !placed.includes(t)) : [];
+    el.querySelector(".d9tr").classList.toggle("noticks", !shown.length && !bare.length);
+    el.querySelector(".d9tks").innerHTML = shown.map(t => `<span class="d9tk ${t.al}${t.bx ? " bx" : ""}" style="left:${t.x.toFixed(1)}px"${t.tip ? ` title="${att(t.tip)}"` : ""}>${esc(t.t)}</span>`).join("") +
+      bare.map(t => `<span class="d9tk nl" style="left:${t.x.toFixed(1)}px"${t.tip ? ` title="${att(t.tip)}"` : ""}></span>`).join("");
     const n = el.querySelector(".d9note"); n.hidden = !s.note; n.textContent = s.note || ""; n.classList.toggle("w", !!s.noteWarn);
   }
   // drags step (Δ 1, % 0.5, σ 0.05); within half a step of an end the value lands exactly on it
@@ -209,7 +228,7 @@ const DOCK9 = (() => {
 
   // ---------------------------------------------------------- the component list (its keys decide when to rebuild)
   function comps() {
-    const out = [], L = C.cmp.links, A = C.Ap, B = C.Bp;
+    const out = [], L = C.comparison.links, A = C.Ap, B = C.Bp;
     SL = {};
     const cell = (key, cls, inner, row) => out.push({ key, cls, inner, row });
     const row = (a, label, fa, fb, extra) => {
@@ -268,15 +287,105 @@ const DOCK9 = (() => {
   }
   function instX(side) {
     const I = instOf(side); if (!I) return "";
-    return `<span class="d9x"><span class="key ${side.toLowerCase()}">${side}</span> spot <input type="number" data-act="spot" data-side="${side}" step="0.01" min="0" aria-label="${side} spot override"> <span class="muted">listed ${fPx2(I.spotListed)}</span>` +
+    return `<span class="d9x"><span class="d9sh"><span class="key ${side.toLowerCase()}">${side}</span><span class="d9sn">${esc(DOCK_CONFIG.instBoxName)} · ${esc(I.id)}</span></span>spot <input type="number" data-act="spot" data-side="${side}" step="0.01" min="0" aria-label="${side} spot override"> <span class="muted">listed ${fPx2(I.spotListed)}</span>` +
       `<br>IV shift <input type="number" data-act="ivs" data-side="${side}" step="1" aria-label="${side} implied vol shift in vol points"> vol pts <button type="button" class="d9btn" data-act="ovreset" data-side="${side}">Reset</button>` +
-      `<span class="cap">IV +x pts re-prices the entry from model quotes. The IV shock under P&amp;L through time is a move after entry.</span></span>`;
+      `<span class="cap">IV +x pts re-prices the entry from model quotes. The IV shock under P&amp;L through time is a move after entry.</span>` +
+      periodVolHtml({ side, instrument: I }) + `</span>`;
+  }
+  // ---------------------------------------------------------- the ticker's period vol (inside the spot / IV / period vol box)
+  // presets: the listed vol, ATM at A's horizon (stored with A's expiry), custom (the box or the slider, 1–300%). The
+  // presets and ticks come from the one reference list both tabs show (C.periodVolRefs)
+  const periodVolSpan = () => ({ lo: PERIOD_VOL_CONFIG.floor[Tab.Compare], hi: PERIOD_VOL_CONFIG.range[1], step: DOCK_CONFIG.periodVolStep });
+  const findRef = (id, source) => C.periodVolRefs(id).find(r => r.source === source) || null;
+  // which preset reads as chosen: the stored source, except an ATM read at another horizon than A's current one (it
+  // stays as stored, and a click on ATM re-reads it at A's horizon)
+  function findActivePreset(id) {
+    const vol = C.volOf(id);
+    if (vol.source !== VolSource.Atm) { return vol.source; }
+    const atm = findRef(id, VolSource.Atm);
+    const isCurrent = !!atm && atm.expiry === vol.expiry;
+    return isCurrent ? VolSource.Atm : "";
+  }
+  function describePreset({ id, source }) {
+    const ref = findRef(id, source);
+    if (source === VolSource.Hv30) { return { label: `${ref.label} ${Math.round(ref.pct)}%`, tip: `IBKR's listed 30-day historical vol of ${id}` }; }
+    if (source === VolSource.Atm) {
+      const vol = C.volOf(id), isStale = vol.source === VolSource.Atm && vol.expiry !== ref.expiry;
+      const stale = isStale ? `. The vol in use was read at ${fmtE(vol.expiry)}: click to re-read it at ${fmtE(ref.expiry)}` : "";
+      return { label: `${ref.label} ${Math.round(ref.pct)}%`, tip: `${id}'s ATM implied vol at A's horizon (${fmtE(ref.expiry)}), listed (no IV shift), kept as a number when chosen${stale}` };
+    }
+    return { label: "custom", tip: "Type a number or drag the slider" };
+  }
+  /** @param {{ side: string, instrument: any }} input */
+  function periodVolHtml({ side, instrument }) {
+    const id = instrument.id, active = findActivePreset(id), span = periodVolSpan();
+    const sources = [VolSource.Hv30, VolSource.Atm, VolSource.Set].filter(source => source === VolSource.Set || !!findRef(id, source));
+    const seg = sources.map(source => {
+      const preset = describePreset({ id, source }), isOn = active === source;
+      return `<button type="button" data-act="pvset" data-side="${side}" data-v="${source}" class="${isOn ? "on" : ""}" aria-pressed="${isOn}" title="${att(preset.tip)}">${esc(preset.label)}</button>`;
+    }).join("");
+    // each reference on its own unbreakable run, so a line breaks only between them
+    const refs = C.periodVolRefs(id).map(r => `<span class="d9nw">${esc(`${r.label} ${Math.round(r.pct)}%`)}</span>`).join(" · ");
+    return `<span class="d9pv ${side.toLowerCase()}"><span class="d9sh"><span class="d9sn">Period vol · ${esc(id)}</span><span class="info" tabindex="0" data-tip="${att(DOCK_CONFIG.periodVolInfo)}">i</span><span class="d9ro"></span></span>` +
+      `<span class="seg d9pvs">${seg}</span><span class="d9pvn"><input type="number" data-act="pvnum" data-side="${side}" min="${span.lo}" max="${span.hi}" step="${span.step}" aria-label="${side} ${esc(id)} period vol in %">%</span>` +
+      `<span class="d9tr"><input type="range" data-act="pvsl" data-side="${side}" step="${span.step}" aria-label="${side} ${esc(id)} period vol"><span class="d9tks"></span></span><span class="d9note" hidden></span><span class="d9pvref">${refs}</span></span>`;
+  }
+  // the box's note: the other side on the same ticker, a stored value below the comparer's floor
+  /** @param {{ side: string, id: string }} input */
+  function describePeriodVolNote({ side, id }) {
+    const vol = C.volOf(id), other = side === "A" ? C.B : C.A, notes = [];
+    const shares = !other.na && other.tk === id;
+    if (shares) { notes.push(`${side === "A" ? "B" : "A"} is on ${id} too: one period vol for both`); }
+    const isFloored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct;
+    if (isFloored) { notes.push(`${+vol.storedPct.toFixed(2)}% set on Compounding (exactly on the path); Compare reads ${Math.round(vol.pct)}%, its floor`); }
+    return notes.join(". ");
+  }
+  // the slider spec of the period-vol box: its ticks are the reference list (a tick whose label has no room keeps its
+  // mark; the list under the slider names it)
+  /** @param {{ side: string, instrument: any }} input */
+  function periodVolSpec({ side, instrument }) {
+    const id = instrument.id, vol = C.volOf(id), span = periodVolSpan();
+    const ticks = C.periodVolRefs(id).map((r, i) => ({ v: r.pct, t: r.short, pri: i, tip: `${r.label} ${Math.round(r.pct)}%` }));
+    return { side, lo: span.lo, hi: span.hi, value: vol.pct, ticks, keepMarks: true, format: v => `${Math.round(v)}%`, readout: esc(vol.label), note: describePeriodVolNote({ side, id }) };
   }
   function updInstX(el, side) {
     const I = instOf(side); if (!I) return;
     const s = el.querySelector('[data-act="spot"]'), v = el.querySelector('[data-act="ivs"]');
     if (s && document.activeElement !== s) s.value = +I.spot.toFixed(4);
     if (v && document.activeElement !== v) v.value = +I.ivShift.toFixed(2);
+    const box = el.querySelector(".d9pv"), num = el.querySelector('[data-act="pvnum"]'), active = findActivePreset(I.id);
+    if (box) { updSlider(box, periodVolSpec({ side, instrument: I })); }
+    if (num && document.activeElement !== num) { num.value = String(+C.volOf(I.id).pct.toFixed(1)); }
+    // the cell is not redrawn while one of its inputs has focus: the preset buttons follow the state here
+    for (const button of el.querySelectorAll('[data-act="pvset"]')) {
+      const isOn = button.dataset.v === active;
+      button.classList.toggle("on", isOn);
+      button.setAttribute("aria-pressed", String(isOn));
+    }
+  }
+  // one ticker's period vol; source Set from the box or the slider, a preset from its button (ATM: read at A's horizon
+  // now, stored with that expiry)
+  /** @param {{ side: string, source: string, pct?: number }} edit @returns {LabResult | null} null: no instrument or no ATM */
+  function setPeriodVol({ side, source, pct }) {
+    const I = instOf(side);
+    if (!I) { return null; }
+    const command = { type: Command.SetPeriodVol, ticker: I.id, source };
+    if (source === VolSource.Atm) {
+      const atm = findRef(I.id, VolSource.Atm);
+      if (!atm) { return null; }
+      Object.assign(command, { pct: atm.pct, expiry: atm.expiry });
+    }
+    if (source === VolSource.Set) { Object.assign(command, { pct }); }
+    return run(command);
+  }
+  // the box after a typed value: it shows what the comparer reads, also while it keeps focus (the frame leaves a focused
+  // box alone), so a value floored or capped by SetPeriodVol never stays on screen as typed
+  /** @param {{ input: HTMLInputElement, side: string }} target */
+  function showAppliedPeriodVol({ input, side }) {
+    const I = instOf(side);
+    if (!I) { return; }
+    const applied = CTX.readTickerVol({ periodVol: page.store.read().periodVol, id: I.id });
+    input.value = String(+applied.pct.toFixed(1));
   }
 
   // ---------------------------------------------------------- Legs in detail and Pair sizing
@@ -314,8 +423,8 @@ const DOCK9 = (() => {
     }).join("") + `<span class="cap">$ per contract (100 shares). Δ is the forward delta with the smile at the strike. % and σ OTM are measured from the forward, as on the summary's third line (negative = in the money); ITM is measured against the forward, intrinsic against spot.</span>`;
   }
   function syncSizing() {
-    for (const sync of SIZING_SYNCS) { sync(C.S9); }
-    const sz = C.cmp.sizing, rn = r => (CTX.SIZES.find(s => s[0] === r) || ["", r])[1].toLowerCase();
+    for (const sync of SIZING_SYNCS) { sync(C.state); }
+    const sz = C.comparison.sizing, rn = r => (CTX.SIZES.find(s => s[0] === r) || ["", r])[1].toLowerCase();
     q("#d9-rhc").hidden = sz.rule !== "custom";
     const hc = q("#d9-hc"); if (document.activeElement !== hc) hc.value = +(+sz.h).toFixed(3);
     const k = C.A.na || C.B.na ? NaN : C.h * C.A.S / C.B.S, nm = I => I ? I.name || I.id : "";
@@ -331,7 +440,7 @@ const DOCK9 = (() => {
     if (act === "set") {
       const v = t.dataset.v, val = v === "true" ? true : v === "false" ? false : v; if (t.classList.contains("on")) return;
       // B's legs detached while B's strikes follow A could not move: the gesture also sets B's strikes on their own
-      if (side === "B" && t.dataset.path === "legs" && val === "detached" && C.cmp.links.placement) { run({ type: Command.Detach, side: "B" }); return; }
+      if (side === "B" && t.dataset.path === "legs" && val === "detached" && C.comparison.links.placement) { run({ type: Command.Detach, side: "B" }); return; }
       setSide({ side, path: t.dataset.path, value: val });
     }
     else if (act === "ownplace") {
@@ -344,18 +453,19 @@ const DOCK9 = (() => {
         page.bus.emit(createNoticeEnvelope(STATE.convertEventToNotice(event)));
       }
     }
-    else if (act === "link") { const a = t.dataset.aspect; run({ type: C.cmp.links[a] ? Command.Unlink : Command.Link, aspect: a }); }
+    else if (act === "link") { const a = t.dataset.aspect; run({ type: C.comparison.links[a] ? Command.Unlink : Command.Link, aspect: a }); }
     else if (act === "detach") run({ type: Command.Detach, side });
     else if (act === "instx") { ui.inst[side] = !ui.inst[side]; askFrame(); }
+    else if (act === "pvset") { if (!t.classList.contains("on")) setPeriodVol({ side, source: t.dataset.v, pct: C.volOf(instOf(side).id).pct }); }
     else if (act === "ovreset") setSide({ side, path: "inst", value: { id: posOf(side).inst.id } });
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
     else if (act === "expmap") {
-      const r = t.getBoundingClientRect(), m = C.cmp.expMap;
+      const r = t.getBoundingClientRect(), m = C.comparison.expMap;
       openPopAt(`<span class="h">If B's instrument lacks A's expiry</span><span class="s">B follows A's date when it lists it</span>` +
         `<button type="button" data-pop="expmap" data-v="nearest"${m === "nearest" ? " disabled" : ""}>Use the nearest date (by days)${m === "nearest" ? " ✓" : ""}</button>` +
         `<button type="button" data-pop="expmap" data-v="same"${m === "same" ? " disabled" : ""}>Mark B n/a${m === "same" ? " ✓" : ""}</button>`, r.left, r.bottom, onPop);
     } else if (act === "legsinfo") {
-      const r = t.getBoundingClientRect(), btn = side2 => { const P = posOf(side2), b = bOf(side2); if (P.structure !== "strangle" || b.na) return ""; const m = (+P.values.put + +P.values.call) / 2; return `<button type="button" data-pop="sym" data-side="${side2}"${Math.abs(P.values.put - P.values.call) < 1e-9 ? " disabled" : ""}>Make ${side2} symmetric: put = call = ${fV(m, P.basis)}${side2 === "B" && C.cmp.links.placement ? " (sets B's strikes on its own)" : ""}</button>`; };
+      const r = t.getBoundingClientRect(), btn = side2 => { const P = posOf(side2), b = bOf(side2); if (P.structure !== "strangle" || b.na) return ""; const m = (+P.values.put + +P.values.call) / 2; return `<button type="button" data-pop="sym" data-side="${side2}"${Math.abs(P.values.put - P.values.call) < 1e-9 ? " disabled" : ""}>Make ${side2} symmetric: put = call = ${fV(m, P.basis)}${side2 === "B" && C.comparison.links.placement ? " (sets B's strikes on its own)" : ""}</button>`; };
       openPopAt(`<span class="h">Legs</span><span class="s" style="font-family:var(--f-ui);white-space:normal;max-width:300px">Together: one control moves put and call by the same amount and keeps their offset. Detached: put and call move on their own. A straddle is one strike; Detach legs turns it into a flat-topped strangle.</span>` + btn("A") + btn("B"), r.left, r.bottom, onPop);
     }
   }
@@ -371,9 +481,16 @@ const DOCK9 = (() => {
     else if (act === "exp") setSide({ side, path: "exp", value: t.value });
     else if (act === "spot") { const v = parseFloat(t.value); setSide({ side, path: "inst.spot", value: Number.isFinite(v) && v > 0 ? v : null }); }
     else if (act === "ivs") { const v = parseFloat(t.value); setSide({ side, path: "inst.ivShift", value: Number.isFinite(v) && v !== 0 ? v : null }); }
+    else if (act === "pvnum") {
+      const pct = parseFloat(t.value);
+      if (Number.isFinite(pct)) { setPeriodVol({ side, source: VolSource.Set, pct }); }
+      showAppliedPeriodVol({ input: t, side });
+    }
   }
   function onInput(ev) {
-    const t = ev.target; if (!t.dataset || !t.dataset.sl) return;
+    const t = ev.target;
+    if (t.dataset && t.dataset.act === "pvsl") { setPeriodVol({ side: t.dataset.side, source: VolSource.Set, pct: +t.value }); return; }
+    if (!t.dataset || !t.dataset.sl) return;
     const s = SL[t.dataset.sl]; if (!s) return;
     s.input(stepped(+t.value, s));
   }
@@ -386,13 +503,13 @@ const DOCK9 = (() => {
     root.addEventListener("input", onInput);
     q("#dockBtn").addEventListener("click", () => setPref({ dock: false }));
     q("#dockOpen").addEventListener("click", () => setPref({ dock: true }));
-    bindSelect({ input: "#d9-size", options: CTX.SIZES, read: state => state.cmp.sizing.rule, command: v => ({ type: Command.SetSizing, patch: { rule: v } }), syncList: SIZING_SYNCS });
+    bindSelect({ input: "#d9-size", options: CTX.SIZES, read: state => state.comparison.sizing.rule, command: v => ({ type: Command.SetSizing, patch: { rule: v } }), syncList: SIZING_SYNCS });
     const hc = q("#d9-hc"); hc.addEventListener("change", () => { const v = parseFloat(hc.value); if (Number.isFinite(v) && v > 0) run({ type: Command.SetSizing, patch: { h: clamp(v, 0.05, 20) } }); else askFrame(); });
   }
   function render(c) {
     C = c;
-    document.body.classList.toggle("dock-off", !C.view.dock);
-    if (!C.view.dock) return;
+    document.body.classList.toggle("dock-off", !C.prefs.dock);
+    if (!C.prefs.dock) return;
     const list = comps(), key = list.map(x => x.key).join("|");
     if (key !== lastKey) {
       root.innerHTML = list.map(x => `<span class="${x.cls}" data-ck="${att(x.key)}"${x.row ? ` data-row="${x.row}"` : ""}></span>`).join("");
@@ -415,8 +532,8 @@ const DOCK9 = (() => {
   }
   // open the dock and bring one row into view (from a summary pill)
   function reveal(row, side) {
-    if (row === "inst" && side) ui.inst[side === "B" && C && C.cmp.links.inst ? "A" : side] = true;
-    if (C && !C.view.dock) setPref({ dock: true }); else askFrame();
+    if (row === "inst" && side) ui.inst[side === "B" && C && C.comparison.links.inst ? "A" : side] = true;
+    if (C && !C.prefs.dock) setPref({ dock: true }); else askFrame();
     const go = () => {
       const els = root.querySelectorAll(`[data-row="${row}"]`); if (!els.length) return;
       els[0].scrollIntoView({ block: "center", behavior: "smooth" });

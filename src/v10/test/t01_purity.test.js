@@ -3,7 +3,7 @@
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("fs"), path = require("path"), vm = require("vm");
 const { load, deepFreeze, V9 } = require("./load.js");
 const L = load();
-const { INST, RULE, POS, DIST, CMP, STATE, CTX, D } = L;
+const { INST, RULE, POS, DIST, CMP, STATE, CTX, D, Odds, readPeriodVol } = L;
 
 test("T1: D is deep-frozen before the model loads, and a write to it throws in the bundle's strict mode", () => {
   assert.ok(Object.isFrozen(D) && Object.isFrozen(D.u) && Object.isFrozen(D.u.RAM.exps["20261120"].q[0]));
@@ -24,9 +24,9 @@ test("T1: every model entry point runs on the frozen data (all instruments, expi
         const b = POS.build(pos);
         assert.ok(Object.isFrozen(b) && Object.isFrozen(b.legs) && Object.isFrozen(b.label));
         if (!b.na) {
-          const d = DIST.make(b.E, b.S, "rn", I.hv, 1);
+          const d = DIST.make({ expiry: b.E, odds: Odds.Implied });
           assert.ok(Object.isFrozen(d));
-          POS.stats(b, d); POS.stats(b, DIST.make(b.E, b.S, "hv", I.hv, 1));
+          POS.stats(b, d); POS.stats(b, DIST.make({ expiry: b.E, odds: Odds.PeriodVol, vol: readPeriodVol({ record: I }).pct / 100 }));
           POS.val(b, b.S * 1.1, b.T / 2, { ivs: 5, svs: 3, svd: true }); POS.legsAt(b, b.S * 0.9, b.T / 3);
           RULE.convert(b.E, pos, basis === "delta" ? "sigma" : "delta");
         }
@@ -41,18 +41,18 @@ test("T1: every model entry point runs on the frozen data (all instruments, expi
 
 test("T2: ctx9 and every C helper run on a deep-frozen S9 without writing to it", () => {
   const states = [STATE.defaults()];
-  let r = STATE.cmpOp(states[0], "setA", "wings.put.on", true); states.push(r.S9);
-  r = STATE.cmpOp(r.S9, "setB", "inst.spot", 23.2); states.push(r.S9);
-  r = STATE.cmpOp(r.S9, "setB", "exp", "20270319"); states.push(r.S9);
-  r = STATE.applyChange(r.S9, s => { s.scen.unit = "pct"; s.view.units = "cr"; s.scen.dist = "hv"; s.cmp.sizing.rule = "loss"; }); states.push(r);
+  let r = STATE.cmpOp(states[0], "setA", "wings.put.on", true); states.push(r.state);
+  r = STATE.cmpOp(r.state, "setB", "inst.spot", 23.2); states.push(r.state);
+  r = STATE.cmpOp(r.state, "setB", "exp", "20270319"); states.push(r.state);
+  r = STATE.applyChange(r.state, s => { s.assumptions.unit = "pct"; s.prefs.units = "cr"; s.assumptions.dist = "hv"; s.comparison.sizing.rule = "loss"; }); states.push(r);
   for (const S9 of states) {
     const snap = JSON.stringify(S9);
     deepFreeze(S9);
     const C = CTX.ctx9(S9);
     for (const u of [-2, -0.5, 0, 0.7, 2]) { C.vA(u, C.A.T / 2); C.vB(u, C.B.T / 3); C.pA(u); C.pB(u); C.xA(u); C.xB(u); C.toSA(u); C.toSB(u); }
-    C.uOfSA(C.A.S * 1.1); C.uOfSB(C.B.S * 0.9); C.sFor(C.A, C.toSA); C.stats(C.B, "hv"); C.statsHV(C.A); C.worstIn9(C.A, 1, 100);
+    C.uOfSA(C.A.S * 1.1); C.uOfSB(C.B.S * 0.9); C.sFor(C.A, C.toSA); C.stats(C.B, "hv"); C.statsAtPeriodVol(C.A); C.volOf(C.A.tk); C.volOddsText(); C.worstIn9(C.A, 1, 100);
     C.fU(0.0123); C.fUt(0.05, 0.01); C.unitName(); C.hTxt(); C.axis("pct").toS("B")(10); C.ax.sig("A"); C.sigOwnSuffix(C.B);
-    CMP.diff(S9.cmp, C.A, C.B); STATE.swap(S9); STATE.cmpOp(S9, "setA", "values.call", 22); STATE.cmpOp(S9, "detach", "A"); STATE.code(S9, { tab: "compare" });
+    CMP.diff(S9.comparison, C.A, C.B); STATE.swap(S9); STATE.cmpOp(S9, "setA", "values.call", 22); STATE.cmpOp(S9, "detach", "A"); STATE.writeViewCode({ state: Object.assign({ tab: "compare" }, S9), yr: null });
     assert.equal(JSON.stringify(S9), snap);
     assert.ok(typeof C.labels.title === "string" && C.labels.title.includes(" vs "));
   }
@@ -72,21 +72,21 @@ test("§3.1 source rules: banned patterns and one top-level name per module", ()
 });
 
 test("T2: STATE functions never modify their (frozen) input", () => {
-  const d0 = STATE.defaults(), S9 = deepFreeze(JSON.parse(JSON.stringify(Object.assign({}, d0, { scen: Object.assign({}, d0.scen, { unit: "pts", rlo: 3 }) }))));
+  const d0 = STATE.defaults(), S9 = deepFreeze(JSON.parse(JSON.stringify(Object.assign({}, d0, { assumptions: Object.assign({}, d0.assumptions, { unit: "pts", rlo: 3 }) }))));
   const snap = JSON.stringify(S9);
   const n = STATE.normalise(S9);
-  assert.equal(n.S9.scen.unit, "sig"); assert.ok(n.events.some(e => e.type === "note"));
-  STATE.change(S9, s => { s.view.dock = false; }); STATE.cmpOp(S9, "relinkAll"); STATE.swap(S9); STATE.sanitize9(S9);
+  assert.equal(n.state.assumptions.unit, "sig"); assert.ok(n.events.some(e => e.type === "note"));
+  STATE.change(S9, s => { s.prefs.dock = false; }); STATE.cmpOp(S9, "relinkAll"); STATE.swap(S9); STATE.sanitizeTree(S9);
   assert.equal(JSON.stringify(S9), snap);
 });
 
-test("source rules: no .hv read outside inst.js and readListedVol, no HV30 outside labelListedVol (every source, shells and CSS)", () => {
+test("source rules: no .hv read outside inst.js and readPeriodVol, no HV30 outside nameVolSource (every source, shells and CSS)", () => {
   const SOURCES = ["core.js", "adapters.js", "app_store.js", "eng_head.js", "dist.js", "inst.js", "rule.js", "pos.js", "cmp.js", "state.js", "ctx.js",
     "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_views.js", "ui_export.js", "yr_engine.js", "yr_stress.js", "yr_ui.js", "app.js",
     "shell.html", "yr_shell.html", "yr.css", "views.css"].filter(f => fs.existsSync(path.join(V9, f)));
   // the span of one top-level function (its exemption)
   const spanOf = (src, name) => { const m = new RegExp(`^function\\s+${name}\\b[\\s\\S]*?^}`, "m").exec(src); return m ? [m.index, m.index + m[0].length] : [0, 0]; };
-  const RULES = [[/\.hv\b/g, { "inst.js": null, "core.js": "readListedVol" }], [/HV30/g, { "core.js": "labelListedVol" }]];
+  const RULES = [[/\.hv\b/g, { "inst.js": null, "core.js": "readPeriodVol" }], [/HV30/g, { "core.js": "nameVolSource" }]];
   const bad = [];
   for (const f of SOURCES) {
     const src = fs.readFileSync(path.join(V9, f), "utf8");
@@ -100,5 +100,6 @@ test("source rules: no .hv read outside inst.js and readListedVol, no HV30 outsi
   }
   assert.deepEqual(bad, []);
   const core = fs.readFileSync(path.join(V9, "core.js"), "utf8");
-  assert.ok(/function readListedVol[\s\S]*?\.hv\b/.test(core) && /function labelListedVol\(\) \{\n\s*return "HV30";\n\}/.test(core), "the accessor and the label helper exist");
+  assert.ok(/function readPeriodVol[\s\S]*?\.hv\b/.test(core) && /function nameVolSource\([^)]*\) \{[\s\S]*?return "HV30";\n\}/.test(core), "the accessor and the source-name helper exist");
+  assert.ok(/function labelPeriodVol[\s\S]*?nameVolSource\(/.test(core), "the label helper names the source through nameVolSource");
 });

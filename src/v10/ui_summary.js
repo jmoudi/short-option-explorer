@@ -1,10 +1,20 @@
 // ============================================================ ui9_summary: the fixed comparison summary (Compare tab)
-// Two cards (A | vs ⇄ | B), each three lines: identity (21px), per-leg prices (14px, net 15px), placement (12px);
-// then one row of difference pills / notices and the move range. Reads only the render context C (CTX.ctx9) and the
+// Two cards (A | vs ⇄ | B), each three lines: identity (21px), per-leg prices (14px, net 15px), placement with the
+// ticker's period vol against the expiry's implied vol (12px); then one row of difference pills / notices and the move
+// range. Reads only the render context C (CTX.ctx9) and the
 // store; changes state only through commands. Also the page's toast: every notice on the bus shows here.
 // Top-level name: SUM9.
 
 const SUM9 = (() => {
+  const SUMMARY_CONFIG = Object.freeze({
+    // the axis ⓘ prints the period-vol odds beyond 1σ and beyond the recovery hit's kσ, else beyond this many σ
+    tailSigmas: 2,
+    // a line overflows when its text is wider than its content box by more than this (px): scrollWidth rounds to whole
+    // pixels, so a line 0.06 px too wide read as fitting while Chromium still drew the ellipsis
+    overflowTolerancePx: 0.01,
+    // keys that press the card's period-vol reading (a role="button" span)
+    pressKeys: Object.freeze(["Enter", " "])
+  });
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const q = s => document.querySelector(s);
   // signs follow the printed text: a value that rounds to zero prints unsigned ("0.00σ", never "−0.00σ")
@@ -97,7 +107,7 @@ const SUM9 = (() => {
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
     if (side === "B" && !C.A.na) {
       const k = contractsK(C), rn = (CTX.SIZES.find(s => s[0] === C.rule) || ["", C.rule])[1].toLowerCase();
-      const auto = C.cmp.sizing.rule === "auto" ? "auto: " : "";
+      const auto = C.comparison.sizing.rule === "auto" ? "auto: " : "";
       const nm = I => I ? I.name || I.id : "", twin = nm(C.instA) === nm(C.instB);
       h += `<span class="s9h"> · ×${k.toFixed(2)}</span><span class="info" tabindex="0" data-tip="${tipEsc(`B contracts per A contract · ${auto}${rn} (${k.toFixed(2)} ${twin ? "B" : nm(C.instB)} contract${Math.abs(k - 1) < 0.005 ? "" : "s"} per ${twin ? "A" : nm(C.instA)} contract); the charts show B at h = ${C.h.toFixed(3)} × A's notional.${C.hNote ? " " + C.hNote + "." : ""} Change it under Pair sizing.`)}">i</span>`;
     }
@@ -107,11 +117,24 @@ const SUM9 = (() => {
     }
     return h + `</span>`;
   }
-  // line 3 comes in levels for fitPair(), the same nine on both cards so they can shorten together: 0 full; 1 flags
+  // line 3 comes in levels for fitPair(), the same ten on both cards so they can shorten together: 0 full; 1 flags
   // folded into one "N warnings, M notes" token; 2 the "to <expiry>" σ suffix without its year; 3 the forward note
-  // without spot; 4 no days; 5–7 one, two, three secondary readings fewer; 8 "N flags"
-  const L3N = 9;
-  function line3(b, P, C) {
+  // without spot; 4 the period-vol reading compact ("vs IV 124%"); 5–7 one, two, three secondary readings fewer; 8 no
+  // days; 9 "N flags". The days (one short token, shown nowhere else on the summary) outlast the secondary readings
+  const L3N = 10;
+  // the card's period-vol reading, "vol 117% (<listed>) vs implied 124%" (compact: "vs IV 124%"; a hand-set vol carries
+  // ✎); a click, Enter or Space opens the side's spot / IV / period vol controls in Positions. Kept on every level of
+  // line 3, right after the active basis
+  /** @param {{ b: any, C: any, side: string, isCompact: boolean }} input */
+  function volHtml({ b, C, side, isCompact }) {
+    const vol = C.volOf(b.tk), isHandSet = vol.source === VolSource.Set, implied = b.E ? fP(b.E.atm, 0) : "–";
+    const floored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct ? ` The stored ${+vol.storedPct.toFixed(2)}% (exactly on the path, set on Compounding) reads as ${Math.round(vol.pct)}% here, the comparer's floor.` : "";
+    const tip = `${b.tk} period vol: the assumed vol of its moves over the period, one number for every expiry, used by every EV reading (and by the odds when the odds switch says period vol). Implied: ATM IV at ${fmtE(b.exp)}.${floored} Click to set it under Positions, spot / IV / period vol.`;
+    const versus = isCompact ? "vs IV" : "vs implied";
+    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}${esc(vol.label)} ${versus} ${implied}</span>`;
+  }
+  /** @param {{ b: any, P: any, C: any, side: string }} input */
+  function line3({ b, P, C, side }) {
     const fl = flagsHtml(b, b.na), flags = b.flags.filter(f => b.na || f.code !== "WING_NA");
     const nw = flags.filter(f => f.severity === "warn").length, nn = flags.length - nw;
     const allTip = tipEsc(flags.map(f => (f.severity === "warn" ? "! " : "") + f.text).join(" · "));
@@ -141,17 +164,18 @@ const SUM9 = (() => {
     const away = Math.abs(b.F / b.S - 1) > 0.01;
     const fwL = away ? ` · fwd ${fPx2(b.F)} (spot ${fPx2(b.S)})` : "", fwS = away ? ` · <span title="spot ${fPx2(b.S)}">fwd ${fPx2(b.F)}</span>` : "";
     const tail = x => x ? " · " + x : "";
-    // o = {sfx, fw, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
+    // o = {sfx, fw, volCompact, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
     const mk = o => {
-      const { head, extra } = parts(o.sfx), items = head.concat(extra.slice(0, Math.max(0, extra.length - o.drop)));
-      if (o.dte) items.push(`${b.dte} d`);
-      const base = items.map(esc).join(" · ") + o.fw;
+      const { head, extra } = parts(o.sfx), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
+      if (o.dte) rest.push(`${b.dte} d`);
+      const vol = volHtml({ b, C, side, isCompact: o.volCompact });
+      const base = [...head.map(esc), vol, ...rest.map(esc)].join(" · ") + o.fw;
       return o.fl === "all" ? base + fl.map(x => " · " + x).join("") : base + tail(o.fl === "fold" ? fold : fold2);
     };
-    const levels = [], o = { sfx: sfxL, fw: fwL, dte: true, drop: 0, fl: "all" };
+    const levels = [], o = { sfx: sfxL, fw: fwL, volCompact: false, dte: true, drop: 0, fl: "all" };
     const push = ch => { Object.assign(o, ch); levels.push(mk(o)); };
-    push({}); push({ fl: "fold" }); push({ sfx: sfxS }); push({ fw: fwS }); push({ dte: false });
-    push({ drop: 1 }); push({ drop: 2 }); push({ drop: 3 }); push({ fl: "fold2" });
+    push({}); push({ fl: "fold" }); push({ sfx: sfxS }); push({ fw: fwS }); push({ volCompact: true });
+    push({ drop: 1 }); push({ drop: 2 }); push({ drop: 3 }); push({ dte: false }); push({ fl: "fold2" });
     return levels;
   }
   function flagsHtml(b, all) {
@@ -182,7 +206,17 @@ const SUM9 = (() => {
     }
     return U;
   }
-  const over = e => e.scrollWidth > e.clientWidth + 0.5;
+  // the line's text is wider than its content box: whole-pixel overflow, else the text's own width (a Range) against the
+  // box, so a sub-pixel overflow (which Chromium draws as an ellipsis) counts too
+  function over(e) {
+    if (e.scrollWidth > e.clientWidth + 0.5) { return true; }
+    const range = document.createRange();
+    range.selectNodeContents(e);
+    const textWidth = range.getBoundingClientRect().width;
+    const style = getComputedStyle(e);
+    const boxWidth = e.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
+    return textWidth > boxWidth + SUMMARY_CONFIG.overflowTolerancePx;
+  }
   const setStages = (el, order, on) => { el.classList.remove(...order); if (on.length) el.classList.add(...on); };
   function ownStages(el, order, keep) {
     setStages(el, order, []); const on = [];
@@ -207,7 +241,7 @@ const SUM9 = (() => {
 
   // ---------------------------------------------------------- pills and notices (bottom row)
   function pillsHtml(C) {
-    const d = C.diff, L = C.cmp.links, list = [];
+    const d = C.diff, L = C.comparison.links, list = [];
     for (const it of d.items) {
       if (!it.asked) list.push({ cls: "w", text: it.text, row: it.dockRow, side: it.side });
       else if (d.identical) continue;   // §2.2: the "same trade" notice stands in place of the neutral pills ("↺ all" stays)
@@ -249,35 +283,31 @@ const SUM9 = (() => {
     const C = SUM9.C; let v = Math.abs(parseFloat(field.value));
     if (!C || !Number.isFinite(v) || v <= 0) { page.frames.mark({ cause: FrameCause.Ui }); return; }
     v = Math.max(+v.toFixed(2), C.unit === "pct" ? 0.5 : 0.05);
-    const scen = page.store.read().scen;
-    const both = Math.min(v, STATE.rangeCaps(scen.unit, C.A.S)[0]);
-    const patch = scen.rlink ? { [bound]: v, rlo: both, rhi: both } : { [bound]: v };
+    const assumptions = page.store.read().assumptions;
+    const both = Math.min(v, STATE.rangeCaps(assumptions.unit, C.A.S)[0]);
+    const patch = assumptions.rlink ? { [bound]: v, rlo: both, rhi: both } : { [bound]: v };
     page.executor.execute({ type: Command.SetAssumption, patch, source: field.id });
   }
   // symmetric on: both bounds take the larger one (capped)
   function buildSymmetricCommand(on) {
-    const C = SUM9.C, scen = page.store.read().scen;
+    const C = SUM9.C, assumptions = page.store.read().assumptions;
     if (!on) { return { type: Command.SetAssumption, patch: { rlink: false } }; }
-    const both = Math.min(Math.max(scen.rlo, scen.rhi), STATE.rangeCaps(scen.unit, C.A.S)[0]);
+    const both = Math.min(Math.max(assumptions.rlo, assumptions.rhi), STATE.rangeCaps(assumptions.unit, C.A.S)[0]);
     return { type: Command.SetAssumption, patch: { rlink: true, rlo: both, rhi: both } };
   }
   // the range row's binder syncs, run in syncRange with the frame's state (as v9's REG list): only when the summary
   // renders, after its cards are fitted
   const RANGE_SYNCS = [];
   function wireRange() {
-    seg({ el: "#s9-unit", options: [["sig", "σ", "Multiples of each instrument's implied move over A's horizon"], ["pct", "%", "Simple % change"], ["pts", "price", "Price change in $ (one instrument only)"]], read: state => state.scen.unit, command: buildMoveUnitCommand, syncList: RANGE_SYNCS });
+    seg({ el: "#s9-unit", options: [["sig", "σ", "Multiples of each instrument's implied move over A's horizon"], ["pct", "%", "Simple % change"], ["pts", "price", "Price change in $ (one instrument only)"]], read: state => state.assumptions.unit, command: buildMoveUnitCommand, syncList: RANGE_SYNCS });
     for (const [id, bound] of [["#s9-rlo", "rlo"], ["#s9-rhi", "rhi"]]) { const field = q(id); field.addEventListener("change", () => commitRangeBound({ bound, field })); }
-    bindChk({ input: "#s9-rlink", read: state => state.scen.rlink, command: buildSymmetricCommand, syncList: RANGE_SYNCS });
-    seg({ el: "#s9-units", options: [["pct", "% of A's notional"], ["usd", "$ per A contract"], ["cr", "× A's credit"]], read: state => state.view.units, command: v => ({ type: Command.SetPref, patch: { units: v } }), syncList: RANGE_SYNCS });
-    seg({ el: "#s9-dist", options: [["rn", "Implied", "Risk-neutral distribution from the fitted smile"], ["hv", labelListedVol(), `Lognormal at IBKR ${labelListedVol()}`]], read: state => state.scen.dist, command: v => ({ type: Command.SetAssumption, patch: { dist: v } }), syncList: RANGE_SYNCS });
-    bindRange({ input: "#s9-hvk", output: "#s9-ohvk", read: state => state.scen.hvk, command: v => ({ type: Command.SetAssumption, patch: { hvk: v } }), format: v => v.toFixed(2) + "×", syncList: RANGE_SYNCS });
-    // the scaler's label and name come from the one label helper (the shell leaves them empty)
-    q("#s9-hvrow .lbl").textContent = `Scale IBKR ${labelListedVol()} by`;
-    q("#s9-hvk").setAttribute("aria-label", `${labelListedVol()} multiplier`);
+    bindChk({ input: "#s9-rlink", read: state => state.assumptions.rlink, command: buildSymmetricCommand, syncList: RANGE_SYNCS });
+    seg({ el: "#s9-units", options: [["pct", "% of A's notional"], ["usd", "$ per A contract"], ["cr", "× A's credit"]], read: state => state.prefs.units, command: v => ({ type: Command.SetPref, patch: { units: v } }), syncList: RANGE_SYNCS });
+    seg({ el: "#s9-dist", options: [[Odds.Implied, "implied", "The risk-neutral distribution from each fitted smile"], [Odds.PeriodVol, "period vol", "A zero-drift lognormal at each ticker's period vol"]], read: state => state.assumptions.dist, command: v => ({ type: Command.SetAssumption, patch: { dist: v } }), syncList: RANGE_SYNCS });
   }
   function syncRange(C) {
-    for (const sync of RANGE_SYNCS) { sync(C.S9); }
-    const sc = C.scen, step = C.uStep(C.unit), lo = q("#s9-rlo"), hi = q("#s9-rhi");
+    for (const sync of RANGE_SYNCS) { sync(C.state); }
+    const sc = C.assumptions, step = C.uStep(C.unit), lo = q("#s9-rlo"), hi = q("#s9-rhi");
     lo.step = step; hi.step = step;
     if (document.activeElement !== lo) lo.value = +sc.rlo.toFixed(2);
     if (document.activeElement !== hi) hi.value = +sc.rhi.toFixed(2);
@@ -286,13 +316,25 @@ const SUM9 = (() => {
     const nm = b => b.inst ? b.inst.name || b.inst.id : b.tk;
     const rng = (b, toS) => `${nm(b)} ${fPx2(toS(C.lo))}–${fPx2(toS(C.hi))}`;
     q("#s9-rngeq").textContent = "Prices in view: " + rng(C.A, C.toSA) + (C.same ? "" : " · " + rng(C.B, C.toSB));
-    const sd = (b, I) => { const s = C.ax.sig(I); return `${nm(b)}: ATM ${fP(INST.atmAt(I, C.ax.T), 0)} × √(${Math.round(C.ax.T * 365)}/365) = ${s.toFixed(3)}, so +1σ = ${fS(Math.exp(s) - 1, 0)} and −1σ = ${fS(Math.exp(-s) - 1, 0)}`; };
+    const sd = (b, I) => { const s = C.ax.sig(I); return `${nm(b)}: ATM ${fP(INST.atmAt(I, C.ax.T), 0)} × √(${Math.round(C.ax.T * 365)}/365) = ${s.toFixed(3)}, so +1σ = ${fS(Math.exp(s) - 1, 0)} and −1σ = ${fS(Math.exp(-s) - 1, 0)} (implied ${fP(INST.atmAt(I, C.ax.T), 0)}); ${describeTailOdds({ C, b, I })}`; };
     q("#s9-uinfo").textContent = C.unit === "sig"
       ? `σ = each instrument's ATM implied vol at A's horizon (${C.A.dte} days) × √(days/365), on log price${C.sameExp ? "" : " (B's vol interpolated to A's horizon; the chart axis reads “" + C.sigAxisLabel + "”)"}. ${sd(C.A, C.instA)}.${C.same ? "" : ` ${sd(C.B, C.instB)}. Both move the same number of their own σ.`} Strike placement by σ uses each position's own expiry instead.`
       : (C.unit === "pct" ? `Simple % change of the underlying.${C.same ? "" : " Both instruments move the same %."}` : `Change of ${nm(C.A)}'s price in $. Offered only when A and B are on one instrument.`) +
         (C.sameExp ? "" : ` The payoff's ±σ marks use each instrument's ${C.sigAxisLabel} (B's vol interpolated to A's horizon), not its own expiry.`);
-    q("#s9-hvrow").hidden = sc.dist !== "hv";
-    q("#s9-hvinfo").textContent = `IBKR ${labelListedVol()}: ${INST.list().map(x => `${x.name || x.id} ${fP(readListedVol(INST.base(x.id)), 0)}`).join(", ")}. ${labelListedVol()} odds are a zero-drift lognormal at that vol.`;
+    const vols = [...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ");
+    q("#s9-oddsinfo").textContent = `The odds set profit odds, the odds strips, the grid's column odds and the comparison table's EV row (under implied odds that row is fill vs mid). EV readings elsewhere (overview, sweep, recovery, export) always use the period vol: ${vols}. Set it under Positions, spot / IV / period vol.`;
+  }
+  // where σ meets odds: the move is in implied σ, its odds at the ticker's period vol over A's horizon, beyond 1σ and
+  // beyond the recovery panel's kσ hit (2σ when the hit is a fixed %): "at 117% vol, beyond 1σ: 15.2% up, 17.9% down;
+  // beyond 1.5σ: 4.4% up, 7.1% down"
+  /** @param {{ C: any, b: any, I: any }} input */
+  function describeTailOdds({ C, b, I }) {
+    const d = C.distOf(b, Odds.PeriodVol), s = C.ax.sig(I);
+    if (!d || !Number.isFinite(s)) { return "the period vol has no odds here"; }
+    const hitK = C.prefs.rdHit === HitBasis.Move ? C.prefs.rdK : SUMMARY_CONFIG.tailSigmas;
+    const tail = k => `beyond ${+k.toFixed(2)}σ: ${fP(1 - cdfAt(d, k * s, C.ax.T), 1)} up, ${fP(cdfAt(d, -k * s, C.ax.T), 1)} down`;
+    const ks = [...new Set([1, hitK])];
+    return `${C.volOddsText({ ids: [b.tk] })}, ${ks.map(tail).join("; ")}`;
   }
 
   // ---------------------------------------------------------- toasts: every notice on the bus
@@ -356,10 +398,24 @@ const SUM9 = (() => {
     const p = ev.target.closest("[data-pi]");
     if (p) { const pop = q("#pop"); if (pop && pop.contains(p)) pop.hidden = true; if (typeof DOCK9 !== "undefined") DOCK9.reveal(p.dataset.row, p.dataset.side); }
   }
+  // a click (or Enter / Space) on a card's period-vol reading opens that side's spot / IV / period vol controls in
+  // Positions
+  function onCardClick(ev) {
+    const reading = ev.target.closest("[data-vol]");
+    if (!reading || typeof DOCK9 === "undefined") { return; }
+    DOCK9.reveal("inst", reading.dataset.vol);
+  }
+  function onCardKey(ev) {
+    const isPress = SUMMARY_CONFIG.pressKeys.includes(ev.key);
+    if (!isPress || !ev.target.closest("[data-vol]")) { return; }
+    ev.preventDefault();
+    onCardClick(ev);
+  }
   let ro = null;
   function init() {
     q("#s9swap").addEventListener("click", () => page.executor.execute({ type: Command.Swap, source: "summary" }));
     q("#s9pills").addEventListener("click", onPills);
+    for (const id of ["#s9A", "#s9B"]) { q(id).addEventListener("click", onCardClick); q(id).addEventListener("keydown", onCardKey); }
     wireRange(); wireToast();
     const sum = q("#sum9"), setH = () => document.documentElement.style.setProperty("--sumh", Math.ceil(sum.getBoundingClientRect().height) + "px");
     if (window.ResizeObserver) { ro = new ResizeObserver(setH); ro.observe(sum); }
@@ -372,7 +428,7 @@ const SUM9 = (() => {
       card.querySelector(".s9l1").innerHTML = line1(b, side, m);
       card.querySelector(".s9l2").innerHTML = line2(b, side, m, C);
       card.setAttribute("aria-label", `${side}: ${b.label.full}`);
-      return { card, l3: line3(b, P, C) };
+      return { card, l3: line3({ b, P, C, side }) };
     });
     fitPair(cards);
     renderPills(C);

@@ -8,7 +8,7 @@ const { load, V9 } = require("./load.js");
 const L = load();
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_export.js"), "utf8") + "\n;globalThis.__e = {EXPORT9};", L.ctx, { filename: "ui_export.js" });
 const { EXPORT9 } = L.ctx.__e, { STATE, CTX } = L, { toMarkdownCompare } = EXPORT9;
-const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).S9; return S; };
+const ops = (S, list) => { for (const [o, ...a] of list) S = STATE.cmpOp(S, o, ...a).state; return S; };
 const usd = x => { const a = Math.abs(x); return "$" + (a >= 20 || Math.abs(a - Math.round(a)) < 0.05 ? Math.round(a).toLocaleString("en-US") : a.toFixed(1)); };
 const STATES = {
   default: STATE.defaults(),
@@ -29,7 +29,7 @@ function tables(md) {
 for (const [name, S] of Object.entries(STATES)) {
   test(`T20 export (${name}): labels, legs, net, EV row, clean text, square tables`, () => {
     const C = CTX.ctx9(S);
-    const md = toMarkdownCompare(C, S, { sections: ALL, code: STATE.code(S, { tab: "compare", theme: "auto" }), now: new Date(2026, 9, 2) });
+    const md = toMarkdownCompare(C, S, { sections: ALL, code: STATE.writeViewCode({ state: Object.assign({ tab: "compare" }, S), yr: null }), now: new Date(2026, 9, 2) });
     assert.ok(md.includes(`### A · ${C.A.label.full}`), "A label");
     assert.ok(md.includes(`### B · ${C.B.label.full}`), "B label");
     assert.ok(md.includes(C.labels.title), "title");
@@ -44,11 +44,11 @@ for (const [name, S] of Object.entries(STATES)) {
     if (name === "bWing") assert.ok(/\| Call wing \(long\) \| 33C .* debit \$\d+/.test(md), "the wing's debit line");
     const ev = md.split("\n").find(x => x.startsWith("| Expected value"));
     assert.ok(ev && ev.includes("implied odds: fill vs mid"), "EV row carries its odds label");
-    const S2 = STATE.applyChange(S, s => { s.scen.dist = "hv"; });
+    const S2 = STATE.applyChange(S, s => { s.assumptions.dist = "hv"; });
     const ev2 = toMarkdownCompare(CTX.ctx9(S2), S2, {}).split("\n").find(x => x.startsWith("| Expected value"));
-    assert.ok(ev2 && ev2.includes("HV30 ×1.00 odds"), "EV row under HV30 says so");
-    assert.ok(md.includes("#v9."), "view code");
-    const text = md.replace(/#v9\.\S+/, "#v9.CODE");   // the code is base64: any letters may appear in it
+    assert.ok(ev2 && /Expected value · at 1\d\d% vol|Expected value · at period vol \(/.test(ev2), "EV row under period-vol odds names the vol");
+    assert.ok(md.includes("#v10."), "view code");
+    const text = md.replace(/#v10\.\S+/, "#v10.CODE");   // the code is base64: any letters may appear in it
     for (const bad of ["undefined", "NaN", "[object", "null"]) assert.ok(!text.includes(bad), `no "${bad}"`);
     const T = tables(md);
     assert.ok(T.length >= 5, `${T.length} tables`);
@@ -67,7 +67,7 @@ test("T20 export: sections switch on and off; the overview table is off by defau
   const only = toMarkdownCompare(C, S, { sections: { header: false, comparison: false, assumptions: false, results: true, recovery: false, pins: false, overview: false, notes: false } });
   assert.ok(only.startsWith("## Results"));
   assert.ok(!toMarkdownCompare(C, S, {}).includes("## Pinned"), "no pins, no section");
-  const P = STATE.applyChange(S, s => { s.view.pins = [{ SA: 13, SB: 20, dA: 10, dB: 10 }]; });
+  const P = STATE.applyChange(S, s => { s.prefs.pins = [{ SA: 13, SB: 20, dA: 10, dB: 10 }]; });
   assert.ok(toMarkdownCompare(CTX.ctx9(P), P, {}).includes("## Pinned scenarios"));
 });
 test("T20 export: the table helper pads columns and escapes pipes", () => {

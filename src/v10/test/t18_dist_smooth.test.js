@@ -8,7 +8,7 @@ test("T18 RN distributions: no bin holds more than 2.5× the 90th-percentile bin
   for (const it of M.INST.list()) {
     const I = M.INST.base(it.id);
     for (const e of I.expiries) {
-      const E = I.exp(e), d = M.DIST.make(E, I.spot, "rn", I.hv, 1), m = [];
+      const E = I.exp(e), d = M.DIST.make({ expiry: E, odds: "rn" }), m = [];
       for (let i = 1; i <= d.n; i++) m.push(d.cdf[i] - d.cdf[i - 1]);
       const s = m.slice().sort((a, b) => a - b), p90 = s[Math.floor(s.length * 0.9)], mx = s[s.length - 1];
       assert.ok(mx <= 2.5 * p90, `${it.id} ${e}: max bin ${mx.toFixed(4)} vs p90 ${p90.toFixed(4)}`);

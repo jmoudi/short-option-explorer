@@ -47,6 +47,8 @@ const Command = Object.freeze({
   SetSizing: "cmp.setSizing", SetExpiryMap: "cmp.setExpiryMap", PlaceLeg: "cmp.placeLeg",
   SetAssumption: "assumptions.set", SetMoveUnit: "assumptions.setMoveUnit", SetPeriodVol: "periodVol.set",
   SetPref: "prefs.set", AddPin: "prefs.addPin", RemovePin: "prefs.removePin", ClearPins: "prefs.clearPins",
+  // one export section on or off for one tab (prefs.exportSections); it changes what the export writes, not the screen
+  SetExportSection: "prefs.setExportSection",
   ShowTab: "page.showTab", LoadView: "page.loadView", Reset: "page.reset"
 });
 const EnvelopeType = Object.freeze({ StateChanged: "state.changed", Notice: "notice", Fault: "fault" });
@@ -58,7 +60,9 @@ const FaultCode = Object.freeze({
   // a page step that keeps v9's own try/catch and console line (a render, a Compounding call)
   GuardedStepFailed: "guarded_step_failed",
   // localStorage refused (a private window) or the stored view did not load
-  StorageFailed: "storage_failed", StoredViewFailed: "stored_view_failed"
+  StorageFailed: "storage_failed", StoredViewFailed: "stored_view_failed",
+  // a value outside its range, applied at the nearest end (a period vol below the comparer's floor or above the cap)
+  ValueClamped: "value_clamped"
 });
 const FaultSeverity = Object.freeze({ Error: "error", Warning: "warning" });
 // what the page did about a fault, in words a log reader understands
@@ -73,7 +77,8 @@ const FaultHandling = Object.freeze({
   IgnoredPatch: "ignored the whole patch",
   // the console line was printed where the error was caught (v9's text); fault readers must not print it again
   LoggedWhereCaught: "logged where it was caught; the page carried on",
-  ViewNotStored: "logged once; the view was not stored", StartedWithoutStore: "logged; the page started without the stored view"
+  ViewNotStored: "logged once; the view was not stored", StartedWithoutStore: "logged; the page started without the stored view",
+  AppliedClamped: "applied at the nearest end of the range; a toast says so"
 });
 const Tab = Object.freeze({ Compare: "compare", Compounding: "yr" });
 const Theme = Object.freeze({ Auto: "auto", Light: "light", Dark: "dark" });
@@ -83,8 +88,16 @@ const NoticeStyle = Object.freeze({ Plain: "plain", Event: "event" });
 // why a frame was asked for when no command changed the state
 const FrameCause = Object.freeze({ Ui: "ui", Boot: "boot", Resize: "resize", ColorScheme: "colorScheme", Fonts: "fonts" });
 const ViewCodeError = Object.freeze({ NotACode: "not_a_code", Undecodable: "undecodable", UnknownVersion: "unknown_version" });
-// the view-code versions the page reads ("#v9." ...), newest first; the one list parse and readViewCode share
-const ViewCodeVersion = Object.freeze({ V9: "9", V8: "8", V5: "5" });
+// the view-code versions the page reads ("#v10." ...), newest first; the one list parse and readViewCode share. The page
+// writes only the first (codes and the stored blob); the others load through migration
+const ViewCodeVersion = Object.freeze({ V10: "10", V9: "9", V8: "8", V5: "5" });
+// the sections of the markdown export, per tab in document order (STATE holds which are on by default, the export
+// their labels); prefs.exportSections stores the reader's choice
+const ExportSection = Object.freeze({
+  Header: "header", Comparison: "comparison", Assumptions: "assumptions", Results: "results", Recovery: "recovery", Pins: "pins",
+  Overview: "overview", Notes: "notes",
+  Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random"
+});
 // the steps a toast action runs on the comparison ([step, ...args] in an ApplyAction command), see CMP.runAction
 const ActionStep = Object.freeze({ Link: "link", Unlink: "unlink", RelinkSome: "relinkSome", StartFromA: "startFromA", SetA: "setA", SetB: "setB" });
 // the comparison operations a command runs through STATE.cmpOp (the CMP function of that name)
@@ -102,6 +115,37 @@ const CoreErrorCode = Object.freeze({
 });
 // what a Reset command puts back to defaults
 const ResetTarget = Object.freeze({ Compare: "compare", Compounding: "yr", Both: "both" });
+// where a ticker's period vol came from (state.periodVol[id].source; absent = the listed 30-day historical vol). The
+// source is stored with the value and never inferred from it: a hand-set value equal to the listed one stays Set
+const VolSource = Object.freeze({ Hv30: "hv30", Atm: "atm", Set: "set" });
+// the odds behind profit odds, the odds strips, the grid's column odds and the comparison table's EV row
+// (assumptions.dist; the stored values are v8's). EV readings elsewhere always use the period vol
+const Odds = Object.freeze({ Implied: "rn", PeriodVol: "hv" });
+// the period vol's numbers, shared by the state (sanitizer, SetPeriodVol), the comparer (its reader and its box) and
+// the Compounding tab's vol control: the stored range in % (0 = "exactly on the path", meaningful only to the
+// Compounding tab), the floor each reader applies (the comparer's odds need a positive vol), the stored precision
+const PERIOD_VOL_CONFIG = Object.freeze({
+  range: Object.freeze([0, 300]),
+  floor: Object.freeze({ [Tab.Compare]: 1, [Tab.Compounding]: 0 }),
+  decimals: 2
+});
+// the assumptions' stored values (step 3 names the rest of §8.1's enums): the move axis unit, the worst-loss range
+// (the view's or its own), the expiry alignment of the charts' time axis
+const MoveUnit = Object.freeze({ Sigma: "sig", Percent: "pct", Points: "pts" });
+const WorstLossRange = Object.freeze({ View: "view", Own: "own" });
+const Align = Object.freeze({ Fraction: "frac", Calendar: "cal" });
+// the readings' unit (prefs.units): % of notional, $ per contract, × credit
+const ReadingUnit = Object.freeze({ Percent: "pct", Usd: "usd", Credit: "cr" });
+// the recovery panel's growth rate per cycle (prefs.rdG): the EV at the period vol, or the reader's own number
+const GrowthRate = Object.freeze({ Ev: "ev", Custom: "custom" });
+// the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
+const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
+// the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)
+const RunSlot = Object.freeze({ A: "A", B: "B" });
+// what the Compounding tab's B differs from A in (yr.bDiff)
+const RunDiff = Object.freeze({
+  Strategy: "strategy", Ticker: "ticker", Cadence: "cadence", Strikes: "strikes", Size: "size", Modus: "modus", Vol: "vol", Any: "any"
+});
 // the closed lists, in display order (the tab strip, the theme control, the validators)
 const TABS = Object.freeze(Object.values(Tab)), THEMES = Object.freeze(Object.values(Theme));
 
@@ -187,16 +231,33 @@ function isHandlerOutcome(value) {
   return hasState && Array.isArray(value.notices) && Array.isArray(value.faults);
 }
 
-// ---------------------------------------------------------------- the listed vol: one accessor, one label
-// IBKR's listed 30-day historical vol per instrument (or raw data record), and its name as every label prints it.
-// Every reader outside inst.js comes through these two (a build rule), so the period vol of v10 step 2 replaces two
-// functions, not a dozen property reads and string literals.
-function readListedVol(record) {
-  if (!record) { return NaN; }
-  return +record.hv;
+// ---------------------------------------------------------------- the period vol: one accessor, one label
+// The assumed vol of a ticker's moves over the period (annualized like IV, calendar days), one number per ticker for
+// every expiry. It defaults to IBKR's listed 30-day historical vol of the instrument (or raw data record). Every
+// reader outside inst.js comes through readPeriodVol, and every label through labelPeriodVol / nameVolSource (build
+// rule: the hv field is read only in inst.js and readPeriodVol, the listed vol's name is spelled only in
+// nameVolSource), so the
+// listed vol has exactly one door. pct is in % (117.32 = 117.32%); the stored entry wins when it has a finite pct.
+/** @param {{ entry?: { pct: number, source?: string, expiry?: string } | null, record?: any }} input */
+function readPeriodVol({ entry, record }) {
+  if (entry && Number.isFinite(entry.pct)) { return { pct: entry.pct, source: entry.source || VolSource.Set, expiry: entry.expiry || "" }; }
+  return { pct: record ? +record.hv * 100 : NaN, source: VolSource.Hv30, expiry: "" };
 }
-function labelListedVol() {
+// the source as labels print it: the listed vol's name, "set", or "ATM 16 Oct" (the expiry the ATM was read at)
+/** @param {{ source: string, expiry?: string }} vol */
+function nameVolSource({ source, expiry }) {
+  if (source === VolSource.Set) { return "set"; }
+  if (source === VolSource.Atm) { return expiry ? `ATM ${fmtE(expiry)}` : "ATM"; }
   return "HV30";
+}
+// "vol 117% (<the listed vol's name>)", "vol 100% (set)", "vol 124% (ATM 16 Oct)": every label of a period vol. A
+// reader that floored the stored value (storedPct below pct) says so: "vol 1% (set 0%, floored)"
+/** @param {{ pct: number, source: string, expiry?: string, storedPct?: number }} vol */
+function labelPeriodVol(vol) {
+  const pct = Number.isFinite(vol.pct) ? `${Math.round(vol.pct)}%` : "–";
+  const isFloored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct;
+  if (isFloored) { return `vol ${pct} (${nameVolSource(vol)} ${+vol.storedPct.toFixed(2)}%, floored)`; }
+  return `vol ${pct} (${nameVolSource(vol)})`;
 }
 
 // ---------------------------------------------------------------- Registry

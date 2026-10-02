@@ -114,7 +114,10 @@ const INST = (() => {
     const asof = String(D.meta && D.meta.asof || "");
     const asofDay = (() => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(asof); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN; })();
     const ids = Object.keys(D.u);
-    const LIST = deepFreeze(ids.map(id => ({ id, name: D.u[id].name || id, lev: +D.u[id].lev || 1 })));
+    // realized: reference realized vols from the data ([{label, short, pct}], pct in %), the period-vol sliders' ticks
+    const isRealizedRef = r => !!r && typeof r.label === "string" && Number.isFinite(+r.vol);
+    const readRealized = U => (Array.isArray(U.realized) ? U.realized : []).filter(isRealizedRef).map(r => ({ label: r.label, short: String(r.short || r.label), pct: +r.vol * 100 }));
+    const LIST = deepFreeze(ids.map(id => ({ id, name: D.u[id].name || id, lev: +D.u[id].lev || 1, realized: readRealized(D.u[id]) })));
     const instC = cache("inst.instrument");
     const baseInst = new Map(), baseExpC = new Map();
     const dteOf = e => {

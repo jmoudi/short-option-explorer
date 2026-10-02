@@ -48,6 +48,17 @@ the fonts in `scratch/ui/fonts` (Google Fonts requests are routed there, as in `
 | **console** | Every `console.error` / `console.warn` and every uncaught page error on either page. Any one is a failure, even if both pages log it. |
 | **run** | A scenario step that cannot be performed (missing element, timeout) on either page, or a different number of checkpoints. |
 
+## Masks and B-only scenarios (v10 part 2b)
+
+- `--mask SELECTORS` (repeatable; each a CSS selector list): the matching elements are hidden (`visibility: hidden`,
+  layout kept) in every screenshot on both pages, and removed from the DOM comparison and from the form values. Use
+  it to isolate an intended change and prove that nothing else moved, e.g.
+  `--mask '.s9l3' --mask '#s9-rmenu'` for the summary's period-vol reading and the odds menu.
+- A scenario with `bOnly: true` runs page B alone (a feature page A does not have). Its checkpoints are written as
+  PNGs (tiles stacked) to `OUT/bonly/<scenario>__<combo>__<nn>_<label>.png`; its differences are console messages,
+  run failures and failed expectations (`d.expect(description, fnInPage, arg)`: the function must return `true`;
+  anything else is reported with the description). The summary table marks them `[B only]`.
+
 ## Scenarios
 
 `scenarios.js`, 52 scenarios (`node pixdiff.js --list`), each a list of DOM steps with checkpoints:
@@ -56,7 +67,7 @@ detach; relink all; wings on/off and values; real mouse drags of the put & call,
 sliders with a checkpoint mid-drag while the button is held and one after release; the ✎ spot/IV override popover
 with spot and IV-shift inputs and reset; instrument and expiry selects; the expiry-map popover; hide/show;
 "Legs in detail"; pair sizing select through every rule and the custom h input, valid and invalid); the fixed summary
-(move unit σ/%/price; range inputs valid and invalid; symmetric checkbox; reading units; odds seg; HV30 slider drag;
+(move unit σ/%/price; range inputs valid and invalid; symmetric checkbox; reading units; odds seg there and back (v10 part 2b removed the HV30 multiplier slider);
 pills: open in the dock, relink one, swap, relink all; a toast with an action button, clicked); the views (overview
 open/close, charts/table, set from a table cell; grid values, alignment, numbers view, its tabs and selects, Copy CSV;
 grid display menu: lines, contours, overlays, colour, fixed range and its input; shocks: slider drags, checkbox, clear;
@@ -177,3 +188,27 @@ Driver actions: `click`, `clickText`, `dblclick`, `select`, `check`, `fill`, `pr
   link (another family or weight) shows only through the faces of `scratch/ui/fonts/plex.css`.
 - The random long session picks among elements visible at each step; when B diverges from A the two sessions can
   pick different elements after the divergence (the divergence itself is reported at the next checkpoint).
+
+## The Compounding tab on the period vol (v10 part 2c)
+
+B-only scenarios `yr-pv-shared` (the moves field writes the shared vol, the comparer reads it and writes it back, the
+0–300 menu slider, "exactly on the path" and the listed tick), `yr-pv-bdiff-swap` (B differs in vol: the override
+belongs to a run and a swap flips it) and `yr-pv-mc-stale` (a comparer vol change marks Random years stale). The map
+rebuilds v9's `yr.sc.rv` / `rvB` from the period vol and `yr.sc.volOverride` (see `maps/v10_to_v9.js`).
+
+## Comparing pages that write different code formats (`--map-b`)
+
+
+From v10 step 2a on, the candidate writes `#v10.` codes and the `rk-lab-v10` blob while the frozen references write
+`#v9.` and `rk-lab-v9`. `--map-b FILE` loads a node module that exports one function, `(stateB) -> stateB'`, applied
+to page B's state channel at every checkpoint before it is compared with page A's: `maps/v10_to_v9.js` decodes B's
+codes in node and re-encodes them as v9 would have written them (the address, `#vcode` and its form entry, codes
+inside clipboard texts such as the export's "View code" line) and turns the stored blob into the v9 blob under the v9
+key. A `rk-lab-v9` key written by B is kept apart (reported as a difference); a map that throws is a difference too.
+With `--map-b` the `#vcode` field's text is transparent on both pages (an injected style), since its pixels cannot
+match across formats; its value is compared through the map. The prepared codes still come from page A (v9), so the
+address and "load a code" scenarios also exercise B's v9 migration.
+
+```sh
+node pixdiff.js --a step1.html --map-b maps/v10_to_v9.js --out out_2a   # v10 step 2a exit criterion: 0 differences
+```

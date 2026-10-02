@@ -90,8 +90,8 @@ test("T4: every cache misses after a spot override (instrumented counters)", () 
   const warm = INST.cacheStats();
   for (const k of ["pos.build", "dist.make", "pos.stats"]) assert.equal(warm[k].misses, 0, `${k} warm`);
   INST.cacheReset();
-  const r = STATE.cmpOp(S0, "setB", "inst.spot", INST.base(S0.cmp.B.inst.id).spot * 1.0973);
-  const C = CTX.ctx9(r.S9);
+  const r = STATE.cmpOp(S0, "setB", "inst.spot", INST.base(S0.comparison.B.inst.id).spot * 1.0973);
+  const C = CTX.ctx9(r.state);
   const st2 = INST.cacheStats();
   for (const k of ["inst.instrument", "pos.build", "pos.price", "dist.make", "pos.stats"]) assert.ok(st2[k].misses > 0, `${k} misses after override`);
   assert.ok(C.B.inst.overridden && C.B.flags.some(f => f.code === "MODEL_QUOTES"));
@@ -144,10 +144,10 @@ test("T4: overrides never mutate D (unfrozen copy, byte-identical after override
     const I = S.INST.make(sd);
     for (const e of I.expiries) {
       const b = S.POS.build({ inst: sd, exp: e, structure: "strangle", legs: "together", basis: "delta", values: { center: "atm", put: 25, call: 25 }, wings: { call: { on: true, value: 10 }, put: { on: true, value: 10 } }, fill: "nat" });
-      if (!b.na) { S.POS.stats(b, S.DIST.make(b.E, b.S, "rn", I.hv, 1)); S.POS.val(b, b.S * 1.1, b.T / 2); }
+      if (!b.na) { S.POS.stats(b, S.DIST.make({ expiry: b.E, odds: S.Odds.Implied })); S.POS.val(b, b.S * 1.1, b.T / 2); }
     }
   }
-  S.CTX.ctx9(S.STATE.cmpOp(S.STATE.defaults(), "setB", "inst.spot", 25).S9);
+  S.CTX.ctx9(S.STATE.cmpOp(S.STATE.defaults(), "setB", "inst.spot", 25).state);
   assert.equal(JSON.stringify(D), before);
   assert.ok(!Object.values(D.u).some(U => Object.values(U.exps).some(E => "_w" in E)), "no _w written onto the data");
 });

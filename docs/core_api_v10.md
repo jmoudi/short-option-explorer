@@ -7,12 +7,188 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 
 ---
 
+## v10 part 2 fix round 1 (read first; it amends 2a–2c below)
+
+- **One reader, one reference list (ctx.js).** `CTX.readTickerVol({periodVol, id, reader = Tab.Compare})` (was
+  `readComparerVol`) is the only reader of `state.periodVol`: `{pct, source, expiry, storedPct, label}`, pct at least
+  the reader's floor (`PERIOD_VOL_CONFIG.floor[reader]`). The comparer's `C.volOf(id)` and the Compounding port's
+  `read(ticker)` (reader Compounding, floor 0) both call it. A stored value below the comparer's floor labels itself:
+  "vol 1% (set 0%, floored)" (`labelPeriodVol` reads `storedPct`); the box's note and the summary tip explain it.
+  `CTX.listPeriodVolRefs({id, comparison})` / `C.periodVolRefs(id)` → `[{source, label, short, pct, expiry?}]`: the
+  listed vol, ATM at A's horizon read on the listed instrument (`INST.base`: a slot's IV shift is a pricing override,
+  not an odds assumption), then data.json's realized vols. The comparer's presets and ticks and the Compounding moves
+  menu (through `port.periodVol.refs(ticker)`) are built from it, so the two tabs list the same references; the
+  Compounding menu redraws when the list changes (ATM follows A's horizon).
+- **Shared constants (core.js).** `PERIOD_VOL_CONFIG = {range: [0, 300], floor: {compare: 1, yr: 0}, decimals: 2}`
+  (state.js, ctx.js, ui_dock.js and yr_ui.js read it; no module restates it). `RunSlot {A, B}` and
+  `RunDiff {Strategy, ..., Vol, Any}` (the Compounding tab's `bDiff` values) are read by yr_ui.js, state.js and the
+  export. Assumption enums `MoveUnit`, `WorstLossRange`, `Align`, `ReadingUnit` (pct / usd / cr; "margin" arrives with
+  §3) and `GrowthRate` (rdG) name the stored values; `STATE` builds its defaults and validators from them. The rest of
+  §8.1's enums (placement, views, recovery) come with step 3's signatures. `STATE.migrate`'s `src` tags derive from
+  `ViewCodeVersion`.
+- **ATM entries.** `SetPeriodVol` with source Atm needs `expiry`, a listed expiry (YYYYMMDD, one some instrument lists:
+  B's box reads ATM at A's horizon), else `bad_command`. A stored Atm entry whose expiry is missing or not listed loads
+  as Set (the number stays). The box lights the ATM preset only when the stored expiry is A's current one; otherwise
+  the preset shows ATM at A's new horizon, unlit, and a click re-reads it.
+- **Summary line 3** (ten fit levels, `L3N`): 0 full; 1 flags folded; 2 σ suffix without the year; 3 forward note
+  without spot; 4 the vol reading compact ("vol 117% (HV30) vs IV 124%"); 5–7 one, two, three secondary readings
+  fewer; 8 no days; 9 "N flags". The days outlast the secondary readings (they appear nowhere else on the summary).
+  Overflow is measured on the text itself (a Range against the content box, tolerance 0.01 px), because scrollWidth
+  rounds and missed a 0.06 px overflow Chromium drew as an ellipsis. The vol reading is `role="button" tabindex="0"`
+  (Enter / Space open the side's box).
+- **Dock.** The instrument button reads "IV/vol ▾" (✎ on ▾ when overridden), leaving the 122 px B cell about 18 px
+  of slack with Plex and 14 px with fallback fonts (the 2b label "spot/IV/vol" filled the cell exactly and lost the
+  button under fallback fonts). Its title and the box heading carry the full name, "spot / IV / period vol · TICKER".
+  The box's reference list breaks only between references; a tick whose label has no room keeps a bare mark
+  (`keepMarks`), named by the list.
+- **Compounding.** A run's own moves (B differs in vol) outside 0–300 are applied at the end with a toast in the
+  period vol's words ("B's own KORU moves capped at 300% (asked 400%)"). A swap flips `volOverride.run` only in vol
+  mode, together with the pricing IV (fix round 2: a run's two own vols never split; outside vol mode both stay
+  dormant with their slot, as in v9). `mcKey()`
+  and the sweep key hold each run's vol path (`readRunVolPath`: the flat vols on the IV path), so an IV-path change
+  marks a Random years run stale (v9 missed this).
+- **DIST.** A period-vol distribution builds its grid (`u`, `cdf`) on the first read of either (pair odds only); the
+  closed-form readers never build it. Implied distributions build theirs at once, as before.
+- **Export.** The recovery growth row names compact odds ("EV at period vol on margin" when the tickers differ; the
+  Assumptions table lists each vol); the notes' odds line lists "KORU 140%, RAM 102%" without nested parentheses.
+
+## v10 part 2c: the Compounding tab on the period vol (read with 2b)
+
+- **Port:** `YR.init({ port: { saveView, showNotice, periodVol: { read(ticker), write({ticker, pct, source?, expiry?}) } } })`,
+  built by app.js `createCompoundingPort()`. `read` returns the stored period vol (else the listed vol) in %, unfloored:
+  the Compounding tab's 0 means "exactly on the path", where the comparer's `C.volOf` reads its 1% floor. `write` runs
+  `SetPeriodVol {ticker, source: source || Set, pct, reader: Compounding}` through `page.executor` and returns its Result
+  (floor 0, cap 300 with the 2b toast; the listed tick passes `source: Hv30`, which removes the entry; the ATM tick passes
+  `source: Atm`, the reference's unrounded pct and the `expiry` it was read at, as the comparer's ATM preset does). The tab stays off
+  the bus: a frame whose causes are all `SetPeriodVol` while the Compounding tab shows persists without a render
+  (`PAGE_CONFIG.selfRenderedCauses`); the tab renders itself on its own debounce, so a slider drag stays one render.
+  Before `init` the port is inert with a period vol of its own (the listed vol).
+- **State:** `ys.sc.rv` / `rvB` are gone. `ys.sc.volOverride = { run: "A" | "B", [ticker]: pct }` (default `{run: "B"}`):
+  the run slot it names reads its own moves only while B differs in vol (a ticker without a value reads the shared
+  vol); every other run reads the shared vol. A swap in vol mode swaps the pricing IV (`iv` ↔ `ivB`, tab-local as
+  before) and flips `run`, so the shared number never changes and each run keeps its vol. `getState` carries no rv;
+  `setState` drops any rv / rvB left (the page's view readers migrate them first, see Migration) and sanitizes the
+  override. `readRunVol({run, slot})` → `{iv, rv}` (fractions) is the one reader; `RES.A.vol` / `RES.B.vol` carry it for
+  the export. Under an IV path with "keep the gap" the moves follow from the shared starting value.
+- **Staleness:** `runFor({run, slot, extra})`'s memo key, the leverage sweep's key and `mcKey()` hold the vols the runs
+  read, so a vol changed on the comparer recomputes on the tab's next render (ShowTab) and marks a Random years run
+  stale ("inputs changed: run again"); back to the old value, it is current again. Stress and Random years read the
+  run's vol (its override while B differs in vol).
+- **Controls:** the moves fields and the menu slider span 0–300 (`PERIOD_VOL_CONFIG.range`; the pricing IV keeps 40–250);
+  the reference ticks are the page's reference list (`port.periodVol.refs`: listed, ATM at A's horizon, realized) plus
+  "exactly on the path 0". The field's title and the menu label say whether it edits the shared period vol or a run's own moves.
+- **Migration** (`STATE.migrate`, every version; `migrateLegacyVols`, last step `adoptLegacyVols`): per ticker, (1) a
+  period vol the view already has is kept; (2) else the Compounding `rv` when it differs from the listed vol rounded
+  as that tab rounded it → Set, note "KORU period vol set to 150%: the loaded view's Compounding tab moved KORU at 150%
+  (HV30 117%)"; (3) else listed × hvk when hvk ≠ 1 (2b's note); one note per ticker. The returned `yr` loses rv / rvB;
+  `rvB` values that differ from `rv` become `volOverride = {run: "B", ...}`. A `yr` without those fields is returned as is.
+- **Export:** the Compounding "Base" table reads the moves from `RES.X.vol`, with a line saying they are the period vol.
+- **Harness:** `maps/v10_to_v9.js` rebuilds v9's `sc.rv` / `sc.rvB` (key order kept) from the period vol and the
+  override, folding integer "set" entries into rv. B-only scenarios `yr-pv-shared`, `yr-pv-bdiff-swap`, `yr-pv-mc-stale`.
+  Tests: T25. Full run against step1.html with 2b's masks: 72 of 248 jobs differ = 2b's 28 (unchanged, row for row) +
+  44 on checkpoints that show the Compounding tab, all from the engine now moving at the listed vol unrounded (KORU
+  117.32% where the tab used 117) plus the vol group's attributes. A build whose port read rounds the value, run with
+  `#y-vol` also masked, gives exactly 2b's 28 differences and 0 on every Compounding checkpoint (state channel included).
+
+
+## v10 part 2b: the period vol (read with 2a and step 1; it supersedes the DIST / hvk / HV lines below)
+
+
+- **State:** `state.periodVol = { [ticker]: { pct, source, expiry? } }`, pct in % (stored 0–300, two decimals);
+  absent = the listed 30-day historical vol. `VolSource` (core.js) = `{ Hv30: "hv30", Atm: "atm", Set: "set" }`; only
+  an Atm entry keeps its `expiry` (the A expiry it was read at). The source is stored, never inferred from the value
+  (a hand-set 117.32 stays Set). `assumptions.hvk` is gone; `assumptions.dist` keeps "rn" / "hv" under
+  `Odds = { Implied: "rn", PeriodVol: "hv" }` (core.js).
+- **One accessor, one label (core.js):** `readPeriodVol({entry, record})` → `{pct, source, expiry}` (the stored entry,
+  else the record's listed vol; the only `.hv` read outside inst.js), `nameVolSource({source, expiry})` → the listed
+  vol's name / "set" / "ATM 16 Oct" (the only place that name is spelled), `labelPeriodVol(vol)` → "vol 117% (…)",
+  "vol 100% (set)", "vol 124% (ATM 16 Oct)". Build rule and t01 check both.
+- **Context:** `C.volOf(id)` → `{pct, source, expiry, label}` (floored at the comparer's 1%: a 0 set by the Compounding
+  tab reads as 1 here), `C.statsAtPeriodVol(b)` (was statsHV; every EV reading), `C.distOf(b, odds?)` / `C.stats(b, odds?)`
+  (default: the odds switch), `C.volOddsText(ids?, isCompact?)` → "at 117% vol" | "at period vol (RAM 102%, KORU 117%)"
+  (compact: "at period vol"), `C.oddsText()` → "implied" | the vol text. `CTX.readTickerVol` (was readComparerVol), `CTX.describeVolOdds`.
+- **DIST.make({expiry, odds, vol})** (vol a fraction; no spot argument: the expiry carries it; no hvk). Implied: as
+  before, key `version|exp|rn` (a vol edit never rebuilds it). Period vol: grid ±7·max(ATM, vol)·√T, `cdfT` / `cdfK` /
+  `cdfAt` / `quantAt` closed form (`DIST.lognormalCdf({x, vol, t})`), key `version|exp|hv|vol`; the record carries
+  `mode` (the odds value) and `vol` (was `hs`; NaN under implied). `DIST.CONFIG` (grid points, ±7σ, σ√T floor, vol floor).
+- **Command.SetPeriodVol** `{ticker, source, pct?, expiry?, reader?}`: Hv30 removes the entry; Set / Atm store pct
+  (and Atm its expiry). `reader` (Tab, default Compare) picks the floor: the comparer 1%, Compounding 0; above 300 or
+  below the floor the value is applied at the end with a `value_clamped` warning fault and a plain toast
+  ("KORU period vol floored at 1% (asked 0.4%)"). An unknown ticker / source, a missing or non-numeric pct, or an
+  unknown reader is a `bad_command` and leaves the state. `STATE.CONFIG` exposes the floors and the range.
+- **Readers.** Always the period vol: the overview's EV column ("EV at period vol", ⓘ with each ticker's label), the
+  sweep's EV line, the recovery panel's EV growth ("EV at 117% vol on margin"), the export's EV lines. The odds switch
+  ("Odds: implied | period vol", summary ▾) governs profit odds, the odds strips, the grid's column odds and the
+  comparison table's EV row (implied: "implied odds: fill vs mid, 0 at mid"; period vol: "at 117% vol"). σ stays
+  implied everywhere; the axis ⓘ prints both ("… (implied 124%); at 117% vol, beyond 1σ: x% up, y% down; beyond kσ: …",
+  k = the recovery hit's kσ, else 2). Not readers: leg prices and IVs, the smile (inst.js's flat fallback stays on the
+  listed vol), marks before expiry.
+- **UI.** Summary line 3 (12px) carries "vol 117% (HV30) vs implied 124%" right after the active basis on every fit
+  level (a hand-set vol gets ✎; a click opens the side's box in Positions); the summary's height is unchanged. The
+  dock's instrument button reads "spot/IV/vol" (fix round 1: "IV/vol ▾"); its box gains "Period vol · TICKER ⓘ" with presets (listed vol, ATM at
+  A's horizon, custom), a number box and a 1–300 slider with reference ticks (listed, ATM, and the data's realized
+  vols) listed under it. The reference realized vols live in data.json (`u[ticker].realized: [{label, short, vol}]`,
+  read by `INST.list()[i].realized` as `{label, short, pct}` and by the Compounding tab's REF ticks).
+- **Migration:** a v9 / v8 view (code or blob) or a pre-2b v10 document whose `hvk` ≠ 1 sets each ticker without a
+  period vol to listed × hvk, source Set, one note per ticker ("KORU period vol set to 141%: the loaded view scaled …
+  117% by 1.20"). Part 2c adds the Compounding tab's own vol to this precedence.
+- **Resets:** a one-tab reset keeps the period vol and its toast ends "; period vol kept" (only when one is set);
+  "Reset both tabs" clears it.
+- **Harness:** `pixdiff.js --mask SELECTORS` (repeatable: blank in every screenshot on both pages, removed from the DOM
+  and form comparison) and B-only scenarios (`bOnly: true`: page B alone, PNGs in OUT/bonly, console, run failures and
+  `d.expect(desc, fn, arg)` expectations). The map puts v9's `scen.hvk: 1` back after `dist`. The `pv-*` scenarios
+  cover the box, a shared ticker, the odds switch, the hand-set summary line, reload, a v9 code with hvk 1.2, resets.
+
+---
+
+## v10 step 2a: the one state tree, "#v10." codes, "rk-lab-v10" (read with step 1; it supersedes the S9 shapes below)
+
+- **The tree** (the store holds it plus `tab`; the stored values and the short field names inside each part are v9's):
+  ```js
+  { comparison,          // was S9.cmp: {A, B, links, expMap, sizing}
+    assumptions,         // was S9.scen: {unit, rlo, rhi, rlink, wl, wlo, whi, dist, hvk, ivs, svs, svd, align}
+    prefs,               // was S9.view: {units, ovm, ..., pins, dock, theme, rd*, exportSections}
+    periodVol: {} }      // {[instrument id]: {pct, source, expiry?}}; empty until step 2b gives it readers and commands
+  prefs.exportSections = { [Tab]: { [ExportSection]: boolean } }   // a tab's entry exists once the reader chose; absent
+                                                                    // = STATE.EXPORT_SECTION_DEFAULTS; key order = first choice
+  ```
+  The section choice lived in the Compounding state (`ys.view.exportCmp / exportYr`) in v9; it is now a pref, changed by
+  `Command.SetExportSection {tab, section, isOn}` (the tab's whole section map becomes explicit, in document order). Its
+  frame saves without rendering (`PAGE_CONFIG.saveOnlyCauses`), as v9's save did. Every reset keeps the theme and the
+  export sections; a Compare reset keeps `periodVol`, "Reset both tabs" clears it. Deliberate differences from v9 (not
+  reached by the regression scenarios): v9's Compounding reset and a loaded code without a choice dropped the choice
+  from the saved view while the Sections menu kept showing it (an in-session copy); v10 keeps it on every reset, and a
+  loaded view brings its own choice (defaults when it has none), so the menu and the saved view always agree.
+- **STATE (renamed with the tree):** `defaults()`, `sanitizeTree(o)` (was sanitize9), `sanitizeAssumptions`, `sanitizePrefs`,
+  `sanitizePeriodVol`, `ASSUMPTIONS_DEF` / `PREFS_DEF` (were SCEN_DEF / VIEW_DEF), `EXPORT_SECTION_DEFAULTS`,
+  `pickExportSections({tab, chosen})`, `readExportSections({prefs, tab})`. `change`, `cmpOp`, `applyAction`, `swap`,
+  `normalise` return `{state: tree, events}` (was `{S9, events}`); `convertToOutcome({state, result})` turns that into a
+  handler outcome (the views' PlaceLeg uses it). `migrate(code | blob)` → `{state, events, tab, theme, yr, src}`.
+- **The render context:** `C.state` (was C.S9), `C.comparison`, `C.assumptions`, `C.prefs` (were C.cmp, C.scen, C.view).
+- **View documents.** The page writes only version 10:
+  ```js
+  STATE.writeViewCode({ state, yr })   -> "v10." + base64url(JSON {tab, comparison, assumptions, prefs, periodVol, yr})
+  STATE.writeStoredView({ state, yr }) -> { v: 10, tab, comparison, assumptions, prefs, periodVol, yr }   // localStorage "rk-lab-v10"
+  ```
+  The theme is `prefs.theme` (v9 also carried it as `th`). `readViewCode` / `readStoredView` read v10 as is and v9, v8, v5
+  through migration (`ViewCodeVersion` = 10, 9, 8, 5). A v9 code or blob gives the same tree content with no note:
+  `{cmp, scen, view}` become `{comparison, assumptions, prefs}`, `yr.view.exportCmp / exportYr` move into
+  `prefs.exportSections` and leave the returned `yr`.
+- **Storage** (`app_store.js`, `STORAGE_KEY`): boot reads `rk-lab-v10`; with no v10 blob, `rk-lab-v9` (read, never written
+  or removed); then `rk-lab-v8` / `rk-lab-v5` as before. The page writes `rk-lab-v10` only (test T23 drives the built page).
+- **Regression harness:** `pixdiff.js --map-b FILE` maps page B's state channel into page A's format before comparing
+  (`scratch/reg/maps/v10_to_v9.js`: the address, `#vcode`, codes in clipboard texts, the stored blob) and masks the
+  `#vcode` text on both pages. Exit criterion of this step: `--a scratch/reg/step1.html --map-b scratch/reg/maps/v10_to_v9.js`,
+  full run, 0 differences.
+
+---
+
 ## v10 step 1: the event loop (read this first; the sections below keep their v9 names)
 
 - **Bundle order:** core.js, adapters.js, then the v9 order (app_store, eng_head, the model files, ui_common, ui_summary, ui_dock, ui_views, ui_export, the yr files, app).
 - **core.js** (model layer, no DOM): the enums (`Command`, `EnvelopeType`, `FaultCode`, `FaultSeverity`, `FaultHandling`, `Tab`, `Theme`, `NoticeStyle`, `FrameCause`, `ViewCodeError`, `ViewCodeVersion` (the one list of readable code versions), `ActionStep` (the steps of a toast action), `CoreErrorCode` (what the core throws at a caller that broke its contract), `ResetTarget`) and the lists `TABS`, `THEMES`, `Result.ok/err`, `createFault` (an optional `cause`, the caught error, rides along non-enumerable), `createNoticeEnvelope`, `createFaultEnvelope`, the listed-vol accessor `readListedVol(record)` and label `labelListedVol()` (build rule: no `.hv` read outside inst.js and the accessor, no "HV30" outside the label), and the classes `Registry`, `Bus`, `Store`, `CommandExecutor`, `FrameLoop`.
 - **adapters.js:** `storage.read/write/remove`, `clipboard.writeText`, `download.saveTextFile`, `calendar` (today, day formats, day arithmetic). Results, never throws.
-- **Changes are commands** `{type: Command.X, ...fields, source}`, plain data (`isCommand` refuses a function anywhere), run by `page.executor.execute(command)` → `Result<{state, notices, faults, rendered}>`. `rendered`: the command's frame was delivered before `execute()` returned (ShowTab from a DOM event); run from inside a bus listener, a ShowTab frame is queued behind the envelope being delivered and `rendered` is false (app.js `showTab` then restores the scroll on that `state.changed`). Handlers: `STATE.registerCommandHandlers(registry)` (all but `PlaceLeg`, which `VIEWS.registerCommandHandlers` adds; `SetPeriodVol` has none before step 2). The store's tree is S9 plus `tab`; `STATE.pickComparer(state)` gives S9 for codes and blobs.
+- **Changes are commands** `{type: Command.X, ...fields, source}`, plain data (`isCommand` refuses a function anywhere), run by `page.executor.execute(command)` → `Result<{state, notices, faults, rendered}>`. `rendered`: the command's frame was delivered before `execute()` returned (ShowTab from a DOM event); run from inside a bus listener, a ShowTab frame is queued behind the envelope being delivered and `rendered` is false (app.js `showTab` then restores the scroll on that `state.changed`). Handlers: `STATE.registerCommandHandlers(registry)` (all but `PlaceLeg`, which `VIEWS.registerCommandHandlers` adds; `SetPeriodVol` has none before step 2b). The store's tree is the step-2a tree plus `tab` (step 1: S9 plus `tab`).
 - **Toasts** are `notice` envelopes; event actions are data (`{label, steps: [[ActionStep.X, ...args]], quiet}`, made by `CMP.createAction`, run by `CMP.runAction`) and ride in notices as `ApplyAction` commands (`STATE.convertEventToNotice`).
 - **Commands that cannot apply** (an unknown tab or reset target, a pin index outside the list, a pin the sanitizer would drop) leave the state as it was and carry one `bad_command` warning fault; a patch with a key outside its allow-list is `patch_rejected`.
 - **Frames:** `page.frames.mark({cause, notices?, faults?})` asks for a frame; one `state.changed` per frame feeds the binders' sync functions (the summary's range row and the dock's sizing select hand theirs to their module, `syncList`, which runs them where v9's REG lists ran: inside `SUM9.render` / `DOCK9.render`, so a render step that throws leaves its controls and, for the summary, the title as they were), the ordered render (`renderActiveTab`) and the persistence (`saveView({state: frame.state})`; `saveView()` without a frame saves the store's state). A frame carries only the notices and faults of the commands it renders. A failing context builder gives one `context_failed` fault and a frame with `context: null`: the tabs, the theme and `dock-off` follow, the Compare panels, the binder syncs and the save skip it (as v9 did).

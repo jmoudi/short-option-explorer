@@ -7,7 +7,7 @@ const { load, deepFreeze, V9 } = require("./load.js");
 const L = load();
 vm.runInContext(fs.readFileSync(path.join(V9, "ui_views.js"), "utf8") + "\n;globalThis.__v = {VIEWS};", L.ctx, { filename: "ui_views.js" });
 const { VIEWS } = L.ctx.__v;
-const { STATE, CTX, CMP, Command, EnvelopeType, FaultCode, FaultHandling, NoticeStyle, Tab, Theme, ResetTarget, ViewCodeError, ViewCodeVersion, ActionStep, CoreErrorCode, CORE_CONFIG,
+const { STATE, CTX, CMP, Command, EnvelopeType, FaultCode, FaultHandling, NoticeStyle, Tab, Theme, ResetTarget, ViewCodeError, ViewCodeVersion, ExportSection, ActionStep, CoreErrorCode, CORE_CONFIG,
   Result, createFault, isCommand, Registry, Bus, Store, CommandExecutor, FrameLoop } = L;
 const J = o => JSON.parse(JSON.stringify(o));
 // values from the vm realm compare by value (their prototypes are the vm's)
@@ -32,6 +32,11 @@ function manualFrames() {
 // every bus needs a clock (the page passes calendar.nowMs)
 const newBus = (extra = {}) => new Bus({ now: () => 0, ...extra });
 const baseState = () => Object.assign(STATE.defaults(), { tab: Tab.Compare });
+// the tree without the visible tab (what readViewCode returns as state)
+const withoutTab = state => { const { tab, ...tree } = state; return tree; };
+// v9's comparer state S9 = {cmp, scen, view} from a v10 state, and the v9 code and blob around it (migration inputs)
+const toS9 = state => { const view = Object.assign({}, state.prefs); delete view.exportSections; return { cmp: state.comparison, scen: state.assumptions, view }; };
+const writeV9Code = ({ state, tab, theme, yr }) => "v9." + STATE.enc({ t: tab, th: theme, c: toS9(state), y: yr });
 function handlers() { return VIEWS.registerCommandHandlers(STATE.registerCommandHandlers(new Registry({ name: "test handlers" }))); }
 function loop(state, extra = {}) {
   const bus = new Bus({ now: () => 1 }), store = new Store({ state }), frames = manualFrames();
@@ -165,7 +170,7 @@ test("T21 commands are plain data: isCommand refuses a function anywhere; the ex
 test("T21 executor: an unknown command -> Result err + one fault; nothing written, no frame", () => {
   const { bus, store, frames, executor } = loop(baseState());
   const faults = record(bus, EnvelopeType.Fault), notices = record(bus, EnvelopeType.Notice);
-  for (const cmd of [{ type: "no.such" }, null, { type: Command.SetPeriodVol, ticker: "KORU", pct: 100 }]) {
+  for (const cmd of [{ type: "no.such" }, null, { type: "periodVol.unknown", ticker: "KORU", pct: 100 }]) {
     const r = executor.execute(cmd);
     assert.equal(r.ok, false); assert.equal(r.error.code, FaultCode.UnknownCommand);
   }
@@ -194,7 +199,7 @@ test("T21 executor: one store write per command, its notices once each in one ba
   // B's own put unlinks placement: one notice with a relink action
   const r = executor.execute({ type: Command.SetB, path: "values.put", value: 20, source: "test" });
   assert.equal(r.ok, true); assert.equal(store.writeCount, 1);
-  assert.equal(store.read().cmp.links.placement, false); assert.equal(store.read().tab, Tab.Compare);
+  assert.equal(store.read().comparison.links.placement, false); assert.equal(store.read().tab, Tab.Compare);
   assert.equal(notices.length, r.value.notices.length); assert.ok(notices.length >= 1);
   assert.ok(notices.every(n => n.batch === notices[0].batch && n.batch.startsWith(Command.SetB)));
   assert.equal(frames.pending, 1); assert.equal(changed.length, 0, "the render waits for the frame");
@@ -212,7 +217,7 @@ test("T21 executor: a command run by a notice listener is applied once and liste
   let runs = 0;
   bus.subscribe(EnvelopeType.Notice, () => { runs += 1; if (runs === 1) executor.execute({ type: Command.SetPref, patch: { units: "usd" } }); });
   executor.execute({ type: Command.Reset, resetTarget: ResetTarget.Compare });
-  assert.equal(store.writeCount, 2); assert.equal(store.read().view.units, "usd");
+  assert.equal(store.writeCount, 2); assert.equal(store.read().prefs.units, "usd");
   frames.runAll();
   assert.equal(changed.length, 1); same(changed[0].causes, [Command.Reset, Command.SetPref]);
 });
@@ -234,9 +239,9 @@ test("T21 executor + frames: a slider drag is one command per input event and on
   const { bus, store, frames, executor } = loop(baseState());
   const changed = record(bus, EnvelopeType.StateChanged);
   for (const v of [1, 2, 3, 4, 5]) executor.execute({ type: Command.SetAssumption, patch: { ivs: v }, source: "#c-ivs" });
-  assert.equal(store.writeCount, 5); assert.equal(store.read().scen.ivs, 5);
+  assert.equal(store.writeCount, 5); assert.equal(store.read().assumptions.ivs, 5);
   frames.runAll();
-  assert.equal(changed.length, 1); assert.equal(changed[0].causes.length, 5); assert.equal(changed[0].state.scen.ivs, 5);
+  assert.equal(changed.length, 1); assert.equal(changed[0].causes.length, 5); assert.equal(changed[0].state.assumptions.ivs, 5);
 });
 
 test("T21 executor: ShowTab run inside a state.changed listener renders right after that delivery (rendered: false)", () => {
@@ -333,57 +338,59 @@ function runHandler(state, command) {
   return out;
 }
 
-test("T21 handlers: every Command has one, except SetPeriodVol (v10 step 2)", () => {
+test("T21 handlers: every Command has one (SetPeriodVol since v10 part 2b)", () => {
   const missing = Object.values(Command).filter(t => !ALL.has(t));
-  same(missing, [Command.SetPeriodVol]);
-  assert.equal(ALL.listKeys().length, Object.keys(Command).length - 1);
+  same(missing, []);
+  assert.equal(ALL.listKeys().length, Object.keys(Command).length);
 });
 
 test("T21 handlers: SetA / SetB / Link / Unlink / RelinkAll / Detach / Swap", () => {
   const S = baseState();
   let o = runHandler(S, { type: Command.SetA, path: "values.put", value: 20 });
-  assert.equal(o.state.cmp.A.values.put, 20); assert.equal(o.state.tab, Tab.Compare); same(Object.keys(o.state), ["cmp", "scen", "view", "tab"]);
+  assert.equal(o.state.comparison.A.values.put, 20); assert.equal(o.state.tab, Tab.Compare); same(Object.keys(o.state), ["comparison", "assumptions", "prefs", "periodVol", "tab"]);
   o = runHandler(S, { type: Command.SetB, path: "values.put", value: 20 });
-  assert.equal(o.state.cmp.links.placement, false); assert.equal(CMP.resolveB(o.state.cmp).values.put, 20);
+  assert.equal(o.state.comparison.links.placement, false); assert.equal(CMP.resolveB(o.state.comparison).values.put, 20);
   const relink = o.notices.flatMap(n => n.actions).find(a => /relink/.test(a.label));
   assert.ok(relink && relink.type === Command.ApplyAction && relink.steps.length);
   const back = runHandler(o.state, relink);
-  assert.equal(back.state.cmp.links.placement, true);
+  assert.equal(back.state.comparison.links.placement, true);
   const un = runHandler(S, { type: Command.Unlink, aspect: "fill" });
-  assert.equal(un.state.cmp.links.fill, false);
+  assert.equal(un.state.comparison.links.fill, false);
   const li = runHandler(un.state, { type: Command.Link, aspect: "fill" });
-  assert.equal(li.state.cmp.links.fill, true); assert.ok(li.notices.some(n => /follows A/.test(n.text)));
+  assert.equal(li.state.comparison.links.fill, true); assert.ok(li.notices.some(n => /follows A/.test(n.text)));
   const all = runHandler(un.state, { type: Command.RelinkAll });
-  assert.equal(Object.entries(all.state.cmp.links).filter(([a, v]) => a !== "inst" && !v).length, 0);
+  assert.equal(Object.entries(all.state.comparison.links).filter(([a, v]) => a !== "inst" && !v).length, 0);
   const st = runHandler(S, { type: Command.SetA, path: "structure", value: "straddle" }).state;
   const de = runHandler(st, { type: Command.Detach, side: "A" });
-  assert.equal(de.state.cmp.A.structure, "strangle"); assert.equal(de.state.cmp.A.legs, "detached");
+  assert.equal(de.state.comparison.A.structure, "strangle"); assert.equal(de.state.comparison.A.legs, "detached");
   const sw = runHandler(S, { type: Command.Swap });
-  assert.equal(sw.state.cmp.A.inst.id, CMP.resolveB(S.cmp).inst.id); assert.equal(sw.state.tab, Tab.Compare);
+  assert.equal(sw.state.comparison.A.inst.id, CMP.resolveB(S.comparison).inst.id); assert.equal(sw.state.tab, Tab.Compare);
 });
 
 test("T21 handlers: SetFrom (lead note first), ApplyFix, ApplyAction quiet undo", () => {
-  const S = baseState(), bId = CMP.resolveB(S.cmp).inst.id;
+  const S = baseState(), bId = CMP.resolveB(S.comparison).inst.id;
   const o = runHandler(S, { type: Command.SetFrom, side: "A", spec: { inst: { id: bId } }, leadNote: "A dropped its override" });
-  assert.equal(o.state.cmp.A.inst.id, bId); assert.equal(o.notices[0].text, "A dropped its override"); assert.equal(o.notices[0].style, NoticeStyle.Event);
+  assert.equal(o.state.comparison.A.inst.id, bId); assert.equal(o.notices[0].text, "A dropped its override"); assert.equal(o.notices[0].style, NoticeStyle.Event);
   const fx = runHandler(S, { type: Command.ApplyFix, fix: { side: "A", path: "fill", value: "nat" } });
-  assert.equal(fx.state.cmp.A.fill, "nat");
+  assert.equal(fx.state.comparison.A.fill, "nat");
   // relinking two aspects offers a quiet undo that unlinks both again
   const two = runHandler(runHandler(S, { type: Command.Unlink, aspect: "fill" }).state, { type: Command.Unlink, aspect: "exp" }).state;
   const re = runHandler(two, { type: Command.RelinkAll });
   const undo = re.notices.flatMap(n => n.actions).find(a => a.label === "undo");
   assert.ok(undo && undo.quiet === true);
   const u = runHandler(re.state, undo);
-  assert.equal(u.state.cmp.links.fill, false); assert.equal(u.state.cmp.links.exp, false); assert.equal(u.notices.length, 0);
+  assert.equal(u.state.comparison.links.fill, false); assert.equal(u.state.comparison.links.exp, false); assert.equal(u.notices.length, 0);
 });
 
 test("T21 handlers: SetSizing / SetExpiryMap / SetAssumption / SetPref validate their patch keys", () => {
   const S = baseState();
-  assert.equal(runHandler(S, { type: Command.SetSizing, patch: { rule: "vega" } }).state.cmp.sizing.rule, "vega");
-  assert.equal(runHandler(S, { type: Command.SetSizing, patch: { h: 2 } }).state.cmp.sizing.h, 2);
-  assert.equal(runHandler(S, { type: Command.SetExpiryMap, expMap: "same" }).state.cmp.expMap, "same");
-  assert.equal(runHandler(S, { type: Command.SetAssumption, patch: { dist: "hv", hvk: 1.2 } }).state.scen.dist, "hv");
-  assert.equal(runHandler(S, { type: Command.SetPref, patch: { units: "usd", theme: Theme.Dark } }).state.view.theme, Theme.Dark);
+  assert.equal(runHandler(S, { type: Command.SetSizing, patch: { rule: "vega" } }).state.comparison.sizing.rule, "vega");
+  assert.equal(runHandler(S, { type: Command.SetSizing, patch: { h: 2 } }).state.comparison.sizing.h, 2);
+  assert.equal(runHandler(S, { type: Command.SetExpiryMap, expMap: "same" }).state.comparison.expMap, "same");
+  assert.equal(runHandler(S, { type: Command.SetAssumption, patch: { dist: "hv" } }).state.assumptions.dist, "hv");
+  // v9's listed-vol multiplier is gone: a patch carrying it is refused whole (the period vol replaces it)
+  assert.equal(runHandler(S, { type: Command.SetAssumption, patch: { dist: "hv", hvk: 1.2 } }).faults[0].code, FaultCode.PatchRejected);
+  assert.equal(runHandler(S, { type: Command.SetPref, patch: { units: "usd", theme: Theme.Dark } }).state.prefs.theme, Theme.Dark);
   for (const [type, patch] of [[Command.SetSizing, { foo: 1 }], [Command.SetAssumption, { unit: "pct" }], [Command.SetPref, { pins: [] }], [Command.SetPref, {}], [Command.SetAssumption, null]]) {
     const frozen = deepFreeze(J(S)), o = ALL.get(type)({ state: frozen, command: { type, patch } });
     assert.equal(o.state, frozen, `${type} ${JSON.stringify(patch)} leaves the state as it was`);
@@ -394,25 +401,25 @@ test("T21 handlers: SetSizing / SetExpiryMap / SetAssumption / SetPref validate 
 test("T21 handlers: SetMoveUnit converts and turns symmetric off with its note first", () => {
   const S = baseState();
   const o = runHandler(S, { type: Command.SetMoveUnit, unit: "pct", rlo: 30, rhi: 45, wlo: 30, whi: 45 });
-  assert.equal(o.state.scen.unit, "pct"); assert.equal(o.state.scen.rlo, 30); assert.equal(o.state.scen.rhi, 45); assert.equal(o.state.scen.rlink, false);
+  assert.equal(o.state.assumptions.unit, "pct"); assert.equal(o.state.assumptions.rlo, 30); assert.equal(o.state.assumptions.rhi, 45); assert.equal(o.state.assumptions.rlink, false);
   assert.match(o.notices[0].text, /^Range converted to .* symmetric is off/);
   const sym = runHandler(S, { type: Command.SetMoveUnit, unit: "pct", rlo: 40, rhi: 40, wlo: 40, whi: 40 });
-  assert.equal(sym.state.scen.rlink, true); assert.equal(sym.notices.length, 0);
+  assert.equal(sym.state.assumptions.rlink, true); assert.equal(sym.notices.length, 0);
 });
 
 test("T21 handlers: AddPin / RemovePin / ClearPins (12 pins at most)", () => {
   let S = baseState();
   for (let i = 0; i < 14; i++) S = runHandler(S, { type: Command.AddPin, pin: { SA: 10 + i, SB: 20, dA: 1, dB: 2 } }).state;
-  assert.equal(S.view.pins.length, 12); assert.equal(S.view.pins[0].SA, 12);
+  assert.equal(S.prefs.pins.length, 12); assert.equal(S.prefs.pins[0].SA, 12);
   S = runHandler(S, { type: Command.RemovePin, index: 0 }).state;
-  assert.equal(S.view.pins.length, 11); assert.equal(S.view.pins[0].SA, 13);
+  assert.equal(S.prefs.pins.length, 11); assert.equal(S.prefs.pins[0].SA, 13);
   // a malformed index or pin changes nothing and says why (one bad_command fault)
   for (const command of [{ type: Command.RemovePin }, { type: Command.RemovePin, index: "x" }, { type: Command.RemovePin, index: -1 }, { type: Command.RemovePin, index: 11 }, { type: Command.RemovePin, index: 0.5 },
     { type: Command.AddPin }, { type: Command.AddPin, pin: { SA: 0, SB: 20, dA: 1, dB: 2 } }, { type: Command.AddPin, pin: { SA: 10, SB: NaN, dA: 1, dB: 2 } }]) {
     const o = runHandler(S, command);
     same(o.state, S, JSON.stringify(command)); same(o.faults.map(f => f.code), [FaultCode.BadCommand], JSON.stringify(command));
   }
-  same(runHandler(S, { type: Command.ClearPins }).state.view.pins, []);
+  same(runHandler(S, { type: Command.ClearPins }).state.prefs.pins, []);
 });
 
 test("T21 handlers: ShowTab, LoadView (theme fallback, View loaded first), Reset per target", () => {
@@ -422,24 +429,58 @@ test("T21 handlers: ShowTab, LoadView (theme fallback, View loaded first), Reset
   same(bad.state, S); assert.equal(bad.faults.length, 1);
   assert.equal(bad.faults[0].code, FaultCode.BadCommand); assert.equal(bad.faults[0].handling, FaultHandling.KeptTab);
   const other = runHandler(S, { type: Command.SetA, path: "fill", value: "nat" }).state;
-  const code = STATE.code(STATE.pickComparer(other), { tab: Tab.Compounding, theme: undefined });
+  const code = writeV9Code({ state: other, tab: Tab.Compounding, theme: undefined });
   const read = STATE.readViewCode(code);
   assert.equal(read.ok, true);
   const dark = runHandler(S, { type: Command.SetPref, patch: { theme: Theme.Dark } }).state;
   const lv = runHandler(dark, { type: Command.LoadView, view: read.value.state, tab: read.value.tab, theme: read.value.theme, notices: read.value.notices });
-  assert.equal(lv.state.cmp.A.fill, "nat"); assert.equal(lv.state.tab, Tab.Compounding); assert.equal(lv.state.view.theme, Theme.Dark, "a code without a theme keeps the current one");
+  assert.equal(lv.state.comparison.A.fill, "nat"); assert.equal(lv.state.tab, Tab.Compounding); assert.equal(lv.state.prefs.theme, Theme.Dark, "a code without a theme keeps the current one");
   assert.equal(lv.notices[0].text, "View loaded");
   const lv2 = runHandler(dark, { type: Command.LoadView, view: read.value.state, tab: Tab.Compare, theme: Theme.Light, notices: [] });
-  assert.equal(lv2.state.view.theme, Theme.Light);
+  assert.equal(lv2.state.prefs.theme, Theme.Light);
   for (const [resetTarget, text, resets] of [[ResetTarget.Compare, "Compare A vs B reset to defaults", true], [ResetTarget.Compounding, "Compounding reset to defaults", false], [ResetTarget.Both, "Both tabs reset to defaults", true]]) {
     const o = runHandler(lv.state, { type: Command.Reset, resetTarget });
     same(o.notices.map(n => [n.text, n.style]), [[text, NoticeStyle.Plain]]);
-    assert.equal(o.state.cmp.A.fill === "nat", !resets, resetTarget);
-    assert.equal(o.state.view.theme, Theme.Dark); assert.equal(o.state.tab, Tab.Compounding);
+    assert.equal(o.state.comparison.A.fill === "nat", !resets, resetTarget);
+    assert.equal(o.state.prefs.theme, Theme.Dark); assert.equal(o.state.tab, Tab.Compounding);
   }
   const unknownTarget = ALL.get(Command.Reset)({ state: S, command: { type: Command.Reset, resetTarget: "everything" } });
   assert.equal(unknownTarget.state, S); same(unknownTarget.notices, []);
   assert.equal(unknownTarget.faults.length, 1); assert.equal(unknownTarget.faults[0].code, FaultCode.BadCommand); assert.match(unknownTarget.faults[0].text, /everything/);
+});
+
+test("T21 handlers: SetExportSection makes a tab's choice explicit (order of first choice), resets keep it, bad fields are refused", () => {
+  const S = baseState();
+  same(S.prefs.exportSections, {});
+  const cmp = runHandler(S, { type: Command.SetExportSection, tab: Tab.Compare, section: ExportSection.Comparison, isOn: false });
+  same(cmp.state.prefs.exportSections, { [Tab.Compare]: Object.assign({}, STATE.EXPORT_SECTION_DEFAULTS[Tab.Compare], { comparison: false }) });
+  same(cmp.notices, []); same(cmp.faults, []); assert.equal(cmp.state.tab, Tab.Compare);
+  const yr = runHandler(cmp.state, { type: Command.SetExportSection, tab: Tab.Compounding, section: ExportSection.Weeks, isOn: true });
+  const both = runHandler(yr.state, { type: Command.SetExportSection, tab: Tab.Compare, section: ExportSection.Overview, isOn: true });
+  same(Object.keys(both.state.prefs.exportSections), [Tab.Compare, Tab.Compounding]);
+  same(STATE.readExportSections({ prefs: both.state.prefs, tab: Tab.Compare }), Object.assign({}, STATE.EXPORT_SECTION_DEFAULTS[Tab.Compare], { comparison: false, overview: true }));
+  same(STATE.readExportSections({ prefs: both.state.prefs, tab: Tab.Compounding }).weeks, true);
+  for (const resetTarget of Object.values(ResetTarget)) {
+    same(runHandler(both.state, { type: Command.Reset, resetTarget }).state.prefs.exportSections, both.state.prefs.exportSections, resetTarget);
+  }
+  for (const command of [
+    { type: Command.SetExportSection, tab: "nope", section: ExportSection.Header, isOn: true },
+    { type: Command.SetExportSection, tab: Tab.Compounding, section: ExportSection.Header, isOn: true },
+    { type: Command.SetExportSection, tab: Tab.Compare, section: ExportSection.Header, isOn: "yes" }
+  ]) {
+    const out = runHandler(S, command);
+    same(out.state, S); assert.equal(out.faults.length, 1); assert.equal(out.faults[0].code, FaultCode.BadCommand);
+  }
+  const viaPatch = runHandler(S, { type: Command.SetPref, patch: { exportSections: { compare: { header: false } } } });
+  same(viaPatch.state, S); assert.equal(viaPatch.faults[0].code, FaultCode.PatchRejected);
+});
+
+test("T21 handlers: a Compare reset keeps the period vol, a reset of both tabs clears it", () => {
+  const S = Object.assign(STATE.applyChange(baseState(), s => { s.periodVol = { KORU: { pct: 100, source: "set" } }; }), { tab: Tab.Compare });
+  same(S.periodVol, { KORU: { pct: 100, source: "set" } });
+  same(runHandler(S, { type: Command.Reset, resetTarget: ResetTarget.Compare }).state.periodVol, S.periodVol);
+  same(runHandler(S, { type: Command.Reset, resetTarget: ResetTarget.Compounding }).state.periodVol, S.periodVol);
+  same(runHandler(S, { type: Command.Reset, resetTarget: ResetTarget.Both }).state.periodVol, {});
 });
 
 test("T21 handlers: PlaceLeg puts the clicked strike on the leg (views' smilePlace on a fresh context)", () => {
@@ -499,25 +540,28 @@ test("T21 readViewCode: not_a_code / unknown_version / undecodable / ok", () => 
   assert.equal(STATE.readViewCode("#v7.abc").error.code, ViewCodeError.UnknownVersion);
   assert.equal(STATE.readViewCode("#v9.!!!!").error.code, ViewCodeError.Undecodable);
   assert.equal(STATE.readViewCode("v9.bm90IGpzb24").error.code, ViewCodeError.Undecodable);
-  const S = baseState(), code = STATE.code(STATE.pickComparer(S), { tab: Tab.Compounding, theme: Theme.Light, yr: { a: 1 } });
+  const light = Object.assign(runHandler(baseState(), { type: Command.SetPref, patch: { theme: Theme.Light } }).state, { tab: Tab.Compounding });
+  const code = STATE.writeViewCode({ state: light, yr: { a: 1 } });
+  assert.ok(code.startsWith("v10."));
   for (const text of [code, "#" + code, "https://example.org/lab.html#" + code]) {
     const r = STATE.readViewCode(text);
     assert.equal(r.ok, true);
-    same(r.value.state, STATE.pickComparer(S)); assert.equal(r.value.tab, Tab.Compounding); assert.equal(r.value.theme, Theme.Light); same(r.value.yr, { a: 1 });
+    same(r.value.state, withoutTab(light)); assert.equal(r.value.tab, Tab.Compounding); assert.equal(r.value.theme, Theme.Light); same(r.value.yr, { a: 1 });
     same(r.value.notices, []); same(r.value.faults, []);
   }
-  const stored = STATE.readStoredView(STATE.blob(STATE.pickComparer(S), { tab: Tab.Compare, theme: Theme.Dark }));
+  const dark = Object.assign(runHandler(baseState(), { type: Command.SetPref, patch: { theme: Theme.Dark } }).state, { tab: Tab.Compare });
+  const stored = STATE.readStoredView(JSON.parse(JSON.stringify(STATE.writeStoredView({ state: dark, yr: null }))));
   assert.equal(stored.ok, true); assert.equal(stored.value.theme, Theme.Dark); assert.equal(stored.value.yr, null);
 });
 
 test("T21 view-code versions: one list (ViewCodeVersion) for parse and readViewCode", () => {
-  same(Object.values(ViewCodeVersion), ["9", "8", "5"]);
-  const payload = STATE.code(STATE.pickComparer(baseState()), { tab: Tab.Compare }).slice(3);
+  same(Object.values(ViewCodeVersion), ["10", "9", "8", "5"]);
+  const payload = writeV9Code({ state: baseState(), tab: Tab.Compare }).slice(3);
   for (const version of Object.values(ViewCodeVersion)) {
     assert.ok(STATE.parse(`v${version}.${payload}`), `parse reads v${version}`);
     assert.notEqual(STATE.readViewCode(`v${version}.${payload}`).error?.code, ViewCodeError.UnknownVersion, `readViewCode reads v${version}`);
   }
-  assert.equal(STATE.parse(`v10.${payload}`), null); assert.equal(STATE.readViewCode(`v10.${payload}`).error.code, ViewCodeError.UnknownVersion);
+  assert.equal(STATE.parse(`v11.${payload}`), null); assert.equal(STATE.readViewCode(`v11.${payload}`).error.code, ViewCodeError.UnknownVersion);
   // a payload over two lines is not a code (parse: null), as v9's pattern said
   assert.equal(STATE.parse(`v9.${payload.slice(0, 8)}\n${payload.slice(8)}`), null);
   assert.equal(STATE.readViewCode(`v9.${payload.slice(0, 8)}\n${payload.slice(8)}`).error.code, ViewCodeError.NotACode);
@@ -528,7 +572,7 @@ test("T21 toast actions: steps are ActionStep values; an unknown step throws Cor
   const ownPut = STATE.cmpOp(S, "setB", "values.put", 20);
   const action = ownPut.events[0].actions[0];
   same(action.steps, [[ActionStep.Link, "placement"]]);
-  assert.throws(() => CMP.runAction(S.cmp, { steps: [["teleport"]] }), e => e.code === CoreErrorCode.UnknownActionStep && /teleport/.test(e.message));
+  assert.throws(() => CMP.runAction(S.comparison, { steps: [["teleport"]] }), e => e.code === CoreErrorCode.UnknownActionStep && /teleport/.test(e.message));
 });
 
 // ---------------------------------------------------------------- adapters on fakes
