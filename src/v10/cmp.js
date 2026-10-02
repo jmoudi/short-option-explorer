@@ -61,7 +61,9 @@ const CMP = (() => {
     const wing = (s) => L[wingAspect(s)] ? Object.assign(fromA(A, wingAspect(s)), { basis: A.basis }) : get(wingAspect(s));
     return {
       inst: get("inst"), exp: get("exp"), structure: get("structure"), legs: get("legs"),
-      basis: pl.basis, values: pl.values, wings: { call: wing("call"), put: wing("put") }, fill: get("fill")
+      basis: pl.basis, values: pl.values, wings: { call: wing("call"), put: wing("put") }, fill: get("fill"),
+      // typed fills are B's own, never A's: they price B's own contracts
+      fills: clone(B.fills || {})
     };
   }
   const buildA = c => POS.build(c.A);
@@ -171,12 +173,34 @@ const CMP = (() => {
     for (let i = 0; i < a.legs.length; i++) if (a.legs[i].role !== b.legs[i].role || a.legs[i].K !== b.legs[i].K) return false;
     return true;
   }
-  const isIdentical = (bA, bB) => !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB) && bA.fill === bB.fill;
+  const isIdentical = (bA, bB) => !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB) && bA.fill === bB.fill && bA.typedKey === bB.typedKey;
   const identical = c => isIdentical(buildA(c), buildB(c));
   const evIdentical = () => ({ type: "identical", aspects: [], text: "A and B are now the same trade", actions: [] });
   const note = text => ({ type: "note", aspects: [], text, actions: [] });
 
+  // a typed fill ("fills.put" etc.): stored on the side itself, never linked; null removes it
+  const FILL_PATH = /^fills\.(put|call|wingCall|wingPut)$/;
+  function setTypedFill(c, side, path, value) {
+    const slot = FILL_PATH.exec(String(path))[1], n = clone(c);
+    n[side] = n[side] || {};
+    const fills = Object.assign({}, n[side].fills || {});
+    if (value === null || value === undefined) { delete fills[slot]; }
+    else { fills[slot] = { tk: String(value.tk), exp: String(value.exp), K: +value.K, cp: value.cp, px: +value.px }; }
+    n[side].fills = sanFills(fills);
+    return { c: tidyB(post(c, n)), events: [] };
+  }
+  function sanFills(o) {
+    const out = {};
+    if (!isObj(o)) { return out; }
+    for (const slot of ["put", "call", "wingCall", "wingPut"]) {
+      const f = o[slot];
+      const isValid = isObj(f) && typeof f.tk === "string" && /^\d{8}$/.test(String(f.exp)) && Number.isFinite(+f.K) && +f.K > 0 && (f.cp === "P" || f.cp === "C") && Number.isFinite(+f.px) && +f.px >= 0 && +f.px < 1e5;
+      if (isValid) { out[slot] = { tk: f.tk, exp: f.exp, K: +f.K, cp: f.cp, px: +f.px }; }
+    }
+    return out;
+  }
   function setA(c, path, value) {
+    if (FILL_PATH.test(String(path))) { return setTypedFill(c, "A", path, value); }
     const a = aspectOf(path); if (!a) throw new Error("unknown path " + path);
     const before = identical(c), n = clone(c);
     const E = path === "basis" ? INST.make(n.A.inst).exp(n.A.exp) : null;
@@ -251,6 +275,7 @@ const CMP = (() => {
 
   // ---------------------------------------------------------- the B-side mutator (implicit unlink of one aspect)
   function setB(c, path, value) {
+    if (FILL_PATH.test(String(path))) { return setTypedFill(c, "B", path, value); }
     const a = aspectOf(path); if (!a) throw new Error("unknown path " + path);
     let n = clone(c); const events = [];
     if (c.links[a]) {
@@ -478,8 +503,12 @@ const CMP = (() => {
     if (!bA.na && !bB.na && ((bA.cr < 0 && bB.cr > 0) || (bB.cr < 0 && bA.cr > 0))) { const s = bA.cr < 0 ? "A" : "B"; amber(s, "fill", "DEBIT", `${s} is a net debit`); }
     // only the instrument differs: no amber, and every unlinked aspect is moot or resolves to A's value (an unlinked
     // fill set back to mid, or B's legs detached while B's strikes follow A, changes nothing)
-    const onlyInstrument = !ident && !items.some(i => !i.asked || i.code === "UNLINKED");
-    return INST.deepFreeze({ items, identical: ident, onlyInstrument });
+    // typed fills are not an aspect: the same contracts at other prices still make two different trades
+    const typedFillsDiffer = !bA.na && !bB.na && (bA.typedCount > 0 || bB.typedCount > 0) && bA.typedKey !== bB.typedKey;
+    const sameContracts = !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB);
+    const onlyInstrument = !ident && !typedFillsDiffer && !items.some(i => !i.asked || i.code === "UNLINKED");
+    const onlyTypedFill = !ident && typedFillsDiffer && sameContracts;
+    return INST.deepFreeze({ items, identical: ident, onlyInstrument, onlyTypedFill });
   }
   function rWingBasis(c, side, s) {
     if (side === "A") return c.A.basis;
@@ -528,7 +557,8 @@ const CMP = (() => {
     const w = isObj(p.wings) ? p.wings : {};
     return {
       inst, exp, structure: STRUCTS.includes(p.structure) ? p.structure : d.structure, legs: LEGSM.includes(p.legs) ? p.legs : d.legs,
-      basis, values: sanValues(p.values, basis, dv), wings: { call: sanWing(w.call, basis), put: sanWing(w.put, basis) }, fill: FILLS.includes(p.fill) ? p.fill : d.fill
+      basis, values: sanValues(p.values, basis, dv), wings: { call: sanWing(w.call, basis), put: sanWing(w.put, basis) }, fill: FILLS.includes(p.fill) ? p.fill : d.fill,
+      fills: sanFills(p.fills)
     };
   }
   function sanitize(o) {
@@ -544,6 +574,8 @@ const CMP = (() => {
     if (STRUCTS.includes(ob.structure)) B.structure = ob.structure;
     if (LEGSM.includes(ob.legs)) B.legs = ob.legs;
     if (FILLS.includes(ob.fill)) B.fill = ob.fill;
+    const bFills = sanFills(ob.fills);
+    if (Object.keys(bFills).length) { B.fills = bFills; }
     if (RULE.BASES.includes(ob.basis) && isObj(ob.values)) { B.basis = ob.basis; B.values = sanValues(ob.values, ob.basis, { put: RULE.DEF[ob.basis], call: RULE.DEF[ob.basis] }); }
     const bb = links.placement ? A.basis : B.basis || A.basis;
     if (isObj(ob.wings)) { const w = {}; for (const s of ["call", "put"]) if (isObj(ob.wings[s])) w[s] = sanWing(ob.wings[s], bb); if (w.call || w.put) B.wings = w; }

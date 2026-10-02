@@ -94,14 +94,14 @@ const SUM9 = (() => {
     let h = naF.filter(f => f.leg === "wingPut").map(naTok).join("");
     for (const l of b.legs) {
       const w = l.qty > 0, px = l.perContract;
-      const tip = `${w ? "Long" : "Short"} ${fK(l.K)}${l.cp} ${w ? "bought" : "sold"} at ${l.fillPx.toFixed(2)} (${b.fill === "nat" ? (w ? "ask" : "bid") : "mid"}): ${px < 0 ? "debit" : "credit"} ${usd(px)} per contract`;
+      const tip = `${w ? "Long" : "Short"} ${fK(l.K)}${l.cp} ${w ? "bought" : "sold"} at ${l.fillPx.toFixed(2)} (${l.typed ? "your typed fill" : b.fill === "nat" ? (w ? "ask" : "bid") : "mid"}): ${px < 0 ? "debit" : "credit"} ${usd(px)} per contract`;
       h += `<span class="s9leg${w ? " w" : ""}" title="${tipEsc(tip)}"><span class="k">${fK(l.K)}${l.cp}${w ? `<span class="s9wl"> wing</span>` : ""}</span>${px < 0 ? MINUS : "+"}${usd(px)}</span>`;
     }
     h += naF.filter(f => f.leg === "wingCall").map(naTok).join("");
     const n = b.net, deb = n.isDebit;
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
-    const fillTxt = b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
+    const fillTxt = b.typedCount ? `<span class="s9fL">your fill</span><span class="s9fS">yours</span>` : b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
     h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span><span class="s9fi"> · ${tok(m.fill, fillTxt, b.fill === "nat" ? "natural fill: sell at the bid, buy at the ask" : "filled at mid")}</span>`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
@@ -130,8 +130,9 @@ const SUM9 = (() => {
     const vol = C.volOf(b.tk), isHandSet = vol.source === VolSource.Set, implied = b.E ? fP(b.E.atm, 0) : "–";
     const floored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct ? ` The stored ${+vol.storedPct.toFixed(2)}% (exactly on the path, set on Compounding) reads as ${Math.round(vol.pct)}% here, the comparer's floor.` : "";
     const tip = `${b.tk} period vol: the assumed vol of its moves over the period, one number for every expiry, used by every EV reading (and by the odds when the odds switch says period vol). Implied: ATM IV at ${fmtE(b.exp)}.${floored} Click to set it under Positions, spot / IV / period vol.`;
-    const versus = isCompact ? "vs IV" : "vs implied";
-    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}${esc(vol.label)} ${versus} ${implied}</span>`;
+    // two different vols, named as such: the period vol (odds and EV) and the expiry's ATM IV (σ and the move range)
+    const versus = isCompact ? "· ATM" : "· ATM IV";
+    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}period ${esc(vol.label)} ${versus} ${implied}</span>`;
   }
   /** @param {{ b: any, P: any, C: any, side: string }} input */
   function line3({ b, P, C, side }) {
@@ -249,6 +250,7 @@ const SUM9 = (() => {
     }
     const notes = [];
     if (d.identical) notes.push("A and B are the same trade");
+    else if (d.onlyTypedFill) notes.push("same contracts, only the fill differs (typed prices)");
     else if (d.onlyInstrument) notes.push("same position, only the instrument differs");
     const any = Object.keys(L).some(a => a !== "inst" && !L[a]);
     return { list, notes, any };

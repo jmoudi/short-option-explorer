@@ -71,27 +71,33 @@
   second run"). Check: `node tools_checks/compounding_drop_b.js`.
 - The app's name is "Short Options Comparer" (one constant, `CORE_CONFIG.appName`; header, title, exports).
 
-## Collected improvements (not started)
+## Done in the trader loop
 
-Fills and credit
-1. Fill override per leg (your actual fill), or one net credit; source shown (your fill / mid / natural, ✎); feeds
-   credit, EV, breakevens, recovery, export.
-2. Fill as a % of the spread between mid and natural, natural one click away.
-3. Bid / ask / mid and spread width on each leg row; a warning when the spread is large against the credit.
-4. Credit at mid and at natural side by side on the card ("$405 mid · $350 natural").
+- **Positions rebuilt from scratch.** It is now two stacked boxes, A on top and B below, drawn by one renderer called
+  twice with the same rows. B's relation to A is a chain beside each of B's labels. B's controls stay live: editing a
+  linked row sets B on its own, and a toast offers the relink. Each box head shows the position, the net credit and how
+  it was filled, the same legs at mid and at natural, the ATM IV (marked "sets σ") and the days left.
+- **Typed fills.** Each leg takes the price you actually got, or one net price split over the sold legs by mid. A typed
+  price is pinned to its contract (ticker, expiry, strike, put/call). If the leg moves, it stops applying and a warning
+  says so. Typed fills feed credit, margin, payoff, EV and the view code. They are never copied from A to B.
+- **Legs always visible.** Each box lists its legs: fill and how it was got, the leg's own IV from its mid (the smile
+  fit is in the tooltip), $ per contract, bid / ask / spread.
+- **The card names its vols.** "period vol 117% (HV30) · ATM IV 124%". "your fill" replaces "mid" when prices are typed.
+  "same contracts, only the fill differs" replaces a false "only the instrument differs".
+- **Strike placement sweep: Smooth.** A Gaussian window as wide as the strike-step period. A "smoothed" badge shows on
+  each chart, the raw lines stay faint, and the hover shows both values.
+- **Compounding: a sticky cursor on every chart** (credit, margin call so far, leverage/margin sweep, stress loss by
+  week, room by week, loss vs gap, Random years): a line at the nearest point and the values there.
+- **Checks** (Playwright, set `PAGE` to the built file): `tools_checks/compounding_drop_b.js`, `dock_fills.js`,
+  `sweep_smooth.js`, `compounding_cursor.js`.
 
-Quotes and their age
-5. Quote time and age prominent ("quotes: 1 Oct close, 1 day old").
-6. Live quote refresh through the IBKR connector.
-7. An entry snapshot: spot and IV at your fill time.
+## Still open
 
-IV labelling
-8. Name each IV: "ATM IV 124% (smile fit, sets σ)" on the card, each leg's own IV on its row (C 112% · P 128%), the
-   period vol with its own label.
-9. One info popup: σ and the move range from the ATM IV, prices from the leg quotes, odds from the smile or the
-   period vol, EV from the period vol.
-10. Skew at the chosen strikes (put IV − call IV).
-
-Sizing and single positions
-11. Say what "×0.68" is on the card (B contracts per A contract); B's credit per contract and as sized.
-12. Compare tab: a single-position mode (B off), like the Compounding tab now has.
+1. Quote time and age shown prominently ("quotes: 1 Oct close, 1 day old").
+2. Live quote refresh through the IBKR connector.
+3. An entry snapshot: spot and IV at your fill time.
+4. Skew at the chosen strikes (put IV − call IV).
+5. Say what "×0.68" is on the card (B contracts per A contract).
+6. Compare tab: a single-position mode (B off), as the Compounding tab now has.
+7. Random years: the end labels of A and B overlap when the medians are close.
+8. Part II: recovery growth rates, % of margin, the EV explainer, export alignment (PLAN_V10 §2–§5).

@@ -752,6 +752,68 @@ const VIEWS = (() => {
     const sd = sa && sb ? sa.map((p, i) => ({ x: p.x, cr: p.cr - sb[i].cr, ev: p.ev - sb[i].ev, worst: pairOK ? pairWorst(Cx, p.b, sb[i].b, Cx.h) : NaN })) : null;
     return { mode, basis, lo, hi, xs: uniq, sides, sa, sb, sd, pairOK };
   }
+  // ---------------------------------------------------------- smoothing the sweep (an override, off by default)
+  // The stepped curve is real: each point re-picks listed strikes. The smoothed one averages that snapping out with a
+  // Gaussian window whose width is the strike-step period on the axis (the mean distance between points where a short
+  // leg's strike changes), so what remains is the trend across placements rather than the chunking.
+  // the mean distance on the axis between the points where one leg's strike changes; NaN when it changes fewer than twice
+  /** @param {{ series: any[], role: string }} input */
+  function measureLegStepPeriod({ series, role }) {
+    const strikeAt = p => {
+      if (p.b.na) { return NaN; }
+      const leg = p.b.legs.find(x => x.role === role);
+      return leg ? leg.K : NaN;
+    };
+    const changes = [];
+    for (let i = 1; i < series.length; i++) {
+      const isChange = strikeAt(series[i]) !== strikeAt(series[i - 1]);
+      if (isChange) { changes.push((series[i].x + series[i - 1].x) / 2); }
+    }
+    if (changes.length < 2) { return NaN; }
+    return (changes[changes.length - 1] - changes[0]) / (changes.length - 1);
+  }
+  const rolesIn = series => [...new Set(series.flatMap(p => p.b.na ? [] : p.b.legs.map(l => l.role)))];
+  // the strike-step period of a sweep: its coarsest leg's period
+  /** @param {any[]} series @returns {LabResult} */
+  function measureStrikeStepPeriod(series) {
+    const periods = rolesIn(series).map(role => measureLegStepPeriod({ series, role })).filter(Number.isFinite);
+    if (!periods.length) { return Result.err({ code: "no_steps", message: "no leg's strike steps across this sweep" }); }
+    return Result.ok(Math.max(...periods));
+  }
+  // the smoothing window: the widest strike-step period among the sides that have a sweep
+  /** @param {{ seriesList: any[][] }} input @returns {LabResult} */
+  function pickSmoothingWindow({ seriesList }) {
+    const measured = seriesList.filter(Boolean).map(measureStrikeStepPeriod).filter(r => r.ok);
+    if (!measured.length) { return Result.err({ code: "no_steps", message: "the strikes do not step here" }); }
+    return Result.ok(Math.max(...measured.map(r => r.value)));
+  }
+  /** @param {{ windowResult: LabResult, basis: string }} input */
+  function describeSmoothing({ windowResult, basis }) {
+    if (!windowResult.ok) { return " Smooth is on, but the strikes do not step here, so nothing is averaged."; }
+    return ` Smoothed: strike steps averaged over a ${RULE.fmtV(windowResult.value, basis)} window (the strike-step period here); the raw stepped lines are faint, and the hover shows both.`;
+  }
+  // every series of one chart smoothed with the same window (or left as they are when there is none)
+  /** @param {{ bySide: Object<string, any[]>, field: string, width: number }} input */
+  function smoothEach({ bySide, field, width }) {
+    const out = {};
+    for (const [side, series] of Object.entries(bySide)) { out[side] = Number.isFinite(width) ? smoothSeries({ series, field, width }) : series; }
+    return out;
+  }
+  /** @param {{ series: any[], field: string, width: number }} input */
+  function smoothSeries({ series, field, width }) {
+    if (!series || !(width > 0)) { return series; }
+    const sigma = width;
+    return series.map(p => {
+      let sum = 0, weight = 0;
+      for (const o of series) {
+        const v = o[field];
+        if (!Number.isFinite(v)) { continue; }
+        const w = Math.exp(-0.5 * ((o.x - p.x) / sigma) ** 2);
+        sum += w * v; weight += w;
+      }
+      return Object.assign({}, p, { [field]: Number.isFinite(p[field]) && weight > 0 ? sum / weight : NaN });
+    });
+  }
   function sweepAxisName(mode, basis, sides) {
     const u = { delta: "Δ", money: "% OTM", sigma: "σ from the forward" }[basis];
     if (mode === "wingCall") return `call wing ${basis === "delta" ? "Δ" : basis === "money" ? "% beyond the short call" : "σ beyond the short call"}`;
@@ -770,9 +832,13 @@ const VIEWS = (() => {
     q("#sw-cap").textContent = `Varies on the ${basis === "delta" ? "Δ" : basis === "money" ? "% OTM" : "σ"} basis. ${sideTxt("A")} · ${sideTxt("B")}. Shaded: a short leg is in the money against the forward. Dashed lines: the positions as set.`;
     // ATM on the x axis: 0 on % and σ; on Δ the forward strike's Δ (none for the mean of a strangle's two legs)
     const atmX = s => { const x = sides[s]; if (!x || mode === "wingCall") return NaN; if (basis !== "delta") return 0; if (mode === "both" && !x.straddle) return NaN; const c = x.b.E.callDelta(x.b.E.Fpar) * 100; return mode === "put" ? 100 - c : c; };
+    const windowResult = V().swSmooth ? pickSmoothingWindow({ seriesList: [sa, sb] }) : null;
+    const smoothWindow = windowResult && windowResult.ok ? windowResult.value : NaN;
+    const isSmoothed = Number.isFinite(smoothWindow);
+    if (windowResult) { q("#sw-cap").textContent += describeSmoothing({ windowResult, basis }); }
     for (const [k, label] of [["cr", anyI ? "Credit, time value" : "Credit"], ["ev", `Expected value ${C.volOddsText({ isCompact: true })}`], ["worst", `Worst loss, ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}`]]) {
       const evTip = `At expiry under a zero-drift lognormal at each ticker's period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}`;
-      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
+      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${isSmoothed ? `<span class="swbadge" title="strike steps averaged out; raw lines faint">smoothed</span>` : ""}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
       const W = Math.max(box.clientWidth, 220), H = 178, m = { l: 52, r: 16, t: 14, b: 34 };
       const ys = [...(sa || []), ...(sb || []), ...(sd || [])].map(p => p[k]).filter(Number.isFinite);
       if (!ys.length) { box.insertAdjacentHTML("beforeend", `<span class="gna">n/a for every value</span>`); continue; }
@@ -789,20 +855,25 @@ const VIEWS = (() => {
       txt(svg, m.l + pw / 2, H - 4, sweepAxisName(mode, basis, sides), { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 10 });
       for (const s of ["A", "B"]) { const xa = atmX(s); if (Number.isFinite(xa) && xa > lo && xa < hi && (s === "A" || Math.abs(xa - atmX("A")) > (hi - lo) / 40)) { el("line", { x1: X(xa), x2: X(xa), y1: H - m.b, y2: H - m.b + 4, stroke: `var(--${s.toLowerCase()})`, "stroke-width": 2 }, svg); txt(svg, X(xa), m.t - 3, "ATM", { "text-anchor": "middle", fill: `var(--${s.toLowerCase()})`, "font-size": 9.5 }); } }
       if (ylo < 0 && yhi > 0) el("line", { x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0), stroke: "var(--ink-3)" }, svg);
+      const smooth = smoothEach({ bySide: { A: sa, B: sb, D: sd }, field: k, width: smoothWindow });
       for (const [s, ser, cv] of /** @type {[string, any[], string][]} */ ([["B", sb, "b"], ["A", sa, "a"]])) {
         if (!ser) continue; const x0 = sides[s].x0;
         if (Number.isFinite(x0) && x0 >= lo && x0 <= hi) el("line", { x1: X(x0), x2: X(x0), y1: m.t, y2: H - m.b, stroke: `var(--${cv})`, "stroke-dasharray": "3 3", "stroke-opacity": .8 }, svg);
-        el("path", { d: pathOf(ser.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+        if (isSmoothed) { el("path", { d: pathOf(ser.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 1, "stroke-opacity": .35, "stroke-linejoin": "round" }, svg); }
+        el("path", { d: pathOf(smooth[s].map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
       }
-      if (sd) el("path", { d: pathOf(sd.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1.4, "stroke-linejoin": "round" }, svg);
+      if (sd) {
+        if (isSmoothed) { el("path", { d: pathOf(sd.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1, "stroke-opacity": .3, "stroke-linejoin": "round" }, svg); }
+        el("path", { d: pathOf(smooth.D.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1.4, "stroke-linejoin": "round" }, svg);
+      }
       const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
       const hit = el("rect", { x: m.l, y: m.t, width: pw, height: H - m.t - m.b, fill: "transparent" }, svg);
       hit.addEventListener("pointermove", ev => {
         const r = svg.getBoundingClientRect(), x = clamp(xOfPx((ev.clientX - r.left) * W / r.width), lo, hi);
         let i = 0; for (let j = 1; j < xs.length; j++) if (Math.abs(xs[j] - x) < Math.abs(xs[i] - x)) i = j;
         cross.setAttribute("x1", X(xs[i])); cross.setAttribute("x2", X(xs[i])); cross.setAttribute("visibility", "visible");
-        const f = p => !p ? "n/a" : p.b.na ? "n/a" : `${fU(p[k])} <span class="muted">${legsTxt(p.b)}${p.itm ? " · ITM" : ""}</span>`;
-        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
+        const f = (p, ps) => !p ? "n/a" : p.b.na ? "n/a" : `${isSmoothed && ps ? `${fU(ps[k])} smoothed · raw ${fU(p[k])}` : fU(p[k])} <span class="muted">${legsTxt(p.b)}${p.itm ? " · ITM" : ""}</span>`;
+        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i], smooth.A && smooth.A[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i], smooth.B && smooth.B[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
       });
       hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
     }
@@ -1076,7 +1147,7 @@ const VIEWS = (() => {
   </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
-    <div class="ph"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><label class="ctl" style="margin-right:0" title="Average out the steps the listed $1 strikes make: a Gaussian window as wide as the strike-step period on the axis. The raw stepped line stays faint."><input type="checkbox" id="c-swsmooth"> Smooth</label></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
     <span class="cap swcap" id="sw-cap"></span>
@@ -1143,6 +1214,7 @@ const VIEWS = (() => {
     });
     q("#p-joint").addEventListener("click", e => { if (/** @type {HTMLElement} */ (e.target).id !== "jgo") return; const other = INST.list().find(x => x.id !== C.A.tk); if (other) run({ type: Command.SetB, path: "inst", value: { id: other.id } }); });
     q("#p-joint").addEventListener("input", e => { const t = /** @type {HTMLInputElement} */ (e.target); if (t.id === "c-jday") setPref({ jday: +t.value }); });
+    bindChk({ input: q("#c-swsmooth"), read: state => state.prefs.swSmooth, command: pref("swSmooth") });
     seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
     seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });

@@ -731,11 +731,37 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 2 : 1.4, "stroke-dasharray": mine ? "" : "5 4" }, s);
       sv("path", { d: dc, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 1.6 : 1.1, "stroke-dasharray": mine ? "" : "5 4" }, s);
       
-      for (const p of pts) { const c = sv("circle", { cx: X(p.x), cy: Y(p.med), r: Math.abs(p.x - (S.kind === "lev" ? S.run.lev : S.run.use)) < 1e-6 && mine ? 5 : 2.5, fill: `var(--${cls})` }, s);
-        c.addEventListener("pointerenter", ev => showTip(`<span class="h">${S.kind === "lev" ? p.x.toFixed(2) + "x" : Math.round(p.x * 100) + "% of margin"} · ${pol}</span><span class="r"><span class="k">typical NAV</span><span class="v">${f$(p.med)}</span></span><span class="r"><span class="k">margin call in the year</span><span class="v">${fPc(p.called, 1)}</span></span>${p.sh ? `<span class="r"><span class="k">shares at the end</span><span class="v">${fInt(p.sh)}</span></span>` : ""}`, ev.clientX, ev.clientY));
-        c.addEventListener("pointerleave", hideTip); } });
+      for (const p of pts) { sv("circle", { cx: X(p.x), cy: Y(p.med), r: Math.abs(p.x - (S.kind === "lev" ? S.run.lev : S.run.use)) < 1e-6 && mine ? 5 : 2.5, fill: `var(--${cls})` }, s); } });
+    const xLabel = x => S.kind === "lev" ? x.toFixed(2) + "x" : Math.round(x * 100) + "% of margin";
+    attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H + H2 + 8, xs: S.xs, toPx: X,
+      tipAt: x => `<span class="h">${S.who} at ${xLabel(x)}</span>` + S.pols.map(pol => { const p = data.find(d => d.pol === pol && Math.abs(d.x - x) < 1e-9); if (!p) { return ""; }
+        const name = S.pols.length > 1 ? `${pol === "rebal" ? "rebalance" : "reinvest"} · ` : "";
+        return tipRow(cls, `${name}typical NAV`, f$(p.med)) + tipRow(cls, `${name}margin call in the year`, fPc(p.called, 1)) + (p.sh ? tipRow(cls, `${name}shares (typical)`, fInt(p.sh)) : ""); }).join("") });
     if (S.kind === "lev") { const top = S.xs[S.xs.length - 1]; sv("line", { x1: X(top), x2: X(top), y1: 6, y2: H + H2 + 8, stroke: "var(--warn)", "stroke-dasharray": "2 3" }, s); st_(s, X(top) - 3, H - 16, "ceiling", { "text-anchor": "end", class: "yhalo", fill: "var(--warn)", "font-size": 10.5 }); }
   }
+
+  // ---------------------------------------------------------- the sticky cursor every chart on this tab shares
+  // a vertical line at the data point nearest the pointer and that point's values in the tip, as on the Compare tab
+  /** @param {{ svg: SVGSVGElement, left: number, width: number, top: number, bottom: number, xs: number[], toPx: (x: number) => number, tipAt: (x: number) => string, onPick?: (x: number) => void }} spec */
+  function attachCursor({ svg, left, width, top, bottom, xs, toPx, tipAt, onPick }) {
+    if (!xs.length) { return; }
+    const cross = sv("line", { class: "ycross", y1: top, y2: bottom, visibility: "hidden" }, svg);
+    const hit = sv("rect", { x: left, y: top, width, height: Math.max(1, bottom - top), fill: "transparent", style: onPick ? "cursor:pointer" : "" }, svg);
+    const nearest = ev => {
+      const box = svg.getBoundingClientRect(), px = (ev.clientX - box.left) * (+svg.getAttribute("width") / box.width);
+      let best = xs[0];
+      for (const x of xs) { if (Math.abs(toPx(x) - px) < Math.abs(toPx(best) - px)) { best = x; } }
+      return best;
+    };
+    hit.addEventListener("pointermove", ev => {
+      const x = nearest(ev);
+      cross.setAttribute("x1", String(toPx(x))); cross.setAttribute("x2", String(toPx(x))); cross.setAttribute("visibility", "visible");
+      showTip(tipAt(x), ev.clientX, ev.clientY);
+    });
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+    if (onPick) { hit.addEventListener("click", ev => onPick(nearest(ev))); }
+  }
+  const tipRow = (cls, label, value) => `<span class="r"><span class="k"><i class="sw" style="background:var(--${cls})"></i>${label}</span><span class="v">${value}</span></span>`;
 
   // ---------------------------------------------------------- credit and margin panels
   function lineChart(host, title, sub, series, fmt, y0, y1) {
@@ -749,6 +775,11 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(YRE.weekDate(w)), { "text-anchor": "middle" });
     for (const S of series) { let d = ""; S.pts.forEach((p, i) => d += (i ? "L" : "M") + X(p[0]) + "," + Y(p[1])); sv("path", { d, fill: "none", stroke: `var(--${S.cls})`, "stroke-width": 2 }, s);
       const lp = S.pts[S.pts.length - 1]; st_(s, X(lp[0]) - 2, Y(lp[1]) - 6, `${S.cls.toUpperCase()} ${fmt(lp[1])}`, { "text-anchor": "end", class: "yhalo", fill: `var(--${S.cls})`, "font-size": 11, "font-weight": 600 }); }
+    // the value of a stepped series at week w: its last point at or before w
+    const valueAt = (S, w) => { let v = NaN; for (const p of S.pts) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
+    const weeks = [...new Set(series.flatMap(S => S.pts.map(p => p[0])))].sort((a, b) => a - b);
+    attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H - 8, xs: weeks, toPx: X,
+      tipAt: w => `<span class="h">${title}, week ${Math.round(w)} · ${fD(YRE.weekDate(Math.round(w)))}</span>` + series.map(S => tipRow(S.cls, S.cls.toUpperCase(), fmt(valueAt(S, w)))).join("") });
   }
   function renderCreditMargin() {
     const runs = [["a", RES.A], RES.B ? ["b", RES.B] : null].filter(Boolean), W = ys.sc.W;
@@ -879,7 +910,10 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
         const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(valOf(lb)) + 4, `${who} ${fmt(valOf(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
       sv("line", { x1: X(wk), x2: X(wk), y1: 14, y2: H - 10, stroke: "var(--ink-3)", "stroke-dasharray": "2 3" }, s);
       const hit = sv("rect", { x: l, y: 0, width: pw, height: H, fill: "transparent", style: "cursor:pointer" }, s);
+      const cross = sv("line", { class: "ycross", y1: 14, y2: H - 10, visibility: "hidden" }, s); s.insertBefore(cross, hit);
+      hit.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
       hit.addEventListener("pointermove", ev => { const rc = s.getBoundingClientRect(), w = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1));
+        cross.setAttribute("x1", String(X(w))); cross.setAttribute("x2", String(X(w))); cross.setAttribute("visibility", "visible");
         showTip(`<span class="h">Hits in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const b = o.by[w - 1]; return `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who}: NAV ${f$(b.nav)}</span><span class="v neg">${f$(-b.loss)} (${fPs(-b.loss / b.nav)})</span></span>${b.call ? `<span class="s">margin call day ${b.call.day}${b.wiped ? " · wiped out" : ""}</span>` : ""}`; }).join(""), ev.clientX, ev.clientY); });
       hit.addEventListener("pointerleave", hideTip);
       hit.addEventListener("click", ev => { const rc = s.getBoundingClientRect(); ssOf().week = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1)); schedule(10); }); };
@@ -895,6 +929,10 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     if (ys.A.tk === "KORU") for (const [v, t] of [[-0.353, "worst open gap, 3 Mar 26: −35.3%"], [-0.514, "worst week low: −51.4%"]]) { sv("line", { x1: l, x2: l + pw, y1: Y(v), y2: Y(v), stroke: "var(--warn)", "stroke-dasharray": "1 3" }, s); st_(s, l + 4, Y(v) - 3, t, { class: "yhalo", fill: "var(--warn)", "font-size": 10 }); }
     for (const [who, o] of runs) { const cls = who.toLowerCase();
       for (const [k, dash] of [["callDown", ""], ["zeroDown", "5 4"], ["callUp", ""], ["zeroUp", "5 4"]]) { let d = "", on = false; o.rooms.forEach((r, i) => { const v = r[k]; if (v == null || Math.abs(v) > 2) { on = false; return; } d += (on ? "L" : "M") + X(i + 1) + "," + Y(v); on = true; }); if (d) sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": dash ? 1.3 : 2, "stroke-dasharray": dash }, s); } }
+    const roomTxt = v => v == null ? "none" : fPs(v, 0);
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 12, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
+      tipAt: w => `<span class="h">Room in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const r = o.rooms[w - 1] || {}, cls = who.toLowerCase();
+        return tipRow(cls, `${who} margin call at`, `${roomTxt(r.callDown)}${r.callUp != null ? ` / ${roomTxt(r.callUp)}` : ""}`) + tipRow(cls, `${who} NAV 0 at`, `${roomTxt(r.zeroDown)}${r.zeroUp != null ? ` / ${roomTxt(r.zeroUp)}` : ""}`); }).join("") });
     // curve at the chosen week + breakdown
     const ch = q("#y-scurve"); ch.innerHTML = `<h3>Loss against the size of a gap<span class="sub">week ${wk}, one-session gap in the ETF</span></h3>`; const Wc = Math.max(320, ch.getBoundingClientRect().width), Hc = 230, lc = 56, pc = Wc - lc - 16, sc_ = sv("svg", { width: Wc, height: Hc + 26, viewBox: `0 0 ${Wc} ${Hc + 26}` }, ch);
     let clo = 0, chi = 0; for (const [, o] of runs) for (const c of o.curve) { clo = Math.min(clo, c[1]); chi = Math.max(chi, c[1]); } const Xc = m => lc + (m + 0.9) / 1.9 * pc, Yc = yLin(clo * 1.05, chi * 1.1 + 1, 8, Hc - 12), axc = sv("g", { class: "yax" }, sc_);
@@ -904,6 +942,9 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.curve.forEach((c, i) => d += (i ? "L" : "M") + Xc(c[0]) + "," + Yc(c[1])); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, sc_);
       const lc_ = o.curve[o.curve.length - 1]; st_(sc_, Xc(lc_[0]) - 2, Yc(lc_[1]) - 6, who, { "text-anchor": "end", class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 });
       const fc = o.curve.find(c => c[2] && c[0] < 0 && !o.curve.some(e => e[2] && e[0] > c[0] && e[0] < 0)); if (fc) sv("circle", { cx: Xc(fc[0]), cy: Yc(fc[1]), r: 3.5, fill: "none", stroke: "var(--shade)", "stroke-width": 1.6 }, sc_); }
+    const gaps = [...new Set(runs.flatMap(([, o]) => o.curve.map(c => c[0])))].sort((a, b) => a - b);
+    attachCursor({ svg: sc_, left: lc, width: pc, top: 8, bottom: Hc - 12, xs: gaps, toPx: Xc,
+      tipAt: m => `<span class="h">ETF gap ${fPs(m, 1)} · week ${wk}</span>` + runs.map(([who, o]) => { const c = o.curve.find(e => Math.abs(e[0] - m) < 1e-9); return c ? tipRow(who.toLowerCase(), who, `${f$(c[1])}${c[2] ? " · call assigned" : ""}`) : ""; }).join("") });
     if (ssOf().shape === "gap") { const mv = ssOf().unit === "index" ? Math.max(-1, YRE.LEV[ys.A.tk] * ssOf().X / 100) : ssOf().X / 100; sv("line", { x1: Xc(mv), x2: Xc(mv), y1: 8, y2: Hc - 12, stroke: "var(--ink)", "stroke-dasharray": "3 3" }, sc_); }
     // breakdown
     const bh = q("#y-sbreak"); bh.innerHTML = `<h3>What happened, week ${wk}<span class="sub">${scenTxt()}</span></h3>` + runs.map(([who, o]) => { const r = o.cur, nb = r.navBefore, sh = r.ev.pnlSh, opt = (r.navEnd - nb) - sh + r.ev.slip;
@@ -961,6 +1002,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
       let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[2])}`); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s);
       const er = P.R.main.rows; let e = `M${X(0)},${Y(ys.sc.cap0)}`; er.forEach(r => e += `L${X(Math.min(r.w1, W))},${Y(r.med)}`); sv("path", { d: e, fill: "none", stroke: `var(--${cls})`, "stroke-width": 1.2, "stroke-dasharray": "4 4" }, s);
       st_(s, l + pw + 6, Y(b[W - 1][2]) + 4, `${P.who} ${f$(b[W - 1][2])}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); });
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 8, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
+      tipAt: w => `<span class="h">Random years, week ${w} · ${fD(YRE.weekDate(w))}</span>` + parts.map((P, k) => { const c = bands[k][w - 1], cls = P.who.toLowerCase();
+        return tipRow(cls, `${P.who} median`, f$(c[2])) + tipRow(cls, `${P.who} 25–75%`, `${f$(c[1])} – ${f$(c[3])}`) + tipRow(cls, `${P.who} 5–95%`, `${f$(c[0])} – ${f$(c[4])}`); }).join("") });
     const tb = document.createElement("span"); tb.className = "ytab"; host.appendChild(tb);
     const row = P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), dd = P.out.map(o => o.dd).sort((a, b) => a - b), n = e.length, w5 = e.slice(0, Math.max(1, Math.floor(n * 0.05))), pc = P.out.reduce((t, o) => t + o.call, 0) / n, se = Math.sqrt(pc * (1 - pc) / n);
       return `<tr><td><span class="key ${P.who.toLowerCase()}">${P.who}</span></td><td>${f$(qn(e, .05))}</td><td>${f$(qn(e, .1))}</td><td><b>${f$(qn(e, .5))}</b></td><td>${f$(qn(e, .9))}</td><td>${f$(qn(e, .95))}</td><td>${f$(w5.reduce((a, b) => a + b, 0) / w5.length)}</td><td>${fPc(qn(dd, .5), 0)} / ${fPc(qn(dd, .9), 0)}</td><td>${fPc(pc, 1)} ± ${(se * 100).toFixed(1)}</td><td>${fPc(P.out.reduce((t, o) => t + o.wiped, 0) / n, 1)}</td></tr>`; };

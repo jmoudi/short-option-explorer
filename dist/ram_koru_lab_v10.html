@@ -415,20 +415,50 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 #dock .dh .dtitle{font:600 14px var(--f-cond)}
 #dock .dh .btn{padding:1px 8px}
 #dock .db{padding:0 10px 28px 12px;scrollbar-width:thin;scrollbar-gutter:stable}
-.d9t{display:grid;grid-template-columns:62px minmax(0,1fr) 18px minmax(0,1fr);column-gap:4px;row-gap:7px;align-items:center;padding:10px 0 12px;font-size:12px}
-.d9t>*{min-width:0}
-.d9L{grid-column:1;font-size:12px;color:var(--ink-2);line-height:1.2}
-.d9A{grid-column:2;white-space:nowrap}
-.d9K{grid-column:3;text-align:center}
-.d9B{grid-column:4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.d9F{grid-column:1/-1;display:block}
-.d9hd{font-size:11px}
-.d9A .seg.eq,.d9B .seg.eq{width:100%}
-.d9A .seg button,.d9B .seg button{padding:2px 5px}
-.d9A select,.d9B select{max-width:100%;padding:2px 1px}
+.d9t{display:block;padding:10px 0 4px;font-size:12px}
+/* one position box per side, stacked: A on top, B below; both have the same rows */
+.pbox{display:block;border:1px solid var(--line);border-left:3px solid var(--a);border-radius:8px;padding:8px 10px 6px;margin:0 0 12px;background:var(--surface)}
+.pbox.b{border-left-color:var(--b)}
+.pbox>*{display:block;min-width:0}
+.phead{padding:0 0 6px;margin:0 0 6px;border-bottom:1px solid var(--grid)}
+.phead .pt{display:block;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phead .pt .key{margin-right:7px;vertical-align:1px}
+.phead .pname{font:600 13.5px var(--f-cond);color:var(--ink)}
+.phead .prl{float:right;font-size:10.5px;padding:0 5px;margin-top:2px}
+.phead .pnet{display:block;font-size:13px;color:var(--ink-2);margin-top:2px}
+.phead .pnet b{font:600 16px var(--f-num);color:var(--ink)}
+.phead .pnet.w{color:var(--diff-warn)}
+.phead .pref{display:block;font-size:11px;color:var(--ink-3);margin-top:1px}
+.prow{display:grid!important;grid-template-columns:114px minmax(0,1fr);column-gap:6px;align-items:center;min-height:28px}
+.plbl{font-size:12px;color:var(--ink-2);line-height:1.2;white-space:nowrap}
+.plbl .info{background:none;padding:0;width:14px;height:14px;font-size:9.5px;line-height:12px;margin-left:3px;vertical-align:0;cursor:pointer}
+.plbl .d9lk{margin-left:3px}
+.pwarn{color:var(--diff-warn);font-weight:700;margin-left:3px;cursor:help}
+.pctl{white-space:nowrap;min-width:0}
+.pctl .seg.eq{width:auto}
+.pctl .seg button{padding:2px 7px}
+.pctl select{max-width:100%;padding:2px 1px}
+.pfull{padding:4px 0 6px}
+.pdim{opacity:.45}
+.pfb{margin-left:4px;font-size:11px;padding:1px 6px}
+.pfb.on{color:var(--ink);border-color:var(--ink-3)}
+.pfb.w{color:var(--diff-warn)}
+.pfx{display:block;padding:6px 8px;border-radius:6px;background:var(--surface-2)}
+.pfl{display:grid;grid-template-columns:62px minmax(0,1fr) 64px 14px;column-gap:5px;align-items:center;min-height:26px}
+.pfk{font:600 12px var(--f-num);color:var(--ink)}
+.pfq{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pfl input[type=number]{width:64px}
+.pfw{display:block;font-size:11px;color:var(--diff-warn);margin-top:3px}
+.pfx .cap{display:block;margin-top:5px}
+.plegs{padding:6px 0 2px;margin-top:4px;border-top:1px solid var(--grid)}
+.plg{display:grid;grid-template-columns:44px minmax(0,1fr) 52px 58px;column-gap:6px;align-items:baseline;line-height:18px}
+.plg .plk{font:600 12px var(--f-num);color:var(--ink)}
+.plg .plw{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plg .pli{font-size:11px;color:var(--ink-3);text-align:right}
+.plg .plp{font:600 13px var(--f-num);color:var(--ink);text-align:right}
+.plg .plq{grid-column:2/-1;font-size:10.5px;color:var(--ink-3);line-height:14px;margin-bottom:3px}
+.plg.t .plw{color:var(--ink)}
 .d9m{color:var(--ink-3)}
-.d9m.w{color:var(--diff-warn)}
-.d9m .s9tok{color:inherit}
 .d9i{display:inline-block;border:0;background:none;padding:0 2px;margin-left:2px;color:var(--ink-3);font-size:11px;line-height:16px;vertical-align:middle}
 .d9i:hover{color:var(--ink)}
 .d9L .info{background:none;padding:0;width:14px;height:14px;font-size:9.5px;line-height:12px;margin-left:3px;vertical-align:0;cursor:pointer}
@@ -664,6 +694,7 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .pop button .muted{font-weight:400}
 #toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:5px;padding:0 7px;font-size:12px}
 .v9views .full .wn{display:block}
+.v9views .swbadge{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--ink-3);border-radius:4px;font:600 10px/15px var(--f-ui);color:var(--ink-2);vertical-align:1px;text-transform:uppercase;letter-spacing:.04em}
 
 /* ===== Compounding tab ===== */
 #tab-yr .panel{display:block}
@@ -2467,8 +2498,23 @@ const POS = (() => {
     return {
       exp: pos.exp, structure: pos.structure, legs: pos.legs, basis: b,
       values: { center: v.center === "atm" || v.center === undefined || v.center === null ? "atm" : +v.center, put: +v.put, call: +v.call },
-      wings: { call: wing(w.call), put: wing(w.put) }, fill: pos.fill === "nat" ? "nat" : "mid"
+      wings: { call: wing(w.call), put: wing(w.put) }, fill: pos.fill === "nat" ? "nat" : "mid", fills: canonFills(pos.fills)
     };
+  }
+  // ---------------------------------------------------------- typed fills (the price the trader actually got)
+  // pos.fills = { put | call | wingCall | wingPut: { tk, exp, K, cp, px } }: one typed price per leg slot, pinned to the
+  // contract it was typed for. It prices that leg only while the slot still holds that exact contract; a moved strike
+  // or another expiry falls back to the fill mode and says so (FILL_NOT_APPLIED).
+  const FILL_SLOTS = Object.freeze(["put", "call", "wingCall", "wingPut"]);
+  const isTypedFill = f => !!f && typeof f === "object" && typeof f.tk === "string" && typeof f.exp === "string" && Number.isFinite(+f.K) && (f.cp === "P" || f.cp === "C") && Number.isFinite(+f.px) && +f.px >= 0;
+  function canonFills(fills) {
+    const out = {};
+    if (!fills || typeof fills !== "object") { return out; }
+    for (const slot of FILL_SLOTS) {
+      const f = fills[slot];
+      if (isTypedFill(f)) { out[slot] = { tk: f.tk, exp: f.exp, K: +f.K, cp: f.cp, px: +f.px }; }
+    }
+    return out;
   }
 
   // ---------------------------------------------------------- mark parameters per leg
@@ -2493,20 +2539,31 @@ const POS = (() => {
   }
 
   // ---------------------------------------------------------- POS.price(inst, expId, legs, fill) -> Priced
-  const price = function (inst, expId, legs, fill) {
+  const price = function (inst, expId, legs, fill, fills) {
     caches();
     fill = fill === "nat" ? "nat" : "mid";
     const E = inst && inst.exp(expId); if (!E) return null;
-    const key = `${inst.version}|${expId}|${legs.map(l => l.role + ":" + l.K).join(",")}|${fill}`;
+    const typed = canonFills(fills);
+    const key = `${inst.version}|${expId}|${legs.map(l => l.role + ":" + l.K).join(",")}|${fill}|${JSON.stringify(typed)}`;
     const hit = PC.get(key); if (hit) return hit;
     const S = inst.spot, T = E.T, F = E.Fpar, nat = fill === "nat", DF = Math.exp(-R * T);
     const sell = o => nat ? o.bid : o.mid, buy = o => nat ? o.ask : o.mid, hs = o => Math.max(0, (o.ask - o.bid) / 2);
+    // the typed price of a leg when its slot holds exactly the contract it was typed for
+    const typedFor = (role, o) => {
+      const f = typed[KEY[role]];
+      const matches = !!f && !!o && f.tk === inst.id && f.exp === expId && Math.abs(f.K - o.K) < 1e-9 && f.cp === o.cp;
+      return matches ? f.px : null;
+    };
+    const pxOf = (role, o) => { const t = typedFor(role, o); if (t !== null) { return t; } return qtyOf(role) < 0 ? sell(o) : buy(o); };
     const rowOut = o => o ? Object.freeze(Object.assign({}, o, { d: o.delta })) : null;
     const byRole = {};
     for (const l of legs) { const o = E.row(l.K, cpOf(l.role)); if (!o) return null; byRole[l.role] = o; }
     const sp = byRole["short put"] || null, sc = byRole["short call"] || null, cw = byRole["long call"] || null, pw = byRole["long put"] || null;
-    const crS = (sp ? sell(sp) : 0) + (sc ? sell(sc) : 0);
-    const capPx = cw ? buy(cw) : 0, wingPx = capPx + (pw ? buy(pw) : 0), cr = crS - wingPx;
+    const crS = (sp ? pxOf("short put", sp) : 0) + (sc ? pxOf("short call", sc) : 0);
+    const capPx = cw ? pxOf("long call", cw) : 0, wingPx = capPx + (pw ? pxOf("long put", pw) : 0), cr = crS - wingPx;
+    // what the same legs fetch at mid and at natural, whatever the fill: the card and the legs compare against them
+    const sideSum = pick => legs.reduce((t, l) => { const o = byRole[l.role]; return t - qtyOf(l.role) * pick(o, qtyOf(l.role)); }, 0);
+    const crMid = sideSum(o => o.mid), crNat = sideSum((o, q) => q < 0 ? o.bid : o.ask);
     const exitCost = nat ? (sp ? hs(sp) : 0) + (sc ? hs(sc) : 0) + (cw ? hs(cw) : 0) + (pw ? hs(pw) : 0) : 0;
     const flags = [];
     if (inst.overridden) {
@@ -2518,24 +2575,31 @@ const POS = (() => {
     for (const l of legs) {
       const o = byRole[l.role], qty = qtyOf(l.role), m = markOf(E, o, qty);
       marks.push(Object.freeze(Object.assign(m, { role: l.role, tw: m.tw ? Object.freeze(m.tw) : undefined })));
-      const fillPx = qty < 0 ? sell(o) : buy(o), intr = intrinsic(o.K, o.cp, S), itm = o.cp === "P" ? o.K > F : o.K < F;
+      const typedPx = typedFor(l.role, o), fillPx = pxOf(l.role, o), intr = intrinsic(o.K, o.cp, S), itm = o.cp === "P" ? o.K > F : o.K < F;
       const name = fK(o.K) + o.cp;
       if (m.noPin) flags.push({ code: "NO_IV_PIN", leg: KEY[l.role], severity: "note", text: `${name}: mid has no implied vol; marked with a residual that decays to expiry` });
       const tvMid = o.mid - intr, carry = o.K * (1 - DF);
       if (qty < 0 && intr > 0 && (!itm || tvMid < Math.max(0.05, carry))) flags.push({ code: "EARLY_ASSIGN", leg: KEY[l.role], severity: "note", text: `${name}: early assignment risk (intrinsic ${fN(intr, 2)} against spot, time value ${fN(tvMid, 2)})` });
       if (intr > 0 && o.mid < intr - 1e-9) flags.push({ code: "BELOW_INTRINSIC", leg: KEY[l.role], severity: "note", text: `${name}: mid ${fN(o.mid, 2)} is below intrinsic ${fN(intr, 2)}` });
       L.push({
-        role: l.role, key: KEY[l.role], cp: o.cp, K: o.K, qty, bid: o.bid, ask: o.ask, mid: o.mid, fillPx, perContract: -qty * fillPx * 100,
+        role: l.role, key: KEY[l.role], cp: o.cp, K: o.K, qty, bid: o.bid, ask: o.ask, mid: o.mid, fillPx, typed: typedPx !== null, perContract: -qty * fillPx * 100,
         iv: o.iv, ivm: o.ivm, delta: o.delta, money: (o.K / F - 1) * 100, sigma: Math.log(o.K / F) / E.sigma,
         itm, intrinsic: intr, timeValue: fillPx - intr, tvMid, quotePremium: m.mode === "twin" ? m.qp : NaN,
         parity: m.mode === "twin" ? m.parE : NaN, markMode: m.mode, model: !!o.model
       });
     }
     L.sort(sortLegs);
+    for (const slot of FILL_SLOTS) {
+      const f = typed[slot], leg = L.find(x => x.key === slot);
+      if (!f || (leg && leg.typed)) { continue; }
+      const now = leg ? `this leg is now ${fmtE(expId)} ${fK(leg.K)}${leg.cp}` : "this leg is not in the position now";
+      flags.push({ code: "FILL_NOT_APPLIED", leg: slot, severity: "warn", text: `typed fill ${fN(f.px, 2)} was for ${f.tk} ${fmtE(f.exp)} ${fK(f.K)}${f.cp}; ${now}, so it is at ${fill === "nat" ? "natural" : "mid"}` });
+    }
+    const typedCount = L.filter(x => x.typed).length;
     // v8-compatible intrinsic / time value of the two shorts (against spot)
     const legI = (o, cp) => {
       if (!o) return null;
-      const intr = intrinsic(o.K, cp, S), px = sell(o), m = marks.find(x => x.K === o.K && x.cp === cp && x.qty < 0);
+      const intr = intrinsic(o.K, cp, S), px = pxOf(cp === "P" ? "short put" : "short call", o), m = marks.find(x => x.K === o.K && x.cp === cp && x.qty < 0);
       return { intr, px, tv: px - intr, tvMid: o.mid - intr, below: intr > 0 && o.mid < intr - 1e-9, ea: intr > 0 && o.mid - intr < Math.max(0.05, o.K * (1 - DF)), carry: o.K * (1 - DF), par: m && m.mode === "twin" ? m.parE : NaN, from: m && m.mode === "twin" ? rowOut(E.row(o.K, cp === "P" ? "C" : "P")) : null };
     };
     const iP = legI(sp, "P"), iC = legI(sc, "C");
@@ -2545,15 +2609,16 @@ const POS = (() => {
     const lev = inst.lev, f20 = Math.min(1, 0.2 * lev), f10 = Math.min(1, 0.1 * lev);
     let margin = NaN;
     if (sp && sc) {
-      const rPn = sell(sp) + Math.max(f20 * S - Math.max(0, S - sp.K), f10 * sp.K);
-      const rCn = sell(sc) + Math.max(f20 * S - Math.max(0, sc.K - S), f10 * S);
+      const pxP = pxOf("short put", sp), pxC = pxOf("short call", sc);
+      const rPn = pxP + Math.max(f20 * S - Math.max(0, S - sp.K), f10 * sp.K);
+      const rCn = pxC + Math.max(f20 * S - Math.max(0, sc.K - S), f10 * S);
       const rP = pw ? Math.min(sp.K - pw.K, rPn) : rPn, rC = cw ? Math.min(cw.K - sc.K, rCn) : rCn;
-      margin = rP >= rC ? rP + sell(sc) - (cw ? buy(cw) : 0) : rC + sell(sp) - (pw ? buy(pw) : 0);
+      margin = rP >= rC ? rP + pxC - (cw ? pxOf("long call", cw) : 0) : rC + pxP - (pw ? pxOf("long put", pw) : 0);
     }
     const out = {
       key, tk: inst.id, inst, exp: expId, E, S, T, dte: E.dte, F, Fimpl: F, Fcarry: E.Fcarry, sig: E.sigma, fill,
       sp: rowOut(sp), sc: rowOut(sc), cap: rowOut(cw), capP: rowOut(pw),
-      crS, capPx, wingPx, cr, exitCost, intr, tv, vega, margin, iP, iC,
+      crS, capPx, wingPx, cr, crMid, crNat, typedCount, typedKey: JSON.stringify(typed), exitCost, intr, tv, vega, margin, iP, iC,
       itmP: sp ? sp.K > F : false, itmC: sc ? sc.K < F : false,
       straddle: !!(sp && sc && sp.K === sc.K), guts: !!(sp && sc && sp.K > sc.K), capFb: false,
       legs: L, marks,
@@ -2614,7 +2679,7 @@ const POS = (() => {
     for (const f of res.flags) flags.push(f);
     if (res.na) return BC.set(key, naBuilt(key, inst, pos, expId, E, res.na, freeze(flags), res));
     const rlegs = [res.put, res.call, res.wingCall, res.wingPut].filter(Boolean);
-    const pr = price(inst, expId, rlegs.map(l => ({ role: l.role, K: l.K })), pos.fill);
+    const pr = price(inst, expId, rlegs.map(l => ({ role: l.role, K: l.K })), pos.fill, pos.fills);
     for (const f of pr.flags) flags.push(f);
     const legs = pr.legs.map(x => { const r = rlegs.find(l => l.role === x.role); return Object.assign({}, x, { target: r.target, achieved: r.achieved, snapErr: r.snapErr, Kshort: r.Kshort }); });
     const b = Object.assign({}, pr, {
@@ -2778,7 +2843,9 @@ const CMP = (() => {
     const wing = (s) => L[wingAspect(s)] ? Object.assign(fromA(A, wingAspect(s)), { basis: A.basis }) : get(wingAspect(s));
     return {
       inst: get("inst"), exp: get("exp"), structure: get("structure"), legs: get("legs"),
-      basis: pl.basis, values: pl.values, wings: { call: wing("call"), put: wing("put") }, fill: get("fill")
+      basis: pl.basis, values: pl.values, wings: { call: wing("call"), put: wing("put") }, fill: get("fill"),
+      // typed fills are B's own, never A's: they price B's own contracts
+      fills: clone(B.fills || {})
     };
   }
   const buildA = c => POS.build(c.A);
@@ -2888,12 +2955,34 @@ const CMP = (() => {
     for (let i = 0; i < a.legs.length; i++) if (a.legs[i].role !== b.legs[i].role || a.legs[i].K !== b.legs[i].K) return false;
     return true;
   }
-  const isIdentical = (bA, bB) => !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB) && bA.fill === bB.fill;
+  const isIdentical = (bA, bB) => !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB) && bA.fill === bB.fill && bA.typedKey === bB.typedKey;
   const identical = c => isIdentical(buildA(c), buildB(c));
   const evIdentical = () => ({ type: "identical", aspects: [], text: "A and B are now the same trade", actions: [] });
   const note = text => ({ type: "note", aspects: [], text, actions: [] });
 
+  // a typed fill ("fills.put" etc.): stored on the side itself, never linked; null removes it
+  const FILL_PATH = /^fills\.(put|call|wingCall|wingPut)$/;
+  function setTypedFill(c, side, path, value) {
+    const slot = FILL_PATH.exec(String(path))[1], n = clone(c);
+    n[side] = n[side] || {};
+    const fills = Object.assign({}, n[side].fills || {});
+    if (value === null || value === undefined) { delete fills[slot]; }
+    else { fills[slot] = { tk: String(value.tk), exp: String(value.exp), K: +value.K, cp: value.cp, px: +value.px }; }
+    n[side].fills = sanFills(fills);
+    return { c: tidyB(post(c, n)), events: [] };
+  }
+  function sanFills(o) {
+    const out = {};
+    if (!isObj(o)) { return out; }
+    for (const slot of ["put", "call", "wingCall", "wingPut"]) {
+      const f = o[slot];
+      const isValid = isObj(f) && typeof f.tk === "string" && /^\d{8}$/.test(String(f.exp)) && Number.isFinite(+f.K) && +f.K > 0 && (f.cp === "P" || f.cp === "C") && Number.isFinite(+f.px) && +f.px >= 0 && +f.px < 1e5;
+      if (isValid) { out[slot] = { tk: f.tk, exp: f.exp, K: +f.K, cp: f.cp, px: +f.px }; }
+    }
+    return out;
+  }
   function setA(c, path, value) {
+    if (FILL_PATH.test(String(path))) { return setTypedFill(c, "A", path, value); }
     const a = aspectOf(path); if (!a) throw new Error("unknown path " + path);
     const before = identical(c), n = clone(c);
     const E = path === "basis" ? INST.make(n.A.inst).exp(n.A.exp) : null;
@@ -2968,6 +3057,7 @@ const CMP = (() => {
 
   // ---------------------------------------------------------- the B-side mutator (implicit unlink of one aspect)
   function setB(c, path, value) {
+    if (FILL_PATH.test(String(path))) { return setTypedFill(c, "B", path, value); }
     const a = aspectOf(path); if (!a) throw new Error("unknown path " + path);
     let n = clone(c); const events = [];
     if (c.links[a]) {
@@ -3195,8 +3285,12 @@ const CMP = (() => {
     if (!bA.na && !bB.na && ((bA.cr < 0 && bB.cr > 0) || (bB.cr < 0 && bA.cr > 0))) { const s = bA.cr < 0 ? "A" : "B"; amber(s, "fill", "DEBIT", `${s} is a net debit`); }
     // only the instrument differs: no amber, and every unlinked aspect is moot or resolves to A's value (an unlinked
     // fill set back to mid, or B's legs detached while B's strikes follow A, changes nothing)
-    const onlyInstrument = !ident && !items.some(i => !i.asked || i.code === "UNLINKED");
-    return INST.deepFreeze({ items, identical: ident, onlyInstrument });
+    // typed fills are not an aspect: the same contracts at other prices still make two different trades
+    const typedFillsDiffer = !bA.na && !bB.na && (bA.typedCount > 0 || bB.typedCount > 0) && bA.typedKey !== bB.typedKey;
+    const sameContracts = !bA.na && !bB.na && bA.inst.version === bB.inst.version && bA.exp === bB.exp && legsEq(bA, bB);
+    const onlyInstrument = !ident && !typedFillsDiffer && !items.some(i => !i.asked || i.code === "UNLINKED");
+    const onlyTypedFill = !ident && typedFillsDiffer && sameContracts;
+    return INST.deepFreeze({ items, identical: ident, onlyInstrument, onlyTypedFill });
   }
   function rWingBasis(c, side, s) {
     if (side === "A") return c.A.basis;
@@ -3245,7 +3339,8 @@ const CMP = (() => {
     const w = isObj(p.wings) ? p.wings : {};
     return {
       inst, exp, structure: STRUCTS.includes(p.structure) ? p.structure : d.structure, legs: LEGSM.includes(p.legs) ? p.legs : d.legs,
-      basis, values: sanValues(p.values, basis, dv), wings: { call: sanWing(w.call, basis), put: sanWing(w.put, basis) }, fill: FILLS.includes(p.fill) ? p.fill : d.fill
+      basis, values: sanValues(p.values, basis, dv), wings: { call: sanWing(w.call, basis), put: sanWing(w.put, basis) }, fill: FILLS.includes(p.fill) ? p.fill : d.fill,
+      fills: sanFills(p.fills)
     };
   }
   function sanitize(o) {
@@ -3261,6 +3356,8 @@ const CMP = (() => {
     if (STRUCTS.includes(ob.structure)) B.structure = ob.structure;
     if (LEGSM.includes(ob.legs)) B.legs = ob.legs;
     if (FILLS.includes(ob.fill)) B.fill = ob.fill;
+    const bFills = sanFills(ob.fills);
+    if (Object.keys(bFills).length) { B.fills = bFills; }
     if (RULE.BASES.includes(ob.basis) && isObj(ob.values)) { B.basis = ob.basis; B.values = sanValues(ob.values, ob.basis, { put: RULE.DEF[ob.basis], call: RULE.DEF[ob.basis] }); }
     const bb = links.placement ? A.basis : B.basis || A.basis;
     if (isObj(ob.wings)) { const w = {}; for (const s of ["call", "put"]) if (isObj(ob.wings[s])) w[s] = sanWing(ob.wings[s], bb); if (w.call || w.put) B.wings = w; }
@@ -3292,7 +3389,7 @@ const STATE = (() => {
   const PREFS_DEF = Object.freeze({
     units: ReadingUnit.Percent, ovm: "cr", ovv: "chart", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
     ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, cs: "comp", cr: "auto", crx: 20, shared: true,
-    sweep: "both", jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
+    sweep: "both", swSmooth: false, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: "worse", rdL: 60, rdBase: "nav", rdCap: "margin", rdG: GrowthRate.Ev, rdGc: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
@@ -4428,14 +4525,14 @@ const SUM9 = (() => {
     let h = naF.filter(f => f.leg === "wingPut").map(naTok).join("");
     for (const l of b.legs) {
       const w = l.qty > 0, px = l.perContract;
-      const tip = `${w ? "Long" : "Short"} ${fK(l.K)}${l.cp} ${w ? "bought" : "sold"} at ${l.fillPx.toFixed(2)} (${b.fill === "nat" ? (w ? "ask" : "bid") : "mid"}): ${px < 0 ? "debit" : "credit"} ${usd(px)} per contract`;
+      const tip = `${w ? "Long" : "Short"} ${fK(l.K)}${l.cp} ${w ? "bought" : "sold"} at ${l.fillPx.toFixed(2)} (${l.typed ? "your typed fill" : b.fill === "nat" ? (w ? "ask" : "bid") : "mid"}): ${px < 0 ? "debit" : "credit"} ${usd(px)} per contract`;
       h += `<span class="s9leg${w ? " w" : ""}" title="${tipEsc(tip)}"><span class="k">${fK(l.K)}${l.cp}${w ? `<span class="s9wl"> wing</span>` : ""}</span>${px < 0 ? MINUS : "+"}${usd(px)}</span>`;
     }
     h += naF.filter(f => f.leg === "wingCall").map(naTok).join("");
     const n = b.net, deb = n.isDebit;
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
-    const fillTxt = b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
+    const fillTxt = b.typedCount ? `<span class="s9fL">your fill</span><span class="s9fS">yours</span>` : b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
     h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span><span class="s9fi"> · ${tok(m.fill, fillTxt, b.fill === "nat" ? "natural fill: sell at the bid, buy at the ask" : "filled at mid")}</span>`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
@@ -4464,8 +4561,9 @@ const SUM9 = (() => {
     const vol = C.volOf(b.tk), isHandSet = vol.source === VolSource.Set, implied = b.E ? fP(b.E.atm, 0) : "–";
     const floored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct ? ` The stored ${+vol.storedPct.toFixed(2)}% (exactly on the path, set on Compounding) reads as ${Math.round(vol.pct)}% here, the comparer's floor.` : "";
     const tip = `${b.tk} period vol: the assumed vol of its moves over the period, one number for every expiry, used by every EV reading (and by the odds when the odds switch says period vol). Implied: ATM IV at ${fmtE(b.exp)}.${floored} Click to set it under Positions, spot / IV / period vol.`;
-    const versus = isCompact ? "vs IV" : "vs implied";
-    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}${esc(vol.label)} ${versus} ${implied}</span>`;
+    // two different vols, named as such: the period vol (odds and EV) and the expiry's ATM IV (σ and the move range)
+    const versus = isCompact ? "· ATM" : "· ATM IV";
+    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}period ${esc(vol.label)} ${versus} ${implied}</span>`;
   }
   /** @param {{ b: any, P: any, C: any, side: string }} input */
   function line3({ b, P, C, side }) {
@@ -4583,6 +4681,7 @@ const SUM9 = (() => {
     }
     const notes = [];
     if (d.identical) notes.push("A and B are the same trade");
+    else if (d.onlyTypedFill) notes.push("same contracts, only the fill differs (typed prices)");
     else if (d.onlyInstrument) notes.push("same position, only the instrument differs");
     const any = Object.keys(L).some(a => a !== "inst" && !L[a]);
     return { list, notes, any };
@@ -4771,12 +4870,14 @@ const SUM9 = (() => {
   return { init, render, glyph, marks, commonStages, contractsK, L1F, L2F, C: null };
 })();
 // ---------------------------------------------------------------- ui_dock.js
-// ============================================================ ui9_dock: the Positions dock (Compare tab)
-// A table of aspects, A | link | B (instrument with its spot / IV / period vol controls, expiry, structure, legs,
-// strikes by, protective call, protective put, fill), full-width placement and wing sliders under their rows, then the
-// collapsed "Legs in detail" and "Pair sizing" sections. Reads only C and the store; changes state only through
-// commands. The period vol belongs to the ticker, not the side: editing it under A changes B too when B is on the same
-// ticker. Top-level name: DOCK9.
+// ============================================================ ui_dock: the Positions dock (Compare tab)
+// Two position boxes, A on top and B below: the same kind of thing with two identities, so one box renderer called
+// twice, the same rows in the same order (instrument with its spot / IV / period vol box, expiry, structure, legs,
+// strikes by with the placement sliders, protective call, protective put, fill with the typed fills, the legs).
+// B's relation to A is part of B's box: a chain after each of B's row labels (closed: B follows A there; editing the
+// control sets B on its own, and the toast offers the relink; open: B set on its own, click to follow A again).
+// Below both boxes: Legs in detail and Pair sizing (a property of the pair). Reads only C and the store; changes state
+// only through commands. The period vol belongs to the ticker, not the side. Top-level name: DOCK9.
 const DOCK9 = (() => {
   const q = s => document.querySelector(s);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -4805,8 +4906,11 @@ const DOCK9 = (() => {
     periodVolStep: 1,
     periodVolInfo: "One number per ticker, used for every expiry; annualized like IV (calendar days). Every EV reading uses it (the overview's EV, the sweep, recovery, the export), and so do the odds when the odds switch says period vol. Leg prices and IVs stay at their quotes. The ticks mark the reference vols listed under the slider."
   });
-  let root = null, lastKey = "", C = null, SL = {};
-  const ui = { inst: { A: false, B: false } };
+  let C = null, SL = {};
+  const roots = { A: null, B: null }, lastKeys = { A: "", B: "" };
+  // local view state, not stored: which side's spot / IV / period vol box and typed-fill editor are open
+  const ui = { inst: { A: false, B: false }, fills: { A: false, B: false } };
+  // the sizing select's sync (bindSelect hands it over): run in syncSizing, while the dock shows
   // the sizing select's sync (bindSelect hands it over): run in syncSizing, as v9's list was, so it runs only while
   // the dock shows and only when the dock rendered
   const SIZING_SYNCS = [];
@@ -4824,7 +4928,6 @@ const DOCK9 = (() => {
   const segH = (side, path, opts, cur, eq) => `<span class="seg${eq === false ? "" : " eq"}">${opts.map(([v, l, t]) => `<button type="button" data-act="set" data-side="${side}" data-path="${path}" data-v="${v}" class="${String(cur) === v ? "on" : ""}" aria-pressed="${String(cur) === v}"${t ? ` title="${att(t)}"` : ""}>${l}</button>`).join("")}</span>`;
   const ovShort = I => Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? fPx2(I.spot) : `IV ${I.ivShift > 0 ? "+" : MINUS}${+Math.abs(I.ivShift).toFixed(2)}`;
   const kc = l => l ? fK(l.K) + l.cp : "–";
-
   // ---------------------------------------------------------- cells
   function instCell(side) {
     const P = posOf(side), I = instOf(side);
@@ -4850,27 +4953,7 @@ const DOCK9 = (() => {
   const basisCell = side => segH(side, "basis", BASIS, posOf(side).basis, false);
   const wingCell = (side, s) => segH(side, `wings.${s}.on`, [["false", "off"], ["true", "on", `Buy a protective ${s} beyond the short ${s}`]], String(!!posOf(side).wings[s].on));
   const fillCell = side => segH(side, "fill", [["mid", "mid", "Filled at mid"], ["nat", "natural", "Sell at the bid, buy at the ask; marks before expiry also pay half the spread to close"]], posOf(side).fill);
-  // a linked B cell: B's resolved result in muted type (amber when diff marks that aspect unasked)
-  function linkedB(a) {
-    const b = C.B, P = C.Bp, am = amber("B", a);
-    let t = "";
-    switch (a) {
-      case "inst": { const I = C.instB; t = (I ? I.name || I.id : P.inst.id) + (I && I.overridden ? " ✎ " + ovShort(I) : ""); break; }
-      case "exp": { const f = b.flags.find(x => x.code === "EXP_MAPPED"); t = b.exp ? fmtE(b.exp) + (f ? ` (no ${fmtE(f.from)})` : "") : "n/a"; break; }
-      case "structure": t = b.na ? "n/a" : b.kind + (b.kind !== P.structure ? ` ${b.kind === "straddle" ? fK(b.sp.K) : fK(b.sp.K) + "P / " + fK(b.sc.K) + "C"}` : ""); break;
-      case "legs": t = P.legs; break;
-      case "placement": t = BNAME[P.basis]; break;
-      case "wingCall": case "wingPut": {
-        const s = a === "wingCall" ? "call" : "put", l = legOf(b, a), na = b.flags.find(x => x.code === "WING_NA" && x.leg === a);
-        t = !P.wings[s].on ? "off" : na ? "on · n/a" : l ? `on · ${kc(l)}` : "on"; break;
-      }
-      case "fill": t = P.fill === "nat" ? "natural" : "mid"; break;
-    }
-    const w = am.length > 0;
-    return `<span class="d9m${w ? " w" : ""}"${w ? ` title="${att(am.map(x => x.text).join(" · "))}"` : ` title="B follows A: this is what B resolves to"`}>${w ? "! " : ""}${esc(t)}</span>`;
-  }
   const linkBtn = a => { const on = !!C.comparison.links[a]; return `<button type="button" class="d9lk${on ? "" : " off"}" data-act="link" data-aspect="${a}" title="${on ? "B follows A" : "B set on its own"}" aria-label="${on ? "B follows A; click to set B on its own" : "B set on its own; click to make B follow A"}" aria-pressed="${on}">${on ? CH_ON : CH_OFF}</button>`; };
-
   // ---------------------------------------------------------- sliders
   // spec = {side, name, muted, lo, hi, value, step, readout, warnRo, ticks: [{v, t, bx, pri}], keepMarks, note, noteWarn, input(v)}
   function slider(key, spec) {
@@ -4997,67 +5080,124 @@ const DOCK9 = (() => {
       input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 })
     }));
   }
-  function bLine(key, html, warn, title) { return { key, cls: `d9F d9bl${warn ? " w" : ""}`, inner: () => `<span class="key b">B</span>${html}`, title }; }
 
-  // ---------------------------------------------------------- the component list (its keys decide when to rebuild)
-  function comps() {
-    const out = [], L = C.comparison.links, A = C.Ap, B = C.Bp;
-    SL = {};
-    const cell = (key, cls, inner, row) => out.push({ key, cls, inner, row });
-    const row = (a, label, fa, fb, extra) => {
-      cell(`L:${a}`, "d9L", () => label, a);
-      cell(`A:${a}`, "d9A", fa, a);
-      cell(`K:${a}`, "d9K", () => linkBtn(a), a);
-      const linkedCell = L[a] && !(a === "legs" && B.structure === "straddle");
-      cell(`B:${a}:${linkedCell ? "l" : "o"}`, "d9B", linkedCell ? () => linkedB(a) : fb, a);
-      if (extra) extra();
-    };
-    cell("hd:L", "d9L", () => ""); cell("hd:A", "d9A d9hd", () => `<span class="key a">A</span>`); cell("hd:K", "d9K", () => ""); cell("hd:B", "d9B d9hd", () => `<span class="key b">B</span>`);
-    row("inst", ROWS.inst, () => instCell("A"), () => instCell("B"), () => {
-      for (const side of ["A", "B"]) if (ui.inst[side] && (side === "A" || !L.inst)) out.push({ key: `instx:${side}`, cls: "d9F", row: "inst", inner: () => instX(side), upd: el => updInstX(el, side) });
-    });
-    row("exp", `${ROWS.exp}${mapBtn()}`, () => expCell("A"), () => expCell("B"));
-    row("structure", ROWS.structure, () => structCell("A"), () => structCell("B"));
-    row("legs", `${ROWS.legs}<button type="button" class="info" data-act="legsinfo" title="Together or detached; make symmetric">i</button>`, () => legsCell("A"), () => legsCell("B"));
-    row("placement", ROWS.placement, () => basisCell("A"), () => basisCell("B"), () => {
-      // "B end" ticks only on the row whose field B reads (B with another structure reads the extra row below)
-      placeSliders("A", A, C.A, out, { bE: L.placement && !C.B.na && B.structure === A.structure ? C.B.E : null });
-      // B reads an A field that A does not use: show it as one muted extra row (edits A's storage only)
-      if (L.placement && B.structure !== A.structure && !C.B.na && C.B.E) {
-        const used = B.structure === "strangle" ? "strangle values" : "straddle center";
-        const Pv = Object.assign({}, A, { structure: B.structure, legs: "together" });
-        placeSliders("A", Pv, C.B, out, {
-          E: C.B.E, tag: ":forB", whose: "B's ", muted: true, name: `${used} (used by B)`, together: true, noAtm: true,
-          ro: (() => { const p = legOf(C.B, "put"), c = legOf(C.B, "call"); return p && c ? `B ${kc(p)} · ${kc(c)}` : "B n/a"; })(),
-          cur: readAValues, input: (path, v) => setSide({ side: "A", path, value: v })
-        });
-      }
-      if (L.placement) {
-        const b = C.B, am = amber("B", "placement"), bas = B.basis;
-        let t;
-        if (b.na) t = "n/a";
-        else if (b.kind === "straddle" && b.center) { const v = b.center.achieved[bas]; t = `${fK(b.center.K)} · ${fC(v, bas)}`; }
-        else { const p = legOf(b, "put"), c = legOf(b, "call"); t = `${kc(p)} / ${kc(c)} · ${fV(p.achieved[bas], bas)} / ${fV(c.achieved[bas], bas)}`; }
-        out.push(bLine("bl:placement", `= A · ${esc(t)}${am.length ? ` · <span title="${att(am.map(x => x.text).join(" · "))}">${esc(am[0].text.replace(/^! B: /, "! ").replace(/ at chain end .*/, " at chain end"))}${am.length > 1 ? ` +${am.length - 1}` : ""}</span>` : ""}`, am.length > 0));
-        // B's legs detached while its strikes follow A: they cannot move on their own; one click sets B's strikes free
-        if (!L.legs && B.structure === "strangle" && B.legs === "detached" && !b.na)
-          out.push(bLine("bl:legsmoot", `legs detached, strikes follow A <button type="button" class="d9i" data-act="ownplace" title="B's put and call can move on their own once B's strikes are set on their own (unlinks Strikes by)">unlink strikes</button>`, false));
-      } else if (!C.B.na) placeSliders("B", B, C.B, out, {});
-    });
-    for (const [a, s] of [["wingCall", "call"], ["wingPut", "put"]]) {
-      row(a, ROWS[a], () => wingCell("A", s), () => wingCell("B", s), () => {
-        if (A.wings[s].on && !C.A.na) wingSlider("A", s, A, C.A, A.basis, out);
-        if (B.wings[s].on && !C.B.na) {
-          if (L[a]) {
-            const l = legOf(C.B, a), na = C.B.flags.find(f => f.code === "WING_NA" && f.leg === a), am = amber("B", a), wb = B.wings[s].basis || A.basis;
-            out.push(bLine(`bl:${a}`, `= A · ${na ? esc(na.text) : l ? `${kc(l)} ${fV(l.achieved[wb], wb)}` : "n/a"}${am.length && !na ? ` · <span title="${att(am.map(x => x.text).join(" · "))}">${esc(am[0].text.replace(/^! B: /, "! ").replace(/ at chain end .*/, " at chain end").replace(/^! (call|put) wing /, "! "))}</span>` : ""}`, !!na || am.length > 0));
-          } else wingSlider("B", s, B, C.B, B.wings[s].basis || B.basis, out);
-        }
-      });
+  // ---------------------------------------------------------- one position box
+  const FILL_SLOT_NAME = Object.freeze({ put: "put", call: "call", wingCall: "protective call", wingPut: "protective put" });
+  const legWord = l => l.qty < 0 ? "sold" : "bought";
+  const pxOf = v => Number.isFinite(v) ? v.toFixed(2) : "–";
+  const signedUsd = v => (v < 0 ? MINUS : "+") + usd(v);
+  // the label cell; on B it also carries the chain (B's relation to A for this row) and a "!" when the row differs
+  // from A in a way the comparison flags
+  function rowLabel(side, aspect, label) {
+    if (side !== "B") { return `<span class="plbl">${label}</span>`; }
+    const marks = amber("B", aspect);
+    const warn = marks.length ? `<span class="pwarn" title="${att(marks.map(x => x.text).join(" · "))}">!</span>` : "";
+    return `<span class="plbl">${label}${linkBtn(aspect)}${warn}</span>`;
+  }
+  // the box head: which position, what it collects, and what the same legs fetch at mid and at natural
+  function boxHead(side) {
+    const b = bOf(side), key = `<span class="key ${side.toLowerCase()}">${side}</span>`;
+    // the instrument is set on its own by default (B is usually another ticker): only the other rows call for it
+    const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
+    if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
+    const fillWord = b.typedCount ? `your fill on ${b.typedCount} of ${b.legs.length} legs` : b.fill === "nat" ? "natural" : "mid";
+    const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b> · ${esc(fillWord)}`;
+    const refs = [b.typedCount || b.fill === "nat" ? `mid ${usd(b.crMid * 100)}` : "", b.fill !== "nat" || b.typedCount ? `natural ${usd(b.crNat * 100)}` : ""].filter(Boolean).join(" · ");
+    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>` +
+      `<span class="pnet">${net}</span><span class="pref">${refs ? refs + " · " : ""}ATM IV ${fP(b.E.atm, 0)} (sets σ) · ${b.dte} d</span>`;
+  }
+  const fillCellBox = side => {
+    const b = bOf(side), open = ui.fills[side];
+    const notApplied = b.na ? 0 : b.flags.filter(f => f.code === "FILL_NOT_APPLIED").length;
+    const label = b.typedCount ? `✎ your fill (${b.typedCount})` : notApplied ? "! your fill" : "your fill";
+    // every leg typed: the mode prices nothing, so it reads as secondary
+    const allTyped = !b.na && b.typedCount === b.legs.length;
+    const mode = allTyped ? `<span class="pdim" title="Every leg has your typed price; mid / natural applies to legs without one">${fillCell(side)}</span>` : fillCell(side);
+    return mode + ` <button type="button" class="d9btn pfb${b.typedCount ? " on" : ""}${notApplied ? " w" : ""}" data-act="fills" data-side="${side}" aria-expanded="${open}" title="Type the prices you actually got, per leg or as one net credit">${label} ▾</button>`;
+  };
+  // the typed-fill editor: one input per leg (empty = the fill mode), and one net price split over the sold legs by mid
+  function fillsEditor(side) {
+    const b = bOf(side);
+    if (b.na) { return ""; }
+    const rows = b.legs.map(l => {
+      const modePx = b.fill === "nat" ? (l.qty < 0 ? l.bid : l.ask) : l.mid;
+      const nat = l.qty < 0 ? `bid ${pxOf(l.bid)}` : `ask ${pxOf(l.ask)}`;
+      return `<span class="pfl"><span class="pfk">${fK(l.K)}${l.cp} ${legWord(l)}</span><span class="pfq">mid ${pxOf(l.mid)} · ${nat}</span>` +
+        `<input type="number" step="0.01" min="0" data-act="fillpx" data-side="${side}" data-slot="${l.key}" placeholder="${pxOf(modePx)}" aria-label="${side} ${att(FILL_SLOT_NAME[l.key])} fill price per share">` +
+        `<button type="button" class="d9i" data-act="fillclr" data-side="${side}" data-slot="${l.key}" title="Back to ${b.fill === "nat" ? "natural" : "mid"}"${l.typed ? "" : " hidden"}>×</button></span>`;
+    }).join("");
+    const stale = b.flags.filter(f => f.code === "FILL_NOT_APPLIED").map(f => `<span class="pfw">! ${esc(f.text)}</span>`).join("");
+    return `<span class="pfx">${rows}<span class="pfl"><span class="pfk">net</span><span class="pfq" title="split over the sold legs in proportion to their mids">${b.cr < 0 ? "debit" : "credit"} / share</span>` +
+      `<input type="number" step="0.01" min="0" data-act="fillnet" data-side="${side}" placeholder="${pxOf(Math.abs(b.cr))}" aria-label="${side} net fill per share"></span>${stale}` +
+      `<span class="cap">Per share, as on the order ticket ($ per contract = ×100). A typed price belongs to its contract: if the strike or expiry changes, it stops applying and says so.</span></span>`;
+  }
+  function updFillsEditor(el, side) {
+    const b = bOf(side);
+    if (b.na) { return; }
+    for (const input of el.querySelectorAll('[data-act="fillpx"]')) {
+      if (document.activeElement === input) { continue; }
+      const leg = legOf(b, input.dataset.slot);
+      input.value = leg && leg.typed ? leg.fillPx.toFixed(2) : "";
     }
-    row("fill", ROWS.fill, () => fillCell("A"), () => fillCell("B"));
+  }
+  // a leg's IV: its own, from its mid; the smile fit at the strike (what marks and odds use) differs and is named
+  const describeLegIv = l => Number.isFinite(l.ivm)
+    ? `this contract's own IV, from its mid ${pxOf(l.mid)}; the smile fit at this strike is ${fP(l.iv, 1)} (marks before expiry and the implied odds use the fit)`
+    : `no IV from this contract's mid (below the model's lower bound); * = the smile fit at this strike, ${fP(l.iv, 1)}`;
+  // the legs, always visible: what each leg is, its quote, its own IV, the fill and its $ per contract
+  function legsList(side) {
+    const b = bOf(side);
+    if (b.na) { return ""; }
+    return b.legs.map(l => {
+      const how = l.typed ? "your fill ✎" : b.fill === "nat" ? (l.qty < 0 ? "at bid" : "at ask") : "at mid";
+      return `<span class="plg${l.typed ? " t" : ""}"><span class="plk">${fK(l.K)}${l.cp}</span><span class="plw">${legWord(l)} ${pxOf(l.fillPx)} ${how}</span>` +
+        `<span class="pli" title="${att(describeLegIv(l))}">IV ${Number.isFinite(l.ivm) ? fP(l.ivm, 0) : fP(l.iv, 0) + "*"}</span><span class="plp">${signedUsd(l.perContract)}</span>` +
+        `<span class="plq">bid ${pxOf(l.bid)} · ask ${pxOf(l.ask)} · spread ${pxOf(l.ask - l.bid)}${l.model ? " · model quote" : ""}</span></span>`;
+    }).join("");
+  }
+  // the box's components in order; keys decide when the box is rebuilt (sliders keep their input across renders)
+  function boxComps(side) {
+    const out = [], P = posOf(side), b = bOf(side), k = side + ":";
+    const row = (aspect, label, control) => out.push({ key: `${k}r:${aspect}`, cls: "prow", row: aspect, inner: () => rowLabel(side, aspect, label) + `<span class="pctl">${control()}</span>` });
+    out.push({ key: `${k}head`, cls: "phead", inner: () => boxHead(side) });
+    row("inst", ROWS.inst, () => instCell(side));
+    if (ui.inst[side]) { out.push({ key: `${k}instx`, cls: "pfull", row: "inst", inner: () => instX(side), upd: el => updInstX(el, side) }); }
+    row("exp", ROWS.exp + (side === "B" ? mapBtn() : ""), () => expCell(side));
+    row("structure", ROWS.structure, () => structCell(side));
+    row("legs", `${ROWS.legs}<button type="button" class="info" data-act="legsinfo" title="Together or detached; make symmetric">i</button>`, () => legsCell(side));
+    row("placement", ROWS.placement, () => basisCell(side));
+    if (!b.na) {
+      // A's sliders mark where B's chain ends while B follows A's strikes on the same structure
+      const followsA = side === "A" && C.comparison.links.placement && !C.B.na && C.Bp.structure === P.structure;
+      placeSliders(side, P, b, out, followsA ? { bE: C.B.E } : {});
+    }
+    for (const [aspect, s] of [["wingCall", "call"], ["wingPut", "put"]]) {
+      row(aspect, ROWS[aspect], () => wingCell(side, s));
+      if (P.wings[s].on && !b.na) { wingSlider(side, s, P, b, P.wings[s].basis || P.basis, out); }
+    }
+    row("fill", ROWS.fill, () => fillCellBox(side));
+    if (ui.fills[side]) { out.push({ key: `${k}fills`, cls: "pfull", row: "fill", inner: () => fillsEditor(side), upd: el => updFillsEditor(el, side) }); }
+    out.push({ key: `${k}legsList`, cls: "plegs", inner: () => legsList(side) });
     return out;
   }
+  // the net typed price split over the sold legs in proportion to their mids; bought legs keep their current fill
+  /** @param {{ side: string, net: number }} input */
+  function setNetFill({ side, net }) {
+    const b = bOf(side);
+    if (b.na || !Number.isFinite(net) || net < 0) { return; }
+    const sold = b.legs.filter(l => l.qty < 0), bought = b.legs.filter(l => l.qty > 0);
+    const soldMid = sold.reduce((t, l) => t + l.mid, 0), boughtPx = bought.reduce((t, l) => t + l.fillPx, 0);
+    if (!(soldMid > 0)) { return; }
+    const target = net + boughtPx;
+    let left = target;
+    sold.forEach((l, i) => {
+      const isLast = i === sold.length - 1;
+      const px = isLast ? Math.max(0, +left.toFixed(4)) : Math.max(0, +(l.mid * target / soldMid).toFixed(2));
+      left -= px;
+      setSide({ side, path: `fills.${l.key}`, value: { tk: b.tk, exp: b.exp, K: l.K, cp: l.cp, px } });
+    });
+  }
+
   function instX(side) {
     const I = instOf(side); if (!I) return "";
     return `<span class="d9x"><span class="d9sh"><span class="key ${side.toLowerCase()}">${side}</span><span class="d9sn">${esc(DOCK_CONFIG.instBoxName)} · ${esc(I.id)}</span></span>spot <input type="number" data-act="spot" data-side="${side}" step="0.01" min="0" aria-label="${side} spot override"> <span class="muted">listed ${fPx2(I.spotListed)}</span>` +
@@ -5229,6 +5369,9 @@ const DOCK9 = (() => {
     else if (act === "link") { const a = t.dataset.aspect; run({ type: C.comparison.links[a] ? Command.Unlink : Command.Link, aspect: a }); }
     else if (act === "detach") run({ type: Command.Detach, side });
     else if (act === "instx") { ui.inst[side] = !ui.inst[side]; askFrame(); }
+    else if (act === "fills") { ui.fills[side] = !ui.fills[side]; askFrame(); }
+    else if (act === "fillclr") { setSide({ side, path: `fills.${t.dataset.slot}`, value: null }); }
+    else if (act === "relinkall") { run({ type: Command.RelinkAll }); }
     else if (act === "pvset") { if (!t.classList.contains("on")) setPeriodVol({ side, source: t.dataset.v, pct: C.volOf(instOf(side).id).pct }); }
     else if (act === "ovreset") setSide({ side, path: "inst", value: { id: posOf(side).inst.id } });
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
@@ -5254,6 +5397,13 @@ const DOCK9 = (() => {
     else if (act === "exp") setSide({ side, path: "exp", value: t.value });
     else if (act === "spot") { const v = parseFloat(t.value); setSide({ side, path: "inst.spot", value: Number.isFinite(v) && v > 0 ? v : null }); }
     else if (act === "ivs") { const v = parseFloat(t.value); setSide({ side, path: "inst.ivShift", value: Number.isFinite(v) && v !== 0 ? v : null }); }
+    else if (act === "fillpx") {
+      const b = bOf(side), leg = legOf(b, t.dataset.slot), px = parseFloat(t.value);
+      if (!leg) { return; }
+      const value = Number.isFinite(px) && px >= 0 ? { tk: b.tk, exp: b.exp, K: leg.K, cp: leg.cp, px } : null;
+      setSide({ side, path: `fills.${t.dataset.slot}`, value });
+    }
+    else if (act === "fillnet") { setNetFill({ side, net: parseFloat(t.value) }); t.value = ""; }
     else if (act === "pvnum") {
       const pct = parseFloat(t.value);
       if (Number.isFinite(pct)) { setPeriodVol({ side, source: VolSource.Set, pct }); }
@@ -5268,47 +5418,62 @@ const DOCK9 = (() => {
     s.input(stepped(+t.value, s));
   }
 
+
   // ---------------------------------------------------------- init, render, reveal
   function init() {
-    root = q("#d9t");
-    root.addEventListener("click", onClick);
-    root.addEventListener("change", onChange);
-    root.addEventListener("input", onInput);
+    const host = q("#d9t");
+    host.innerHTML = `<section class="pbox a" id="d9A" aria-label="Position A"></section><section class="pbox b" id="d9B" aria-label="Position B"></section>`;
+    roots.A = q("#d9A"); roots.B = q("#d9B");
+    for (const el of [roots.A, roots.B]) {
+      el.addEventListener("click", onClick);
+      el.addEventListener("change", onChange);
+      el.addEventListener("input", onInput);
+    }
     q("#dockBtn").addEventListener("click", () => setPref({ dock: false }));
     q("#dockOpen").addEventListener("click", () => setPref({ dock: true }));
     bindSelect({ input: "#d9-size", options: CTX.SIZES, read: state => state.comparison.sizing.rule, command: v => ({ type: Command.SetSizing, patch: { rule: v } }), syncList: SIZING_SYNCS });
     const hc = q("#d9-hc"); hc.addEventListener("change", () => { const v = parseFloat(hc.value); if (Number.isFinite(v) && v > 0) run({ type: Command.SetSizing, patch: { h: clamp(v, 0.05, 20) } }); else askFrame(); });
   }
-  function render(c) {
-    C = c;
-    document.body.classList.toggle("dock-off", !C.prefs.dock);
-    if (!C.prefs.dock) return;
-    const list = comps(), key = list.map(x => x.key).join("|");
-    if (key !== lastKey) {
+  // one box: rebuilt when its component keys change; otherwise each component is refreshed in place, except that a
+  // slider keeps its input element (a drag must survive the render) and a component holding the focused input or
+  // select is only updated, never redrawn
+  function renderBox(side) {
+    const root = roots[side], list = boxComps(side), key = list.map(x => x.key).join("|");
+    if (key !== lastKeys[side]) {
       root.innerHTML = list.map(x => `<span class="${x.cls}" data-ck="${att(x.key)}"${x.row ? ` data-row="${x.row}"` : ""}></span>`).join("");
-      lastKey = key;
+      lastKeys[side] = key;
     }
     const els = root.children;
     list.forEach((x, i) => {
-      const el = els[i]; if (!el) return;
-      // sliders keep their input element (a drag must survive the re-render); everything else is redrawn,
-      // except a cell holding the focused input or select
-      if (SL[x.key]) { if (!el.querySelector("input")) el.innerHTML = x.inner(); x.upd(el); return; }
-      const a = document.activeElement;
-      if (a && el.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT")) { if (x.upd) x.upd(el); return; }
-      el.innerHTML = x.inner(); if (x.title) el.title = x.title;
-      if (x.upd) x.upd(el);
+      const el = els[i];
+      if (!el) { return; }
+      if (SL[x.key]) { if (!el.querySelector("input")) { el.innerHTML = x.inner(); } x.upd(el); return; }
+      const active = document.activeElement;
+      const holdsFocus = !!active && el.contains(active) && (active.tagName === "INPUT" || active.tagName === "SELECT");
+      if (holdsFocus) { if (x.upd) { x.upd(el); } return; }
+      el.innerHTML = x.inner();
+      if (x.upd) { x.upd(el); }
     });
+  }
+  function render(c) {
+    C = c;
+    document.body.classList.toggle("dock-off", !C.prefs.dock);
+    if (!C.prefs.dock) { return; }
+    SL = {};
+    renderBox("A"); renderBox("B");
     q("#d9-legb").innerHTML = legsDetail();
-    q("#d9-legsv").textContent = `· ${C.A.na ? 0 : C.A.legs.length} + ${C.B.na ? 0 : C.B.legs.length} legs, quotes, IV, ITM`;
+    q("#d9-legsv").textContent = `· ITM, intrinsic, deltas, flags`;
     syncSizing();
   }
-  // open the dock and bring one row into view (from a summary pill)
+  // open the dock and bring one row of one box into view (from a summary pill)
   function reveal(row, side) {
-    if (row === "inst" && side) ui.inst[side === "B" && C && C.comparison.links.inst ? "A" : side] = true;
-    if (C && !C.prefs.dock) setPref({ dock: true }); else askFrame();
+    const box = side === "B" ? "B" : "A";
+    if (row === "inst") { ui.inst[box] = true; }
+    if (row === "fill") { ui.fills[box] = true; }
+    if (C && !C.prefs.dock) { setPref({ dock: true }); } else { askFrame(); }
     const go = () => {
-      const els = root.querySelectorAll(`[data-row="${row}"]`); if (!els.length) return;
+      const els = roots[box].querySelectorAll(`[data-row="${row}"]`);
+      if (!els.length) { return; }
       els[0].scrollIntoView({ block: "center", behavior: "smooth" });
       els.forEach(e => { e.classList.add("d9fl"); setTimeout(() => e.classList.remove("d9fl"), 1400); });
     };
@@ -6071,6 +6236,68 @@ const VIEWS = (() => {
     const sd = sa && sb ? sa.map((p, i) => ({ x: p.x, cr: p.cr - sb[i].cr, ev: p.ev - sb[i].ev, worst: pairOK ? pairWorst(Cx, p.b, sb[i].b, Cx.h) : NaN })) : null;
     return { mode, basis, lo, hi, xs: uniq, sides, sa, sb, sd, pairOK };
   }
+  // ---------------------------------------------------------- smoothing the sweep (an override, off by default)
+  // The stepped curve is real: each point re-picks listed strikes. The smoothed one averages that snapping out with a
+  // Gaussian window whose width is the strike-step period on the axis (the mean distance between points where a short
+  // leg's strike changes), so what remains is the trend across placements rather than the chunking.
+  // the mean distance on the axis between the points where one leg's strike changes; NaN when it changes fewer than twice
+  /** @param {{ series: any[], role: string }} input */
+  function measureLegStepPeriod({ series, role }) {
+    const strikeAt = p => {
+      if (p.b.na) { return NaN; }
+      const leg = p.b.legs.find(x => x.role === role);
+      return leg ? leg.K : NaN;
+    };
+    const changes = [];
+    for (let i = 1; i < series.length; i++) {
+      const isChange = strikeAt(series[i]) !== strikeAt(series[i - 1]);
+      if (isChange) { changes.push((series[i].x + series[i - 1].x) / 2); }
+    }
+    if (changes.length < 2) { return NaN; }
+    return (changes[changes.length - 1] - changes[0]) / (changes.length - 1);
+  }
+  const rolesIn = series => [...new Set(series.flatMap(p => p.b.na ? [] : p.b.legs.map(l => l.role)))];
+  // the strike-step period of a sweep: its coarsest leg's period
+  /** @param {any[]} series @returns {LabResult} */
+  function measureStrikeStepPeriod(series) {
+    const periods = rolesIn(series).map(role => measureLegStepPeriod({ series, role })).filter(Number.isFinite);
+    if (!periods.length) { return Result.err({ code: "no_steps", message: "no leg's strike steps across this sweep" }); }
+    return Result.ok(Math.max(...periods));
+  }
+  // the smoothing window: the widest strike-step period among the sides that have a sweep
+  /** @param {{ seriesList: any[][] }} input @returns {LabResult} */
+  function pickSmoothingWindow({ seriesList }) {
+    const measured = seriesList.filter(Boolean).map(measureStrikeStepPeriod).filter(r => r.ok);
+    if (!measured.length) { return Result.err({ code: "no_steps", message: "the strikes do not step here" }); }
+    return Result.ok(Math.max(...measured.map(r => r.value)));
+  }
+  /** @param {{ windowResult: LabResult, basis: string }} input */
+  function describeSmoothing({ windowResult, basis }) {
+    if (!windowResult.ok) { return " Smooth is on, but the strikes do not step here, so nothing is averaged."; }
+    return ` Smoothed: strike steps averaged over a ${RULE.fmtV(windowResult.value, basis)} window (the strike-step period here); the raw stepped lines are faint, and the hover shows both.`;
+  }
+  // every series of one chart smoothed with the same window (or left as they are when there is none)
+  /** @param {{ bySide: Object<string, any[]>, field: string, width: number }} input */
+  function smoothEach({ bySide, field, width }) {
+    const out = {};
+    for (const [side, series] of Object.entries(bySide)) { out[side] = Number.isFinite(width) ? smoothSeries({ series, field, width }) : series; }
+    return out;
+  }
+  /** @param {{ series: any[], field: string, width: number }} input */
+  function smoothSeries({ series, field, width }) {
+    if (!series || !(width > 0)) { return series; }
+    const sigma = width;
+    return series.map(p => {
+      let sum = 0, weight = 0;
+      for (const o of series) {
+        const v = o[field];
+        if (!Number.isFinite(v)) { continue; }
+        const w = Math.exp(-0.5 * ((o.x - p.x) / sigma) ** 2);
+        sum += w * v; weight += w;
+      }
+      return Object.assign({}, p, { [field]: Number.isFinite(p[field]) && weight > 0 ? sum / weight : NaN });
+    });
+  }
   function sweepAxisName(mode, basis, sides) {
     const u = { delta: "Δ", money: "% OTM", sigma: "σ from the forward" }[basis];
     if (mode === "wingCall") return `call wing ${basis === "delta" ? "Δ" : basis === "money" ? "% beyond the short call" : "σ beyond the short call"}`;
@@ -6089,9 +6316,13 @@ const VIEWS = (() => {
     q("#sw-cap").textContent = `Varies on the ${basis === "delta" ? "Δ" : basis === "money" ? "% OTM" : "σ"} basis. ${sideTxt("A")} · ${sideTxt("B")}. Shaded: a short leg is in the money against the forward. Dashed lines: the positions as set.`;
     // ATM on the x axis: 0 on % and σ; on Δ the forward strike's Δ (none for the mean of a strangle's two legs)
     const atmX = s => { const x = sides[s]; if (!x || mode === "wingCall") return NaN; if (basis !== "delta") return 0; if (mode === "both" && !x.straddle) return NaN; const c = x.b.E.callDelta(x.b.E.Fpar) * 100; return mode === "put" ? 100 - c : c; };
+    const windowResult = V().swSmooth ? pickSmoothingWindow({ seriesList: [sa, sb] }) : null;
+    const smoothWindow = windowResult && windowResult.ok ? windowResult.value : NaN;
+    const isSmoothed = Number.isFinite(smoothWindow);
+    if (windowResult) { q("#sw-cap").textContent += describeSmoothing({ windowResult, basis }); }
     for (const [k, label] of [["cr", anyI ? "Credit, time value" : "Credit"], ["ev", `Expected value ${C.volOddsText({ isCompact: true })}`], ["worst", `Worst loss, ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}`]]) {
       const evTip = `At expiry under a zero-drift lognormal at each ticker's period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}`;
-      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
+      const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${isSmoothed ? `<span class="swbadge" title="strike steps averaged out; raw lines faint">smoothed</span>` : ""}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
       const W = Math.max(box.clientWidth, 220), H = 178, m = { l: 52, r: 16, t: 14, b: 34 };
       const ys = [...(sa || []), ...(sb || []), ...(sd || [])].map(p => p[k]).filter(Number.isFinite);
       if (!ys.length) { box.insertAdjacentHTML("beforeend", `<span class="gna">n/a for every value</span>`); continue; }
@@ -6108,20 +6339,25 @@ const VIEWS = (() => {
       txt(svg, m.l + pw / 2, H - 4, sweepAxisName(mode, basis, sides), { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 10 });
       for (const s of ["A", "B"]) { const xa = atmX(s); if (Number.isFinite(xa) && xa > lo && xa < hi && (s === "A" || Math.abs(xa - atmX("A")) > (hi - lo) / 40)) { el("line", { x1: X(xa), x2: X(xa), y1: H - m.b, y2: H - m.b + 4, stroke: `var(--${s.toLowerCase()})`, "stroke-width": 2 }, svg); txt(svg, X(xa), m.t - 3, "ATM", { "text-anchor": "middle", fill: `var(--${s.toLowerCase()})`, "font-size": 9.5 }); } }
       if (ylo < 0 && yhi > 0) el("line", { x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0), stroke: "var(--ink-3)" }, svg);
+      const smooth = smoothEach({ bySide: { A: sa, B: sb, D: sd }, field: k, width: smoothWindow });
       for (const [s, ser, cv] of /** @type {[string, any[], string][]} */ ([["B", sb, "b"], ["A", sa, "a"]])) {
         if (!ser) continue; const x0 = sides[s].x0;
         if (Number.isFinite(x0) && x0 >= lo && x0 <= hi) el("line", { x1: X(x0), x2: X(x0), y1: m.t, y2: H - m.b, stroke: `var(--${cv})`, "stroke-dasharray": "3 3", "stroke-opacity": .8 }, svg);
-        el("path", { d: pathOf(ser.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+        if (isSmoothed) { el("path", { d: pathOf(ser.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 1, "stroke-opacity": .35, "stroke-linejoin": "round" }, svg); }
+        el("path", { d: pathOf(smooth[s].map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
       }
-      if (sd) el("path", { d: pathOf(sd.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1.4, "stroke-linejoin": "round" }, svg);
+      if (sd) {
+        if (isSmoothed) { el("path", { d: pathOf(sd.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1, "stroke-opacity": .3, "stroke-linejoin": "round" }, svg); }
+        el("path", { d: pathOf(smooth.D.map(p => [p.x, p[k]]), X, Y), fill: "none", stroke: "var(--ink)", "stroke-width": 1.4, "stroke-linejoin": "round" }, svg);
+      }
       const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
       const hit = el("rect", { x: m.l, y: m.t, width: pw, height: H - m.t - m.b, fill: "transparent" }, svg);
       hit.addEventListener("pointermove", ev => {
         const r = svg.getBoundingClientRect(), x = clamp(xOfPx((ev.clientX - r.left) * W / r.width), lo, hi);
         let i = 0; for (let j = 1; j < xs.length; j++) if (Math.abs(xs[j] - x) < Math.abs(xs[i] - x)) i = j;
         cross.setAttribute("x1", X(xs[i])); cross.setAttribute("x2", X(xs[i])); cross.setAttribute("visibility", "visible");
-        const f = p => !p ? "n/a" : p.b.na ? "n/a" : `${fU(p[k])} <span class="muted">${legsTxt(p.b)}${p.itm ? " · ITM" : ""}</span>`;
-        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
+        const f = (p, ps) => !p ? "n/a" : p.b.na ? "n/a" : `${isSmoothed && ps ? `${fU(ps[k])} smoothed · raw ${fU(p[k])}` : fU(p[k])} <span class="muted">${legsTxt(p.b)}${p.itm ? " · ITM" : ""}</span>`;
+        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i], smooth.A && smooth.A[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i], smooth.B && smooth.B[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
       });
       hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
     }
@@ -6395,7 +6631,7 @@ const VIEWS = (() => {
   </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
-    <div class="ph"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><label class="ctl" style="margin-right:0" title="Average out the steps the listed $1 strikes make: a Gaussian window as wide as the strike-step period on the axis. The raw stepped line stays faint."><input type="checkbox" id="c-swsmooth"> Smooth</label></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
     <span class="cap swcap" id="sw-cap"></span>
@@ -6462,6 +6698,7 @@ const VIEWS = (() => {
     });
     q("#p-joint").addEventListener("click", e => { if (/** @type {HTMLElement} */ (e.target).id !== "jgo") return; const other = INST.list().find(x => x.id !== C.A.tk); if (other) run({ type: Command.SetB, path: "inst", value: { id: other.id } }); });
     q("#p-joint").addEventListener("input", e => { const t = /** @type {HTMLInputElement} */ (e.target); if (t.id === "c-jday") setPref({ jday: +t.value }); });
+    bindChk({ input: q("#c-swsmooth"), read: state => state.prefs.swSmooth, command: pref("swSmooth") });
     seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
     seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
@@ -8204,11 +8441,37 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
       sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 2 : 1.4, "stroke-dasharray": mine ? "" : "5 4" }, s);
       sv("path", { d: dc, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 1.6 : 1.1, "stroke-dasharray": mine ? "" : "5 4" }, s);
       
-      for (const p of pts) { const c = sv("circle", { cx: X(p.x), cy: Y(p.med), r: Math.abs(p.x - (S.kind === "lev" ? S.run.lev : S.run.use)) < 1e-6 && mine ? 5 : 2.5, fill: `var(--${cls})` }, s);
-        c.addEventListener("pointerenter", ev => showTip(`<span class="h">${S.kind === "lev" ? p.x.toFixed(2) + "x" : Math.round(p.x * 100) + "% of margin"} · ${pol}</span><span class="r"><span class="k">typical NAV</span><span class="v">${f$(p.med)}</span></span><span class="r"><span class="k">margin call in the year</span><span class="v">${fPc(p.called, 1)}</span></span>${p.sh ? `<span class="r"><span class="k">shares at the end</span><span class="v">${fInt(p.sh)}</span></span>` : ""}`, ev.clientX, ev.clientY));
-        c.addEventListener("pointerleave", hideTip); } });
+      for (const p of pts) { sv("circle", { cx: X(p.x), cy: Y(p.med), r: Math.abs(p.x - (S.kind === "lev" ? S.run.lev : S.run.use)) < 1e-6 && mine ? 5 : 2.5, fill: `var(--${cls})` }, s); } });
+    const xLabel = x => S.kind === "lev" ? x.toFixed(2) + "x" : Math.round(x * 100) + "% of margin";
+    attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H + H2 + 8, xs: S.xs, toPx: X,
+      tipAt: x => `<span class="h">${S.who} at ${xLabel(x)}</span>` + S.pols.map(pol => { const p = data.find(d => d.pol === pol && Math.abs(d.x - x) < 1e-9); if (!p) { return ""; }
+        const name = S.pols.length > 1 ? `${pol === "rebal" ? "rebalance" : "reinvest"} · ` : "";
+        return tipRow(cls, `${name}typical NAV`, f$(p.med)) + tipRow(cls, `${name}margin call in the year`, fPc(p.called, 1)) + (p.sh ? tipRow(cls, `${name}shares (typical)`, fInt(p.sh)) : ""); }).join("") });
     if (S.kind === "lev") { const top = S.xs[S.xs.length - 1]; sv("line", { x1: X(top), x2: X(top), y1: 6, y2: H + H2 + 8, stroke: "var(--warn)", "stroke-dasharray": "2 3" }, s); st_(s, X(top) - 3, H - 16, "ceiling", { "text-anchor": "end", class: "yhalo", fill: "var(--warn)", "font-size": 10.5 }); }
   }
+
+  // ---------------------------------------------------------- the sticky cursor every chart on this tab shares
+  // a vertical line at the data point nearest the pointer and that point's values in the tip, as on the Compare tab
+  /** @param {{ svg: SVGSVGElement, left: number, width: number, top: number, bottom: number, xs: number[], toPx: (x: number) => number, tipAt: (x: number) => string, onPick?: (x: number) => void }} spec */
+  function attachCursor({ svg, left, width, top, bottom, xs, toPx, tipAt, onPick }) {
+    if (!xs.length) { return; }
+    const cross = sv("line", { class: "ycross", y1: top, y2: bottom, visibility: "hidden" }, svg);
+    const hit = sv("rect", { x: left, y: top, width, height: Math.max(1, bottom - top), fill: "transparent", style: onPick ? "cursor:pointer" : "" }, svg);
+    const nearest = ev => {
+      const box = svg.getBoundingClientRect(), px = (ev.clientX - box.left) * (+svg.getAttribute("width") / box.width);
+      let best = xs[0];
+      for (const x of xs) { if (Math.abs(toPx(x) - px) < Math.abs(toPx(best) - px)) { best = x; } }
+      return best;
+    };
+    hit.addEventListener("pointermove", ev => {
+      const x = nearest(ev);
+      cross.setAttribute("x1", String(toPx(x))); cross.setAttribute("x2", String(toPx(x))); cross.setAttribute("visibility", "visible");
+      showTip(tipAt(x), ev.clientX, ev.clientY);
+    });
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+    if (onPick) { hit.addEventListener("click", ev => onPick(nearest(ev))); }
+  }
+  const tipRow = (cls, label, value) => `<span class="r"><span class="k"><i class="sw" style="background:var(--${cls})"></i>${label}</span><span class="v">${value}</span></span>`;
 
   // ---------------------------------------------------------- credit and margin panels
   function lineChart(host, title, sub, series, fmt, y0, y1) {
@@ -8222,6 +8485,11 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(YRE.weekDate(w)), { "text-anchor": "middle" });
     for (const S of series) { let d = ""; S.pts.forEach((p, i) => d += (i ? "L" : "M") + X(p[0]) + "," + Y(p[1])); sv("path", { d, fill: "none", stroke: `var(--${S.cls})`, "stroke-width": 2 }, s);
       const lp = S.pts[S.pts.length - 1]; st_(s, X(lp[0]) - 2, Y(lp[1]) - 6, `${S.cls.toUpperCase()} ${fmt(lp[1])}`, { "text-anchor": "end", class: "yhalo", fill: `var(--${S.cls})`, "font-size": 11, "font-weight": 600 }); }
+    // the value of a stepped series at week w: its last point at or before w
+    const valueAt = (S, w) => { let v = NaN; for (const p of S.pts) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
+    const weeks = [...new Set(series.flatMap(S => S.pts.map(p => p[0])))].sort((a, b) => a - b);
+    attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H - 8, xs: weeks, toPx: X,
+      tipAt: w => `<span class="h">${title}, week ${Math.round(w)} · ${fD(YRE.weekDate(Math.round(w)))}</span>` + series.map(S => tipRow(S.cls, S.cls.toUpperCase(), fmt(valueAt(S, w)))).join("") });
   }
   function renderCreditMargin() {
     const runs = [["a", RES.A], RES.B ? ["b", RES.B] : null].filter(Boolean), W = ys.sc.W;
@@ -8352,7 +8620,10 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
         const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(valOf(lb)) + 4, `${who} ${fmt(valOf(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
       sv("line", { x1: X(wk), x2: X(wk), y1: 14, y2: H - 10, stroke: "var(--ink-3)", "stroke-dasharray": "2 3" }, s);
       const hit = sv("rect", { x: l, y: 0, width: pw, height: H, fill: "transparent", style: "cursor:pointer" }, s);
+      const cross = sv("line", { class: "ycross", y1: 14, y2: H - 10, visibility: "hidden" }, s); s.insertBefore(cross, hit);
+      hit.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
       hit.addEventListener("pointermove", ev => { const rc = s.getBoundingClientRect(), w = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1));
+        cross.setAttribute("x1", String(X(w))); cross.setAttribute("x2", String(X(w))); cross.setAttribute("visibility", "visible");
         showTip(`<span class="h">Hits in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const b = o.by[w - 1]; return `<span class="r"><span class="k"><i class="sw" style="background:var(--${who.toLowerCase()})"></i>${who}: NAV ${f$(b.nav)}</span><span class="v neg">${f$(-b.loss)} (${fPs(-b.loss / b.nav)})</span></span>${b.call ? `<span class="s">margin call day ${b.call.day}${b.wiped ? " · wiped out" : ""}</span>` : ""}`; }).join(""), ev.clientX, ev.clientY); });
       hit.addEventListener("pointerleave", hideTip);
       hit.addEventListener("click", ev => { const rc = s.getBoundingClientRect(); ssOf().week = Math.max(1, Math.min(W, Math.round((ev.clientX - rc.left - l) / pw * (W - 1)) + 1)); schedule(10); }); };
@@ -8368,6 +8639,10 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     if (ys.A.tk === "KORU") for (const [v, t] of [[-0.353, "worst open gap, 3 Mar 26: −35.3%"], [-0.514, "worst week low: −51.4%"]]) { sv("line", { x1: l, x2: l + pw, y1: Y(v), y2: Y(v), stroke: "var(--warn)", "stroke-dasharray": "1 3" }, s); st_(s, l + 4, Y(v) - 3, t, { class: "yhalo", fill: "var(--warn)", "font-size": 10 }); }
     for (const [who, o] of runs) { const cls = who.toLowerCase();
       for (const [k, dash] of [["callDown", ""], ["zeroDown", "5 4"], ["callUp", ""], ["zeroUp", "5 4"]]) { let d = "", on = false; o.rooms.forEach((r, i) => { const v = r[k]; if (v == null || Math.abs(v) > 2) { on = false; return; } d += (on ? "L" : "M") + X(i + 1) + "," + Y(v); on = true; }); if (d) sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": dash ? 1.3 : 2, "stroke-dasharray": dash }, s); } }
+    const roomTxt = v => v == null ? "none" : fPs(v, 0);
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 12, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
+      tipAt: w => `<span class="h">Room in week ${w} · ${fD(YRE.weekDate(w - 1))}</span>` + runs.map(([who, o]) => { const r = o.rooms[w - 1] || {}, cls = who.toLowerCase();
+        return tipRow(cls, `${who} margin call at`, `${roomTxt(r.callDown)}${r.callUp != null ? ` / ${roomTxt(r.callUp)}` : ""}`) + tipRow(cls, `${who} NAV 0 at`, `${roomTxt(r.zeroDown)}${r.zeroUp != null ? ` / ${roomTxt(r.zeroUp)}` : ""}`); }).join("") });
     // curve at the chosen week + breakdown
     const ch = q("#y-scurve"); ch.innerHTML = `<h3>Loss against the size of a gap<span class="sub">week ${wk}, one-session gap in the ETF</span></h3>`; const Wc = Math.max(320, ch.getBoundingClientRect().width), Hc = 230, lc = 56, pc = Wc - lc - 16, sc_ = sv("svg", { width: Wc, height: Hc + 26, viewBox: `0 0 ${Wc} ${Hc + 26}` }, ch);
     let clo = 0, chi = 0; for (const [, o] of runs) for (const c of o.curve) { clo = Math.min(clo, c[1]); chi = Math.max(chi, c[1]); } const Xc = m => lc + (m + 0.9) / 1.9 * pc, Yc = yLin(clo * 1.05, chi * 1.1 + 1, 8, Hc - 12), axc = sv("g", { class: "yax" }, sc_);
@@ -8377,6 +8652,9 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.curve.forEach((c, i) => d += (i ? "L" : "M") + Xc(c[0]) + "," + Yc(c[1])); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, sc_);
       const lc_ = o.curve[o.curve.length - 1]; st_(sc_, Xc(lc_[0]) - 2, Yc(lc_[1]) - 6, who, { "text-anchor": "end", class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 });
       const fc = o.curve.find(c => c[2] && c[0] < 0 && !o.curve.some(e => e[2] && e[0] > c[0] && e[0] < 0)); if (fc) sv("circle", { cx: Xc(fc[0]), cy: Yc(fc[1]), r: 3.5, fill: "none", stroke: "var(--shade)", "stroke-width": 1.6 }, sc_); }
+    const gaps = [...new Set(runs.flatMap(([, o]) => o.curve.map(c => c[0])))].sort((a, b) => a - b);
+    attachCursor({ svg: sc_, left: lc, width: pc, top: 8, bottom: Hc - 12, xs: gaps, toPx: Xc,
+      tipAt: m => `<span class="h">ETF gap ${fPs(m, 1)} · week ${wk}</span>` + runs.map(([who, o]) => { const c = o.curve.find(e => Math.abs(e[0] - m) < 1e-9); return c ? tipRow(who.toLowerCase(), who, `${f$(c[1])}${c[2] ? " · call assigned" : ""}`) : ""; }).join("") });
     if (ssOf().shape === "gap") { const mv = ssOf().unit === "index" ? Math.max(-1, YRE.LEV[ys.A.tk] * ssOf().X / 100) : ssOf().X / 100; sv("line", { x1: Xc(mv), x2: Xc(mv), y1: 8, y2: Hc - 12, stroke: "var(--ink)", "stroke-dasharray": "3 3" }, sc_); }
     // breakdown
     const bh = q("#y-sbreak"); bh.innerHTML = `<h3>What happened, week ${wk}<span class="sub">${scenTxt()}</span></h3>` + runs.map(([who, o]) => { const r = o.cur, nb = r.navBefore, sh = r.ev.pnlSh, opt = (r.navEnd - nb) - sh + r.ev.slip;
@@ -8434,6 +8712,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
       let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[2])}`); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s);
       const er = P.R.main.rows; let e = `M${X(0)},${Y(ys.sc.cap0)}`; er.forEach(r => e += `L${X(Math.min(r.w1, W))},${Y(r.med)}`); sv("path", { d: e, fill: "none", stroke: `var(--${cls})`, "stroke-width": 1.2, "stroke-dasharray": "4 4" }, s);
       st_(s, l + pw + 6, Y(b[W - 1][2]) + 4, `${P.who} ${f$(b[W - 1][2])}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); });
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 8, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
+      tipAt: w => `<span class="h">Random years, week ${w} · ${fD(YRE.weekDate(w))}</span>` + parts.map((P, k) => { const c = bands[k][w - 1], cls = P.who.toLowerCase();
+        return tipRow(cls, `${P.who} median`, f$(c[2])) + tipRow(cls, `${P.who} 25–75%`, `${f$(c[1])} – ${f$(c[3])}`) + tipRow(cls, `${P.who} 5–95%`, `${f$(c[0])} – ${f$(c[4])}`); }).join("") });
     const tb = document.createElement("span"); tb.className = "ytab"; host.appendChild(tb);
     const row = P => { const e = P.out.map(o => o.end).sort((a, b) => a - b), dd = P.out.map(o => o.dd).sort((a, b) => a - b), n = e.length, w5 = e.slice(0, Math.max(1, Math.floor(n * 0.05))), pc = P.out.reduce((t, o) => t + o.call, 0) / n, se = Math.sqrt(pc * (1 - pc) / n);
       return `<tr><td><span class="key ${P.who.toLowerCase()}">${P.who}</span></td><td>${f$(qn(e, .05))}</td><td>${f$(qn(e, .1))}</td><td><b>${f$(qn(e, .5))}</b></td><td>${f$(qn(e, .9))}</td><td>${f$(qn(e, .95))}</td><td>${f$(w5.reduce((a, b) => a + b, 0) / w5.length)}</td><td>${fPc(qn(dd, .5), 0)} / ${fPc(qn(dd, .9), 0)}</td><td>${fPc(pc, 1)} ± ${(se * 100).toFixed(1)}</td><td>${fPc(P.out.reduce((t, o) => t + o.wiped, 0) / n, 1)}</td></tr>`; };

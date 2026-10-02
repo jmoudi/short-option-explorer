@@ -3,7 +3,7 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/CERT/.test(m.text()) && errs.push(m.text()));
-  await p.goto('"file://" + (process.env.PAGE || require("path").resolve(__dirname, "../../../dist/ram_koru_lab_v10.html"))'); await p.waitForTimeout(800);
+  await p.goto('file://' + (process.env.PAGE || require('path').resolve(__dirname, '../../../dist/ram_koru_lab_v10.html'))); await p.waitForTimeout(800);
   await p.click('#tabs [data-tab=yr]'); await p.waitForTimeout(2500);
   const rowsB = () => p.evaluate(() => document.querySelector('#tab-yr').innerText.includes('Shares · lots'));
   console.log('B result row before drop:', await rowsB());

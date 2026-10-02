@@ -1,9 +1,11 @@
-// ============================================================ ui9_dock: the Positions dock (Compare tab)
-// A table of aspects, A | link | B (instrument with its spot / IV / period vol controls, expiry, structure, legs,
-// strikes by, protective call, protective put, fill), full-width placement and wing sliders under their rows, then the
-// collapsed "Legs in detail" and "Pair sizing" sections. Reads only C and the store; changes state only through
-// commands. The period vol belongs to the ticker, not the side: editing it under A changes B too when B is on the same
-// ticker. Top-level name: DOCK9.
+// ============================================================ ui_dock: the Positions dock (Compare tab)
+// Two position boxes, A on top and B below: the same kind of thing with two identities, so one box renderer called
+// twice, the same rows in the same order (instrument with its spot / IV / period vol box, expiry, structure, legs,
+// strikes by with the placement sliders, protective call, protective put, fill with the typed fills, the legs).
+// B's relation to A is part of B's box: a chain after each of B's row labels (closed: B follows A there; editing the
+// control sets B on its own, and the toast offers the relink; open: B set on its own, click to follow A again).
+// Below both boxes: Legs in detail and Pair sizing (a property of the pair). Reads only C and the store; changes state
+// only through commands. The period vol belongs to the ticker, not the side. Top-level name: DOCK9.
 const DOCK9 = (() => {
   const q = s => document.querySelector(s);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -32,8 +34,11 @@ const DOCK9 = (() => {
     periodVolStep: 1,
     periodVolInfo: "One number per ticker, used for every expiry; annualized like IV (calendar days). Every EV reading uses it (the overview's EV, the sweep, recovery, the export), and so do the odds when the odds switch says period vol. Leg prices and IVs stay at their quotes. The ticks mark the reference vols listed under the slider."
   });
-  let root = null, lastKey = "", C = null, SL = {};
-  const ui = { inst: { A: false, B: false } };
+  let C = null, SL = {};
+  const roots = { A: null, B: null }, lastKeys = { A: "", B: "" };
+  // local view state, not stored: which side's spot / IV / period vol box and typed-fill editor are open
+  const ui = { inst: { A: false, B: false }, fills: { A: false, B: false } };
+  // the sizing select's sync (bindSelect hands it over): run in syncSizing, while the dock shows
   // the sizing select's sync (bindSelect hands it over): run in syncSizing, as v9's list was, so it runs only while
   // the dock shows and only when the dock rendered
   const SIZING_SYNCS = [];
@@ -51,7 +56,6 @@ const DOCK9 = (() => {
   const segH = (side, path, opts, cur, eq) => `<span class="seg${eq === false ? "" : " eq"}">${opts.map(([v, l, t]) => `<button type="button" data-act="set" data-side="${side}" data-path="${path}" data-v="${v}" class="${String(cur) === v ? "on" : ""}" aria-pressed="${String(cur) === v}"${t ? ` title="${att(t)}"` : ""}>${l}</button>`).join("")}</span>`;
   const ovShort = I => Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? fPx2(I.spot) : `IV ${I.ivShift > 0 ? "+" : MINUS}${+Math.abs(I.ivShift).toFixed(2)}`;
   const kc = l => l ? fK(l.K) + l.cp : "–";
-
   // ---------------------------------------------------------- cells
   function instCell(side) {
     const P = posOf(side), I = instOf(side);
@@ -77,27 +81,7 @@ const DOCK9 = (() => {
   const basisCell = side => segH(side, "basis", BASIS, posOf(side).basis, false);
   const wingCell = (side, s) => segH(side, `wings.${s}.on`, [["false", "off"], ["true", "on", `Buy a protective ${s} beyond the short ${s}`]], String(!!posOf(side).wings[s].on));
   const fillCell = side => segH(side, "fill", [["mid", "mid", "Filled at mid"], ["nat", "natural", "Sell at the bid, buy at the ask; marks before expiry also pay half the spread to close"]], posOf(side).fill);
-  // a linked B cell: B's resolved result in muted type (amber when diff marks that aspect unasked)
-  function linkedB(a) {
-    const b = C.B, P = C.Bp, am = amber("B", a);
-    let t = "";
-    switch (a) {
-      case "inst": { const I = C.instB; t = (I ? I.name || I.id : P.inst.id) + (I && I.overridden ? " ✎ " + ovShort(I) : ""); break; }
-      case "exp": { const f = b.flags.find(x => x.code === "EXP_MAPPED"); t = b.exp ? fmtE(b.exp) + (f ? ` (no ${fmtE(f.from)})` : "") : "n/a"; break; }
-      case "structure": t = b.na ? "n/a" : b.kind + (b.kind !== P.structure ? ` ${b.kind === "straddle" ? fK(b.sp.K) : fK(b.sp.K) + "P / " + fK(b.sc.K) + "C"}` : ""); break;
-      case "legs": t = P.legs; break;
-      case "placement": t = BNAME[P.basis]; break;
-      case "wingCall": case "wingPut": {
-        const s = a === "wingCall" ? "call" : "put", l = legOf(b, a), na = b.flags.find(x => x.code === "WING_NA" && x.leg === a);
-        t = !P.wings[s].on ? "off" : na ? "on · n/a" : l ? `on · ${kc(l)}` : "on"; break;
-      }
-      case "fill": t = P.fill === "nat" ? "natural" : "mid"; break;
-    }
-    const w = am.length > 0;
-    return `<span class="d9m${w ? " w" : ""}"${w ? ` title="${att(am.map(x => x.text).join(" · "))}"` : ` title="B follows A: this is what B resolves to"`}>${w ? "! " : ""}${esc(t)}</span>`;
-  }
   const linkBtn = a => { const on = !!C.comparison.links[a]; return `<button type="button" class="d9lk${on ? "" : " off"}" data-act="link" data-aspect="${a}" title="${on ? "B follows A" : "B set on its own"}" aria-label="${on ? "B follows A; click to set B on its own" : "B set on its own; click to make B follow A"}" aria-pressed="${on}">${on ? CH_ON : CH_OFF}</button>`; };
-
   // ---------------------------------------------------------- sliders
   // spec = {side, name, muted, lo, hi, value, step, readout, warnRo, ticks: [{v, t, bx, pri}], keepMarks, note, noteWarn, input(v)}
   function slider(key, spec) {
@@ -224,67 +208,124 @@ const DOCK9 = (() => {
       input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 })
     }));
   }
-  function bLine(key, html, warn, title) { return { key, cls: `d9F d9bl${warn ? " w" : ""}`, inner: () => `<span class="key b">B</span>${html}`, title }; }
 
-  // ---------------------------------------------------------- the component list (its keys decide when to rebuild)
-  function comps() {
-    const out = [], L = C.comparison.links, A = C.Ap, B = C.Bp;
-    SL = {};
-    const cell = (key, cls, inner, row) => out.push({ key, cls, inner, row });
-    const row = (a, label, fa, fb, extra) => {
-      cell(`L:${a}`, "d9L", () => label, a);
-      cell(`A:${a}`, "d9A", fa, a);
-      cell(`K:${a}`, "d9K", () => linkBtn(a), a);
-      const linkedCell = L[a] && !(a === "legs" && B.structure === "straddle");
-      cell(`B:${a}:${linkedCell ? "l" : "o"}`, "d9B", linkedCell ? () => linkedB(a) : fb, a);
-      if (extra) extra();
-    };
-    cell("hd:L", "d9L", () => ""); cell("hd:A", "d9A d9hd", () => `<span class="key a">A</span>`); cell("hd:K", "d9K", () => ""); cell("hd:B", "d9B d9hd", () => `<span class="key b">B</span>`);
-    row("inst", ROWS.inst, () => instCell("A"), () => instCell("B"), () => {
-      for (const side of ["A", "B"]) if (ui.inst[side] && (side === "A" || !L.inst)) out.push({ key: `instx:${side}`, cls: "d9F", row: "inst", inner: () => instX(side), upd: el => updInstX(el, side) });
-    });
-    row("exp", `${ROWS.exp}${mapBtn()}`, () => expCell("A"), () => expCell("B"));
-    row("structure", ROWS.structure, () => structCell("A"), () => structCell("B"));
-    row("legs", `${ROWS.legs}<button type="button" class="info" data-act="legsinfo" title="Together or detached; make symmetric">i</button>`, () => legsCell("A"), () => legsCell("B"));
-    row("placement", ROWS.placement, () => basisCell("A"), () => basisCell("B"), () => {
-      // "B end" ticks only on the row whose field B reads (B with another structure reads the extra row below)
-      placeSliders("A", A, C.A, out, { bE: L.placement && !C.B.na && B.structure === A.structure ? C.B.E : null });
-      // B reads an A field that A does not use: show it as one muted extra row (edits A's storage only)
-      if (L.placement && B.structure !== A.structure && !C.B.na && C.B.E) {
-        const used = B.structure === "strangle" ? "strangle values" : "straddle center";
-        const Pv = Object.assign({}, A, { structure: B.structure, legs: "together" });
-        placeSliders("A", Pv, C.B, out, {
-          E: C.B.E, tag: ":forB", whose: "B's ", muted: true, name: `${used} (used by B)`, together: true, noAtm: true,
-          ro: (() => { const p = legOf(C.B, "put"), c = legOf(C.B, "call"); return p && c ? `B ${kc(p)} · ${kc(c)}` : "B n/a"; })(),
-          cur: readAValues, input: (path, v) => setSide({ side: "A", path, value: v })
-        });
-      }
-      if (L.placement) {
-        const b = C.B, am = amber("B", "placement"), bas = B.basis;
-        let t;
-        if (b.na) t = "n/a";
-        else if (b.kind === "straddle" && b.center) { const v = b.center.achieved[bas]; t = `${fK(b.center.K)} · ${fC(v, bas)}`; }
-        else { const p = legOf(b, "put"), c = legOf(b, "call"); t = `${kc(p)} / ${kc(c)} · ${fV(p.achieved[bas], bas)} / ${fV(c.achieved[bas], bas)}`; }
-        out.push(bLine("bl:placement", `= A · ${esc(t)}${am.length ? ` · <span title="${att(am.map(x => x.text).join(" · "))}">${esc(am[0].text.replace(/^! B: /, "! ").replace(/ at chain end .*/, " at chain end"))}${am.length > 1 ? ` +${am.length - 1}` : ""}</span>` : ""}`, am.length > 0));
-        // B's legs detached while its strikes follow A: they cannot move on their own; one click sets B's strikes free
-        if (!L.legs && B.structure === "strangle" && B.legs === "detached" && !b.na)
-          out.push(bLine("bl:legsmoot", `legs detached, strikes follow A <button type="button" class="d9i" data-act="ownplace" title="B's put and call can move on their own once B's strikes are set on their own (unlinks Strikes by)">unlink strikes</button>`, false));
-      } else if (!C.B.na) placeSliders("B", B, C.B, out, {});
-    });
-    for (const [a, s] of [["wingCall", "call"], ["wingPut", "put"]]) {
-      row(a, ROWS[a], () => wingCell("A", s), () => wingCell("B", s), () => {
-        if (A.wings[s].on && !C.A.na) wingSlider("A", s, A, C.A, A.basis, out);
-        if (B.wings[s].on && !C.B.na) {
-          if (L[a]) {
-            const l = legOf(C.B, a), na = C.B.flags.find(f => f.code === "WING_NA" && f.leg === a), am = amber("B", a), wb = B.wings[s].basis || A.basis;
-            out.push(bLine(`bl:${a}`, `= A · ${na ? esc(na.text) : l ? `${kc(l)} ${fV(l.achieved[wb], wb)}` : "n/a"}${am.length && !na ? ` · <span title="${att(am.map(x => x.text).join(" · "))}">${esc(am[0].text.replace(/^! B: /, "! ").replace(/ at chain end .*/, " at chain end").replace(/^! (call|put) wing /, "! "))}</span>` : ""}`, !!na || am.length > 0));
-          } else wingSlider("B", s, B, C.B, B.wings[s].basis || B.basis, out);
-        }
-      });
+  // ---------------------------------------------------------- one position box
+  const FILL_SLOT_NAME = Object.freeze({ put: "put", call: "call", wingCall: "protective call", wingPut: "protective put" });
+  const legWord = l => l.qty < 0 ? "sold" : "bought";
+  const pxOf = v => Number.isFinite(v) ? v.toFixed(2) : "–";
+  const signedUsd = v => (v < 0 ? MINUS : "+") + usd(v);
+  // the label cell; on B it also carries the chain (B's relation to A for this row) and a "!" when the row differs
+  // from A in a way the comparison flags
+  function rowLabel(side, aspect, label) {
+    if (side !== "B") { return `<span class="plbl">${label}</span>`; }
+    const marks = amber("B", aspect);
+    const warn = marks.length ? `<span class="pwarn" title="${att(marks.map(x => x.text).join(" · "))}">!</span>` : "";
+    return `<span class="plbl">${label}${linkBtn(aspect)}${warn}</span>`;
+  }
+  // the box head: which position, what it collects, and what the same legs fetch at mid and at natural
+  function boxHead(side) {
+    const b = bOf(side), key = `<span class="key ${side.toLowerCase()}">${side}</span>`;
+    // the instrument is set on its own by default (B is usually another ticker): only the other rows call for it
+    const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
+    if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
+    const fillWord = b.typedCount ? `your fill on ${b.typedCount} of ${b.legs.length} legs` : b.fill === "nat" ? "natural" : "mid";
+    const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b> · ${esc(fillWord)}`;
+    const refs = [b.typedCount || b.fill === "nat" ? `mid ${usd(b.crMid * 100)}` : "", b.fill !== "nat" || b.typedCount ? `natural ${usd(b.crNat * 100)}` : ""].filter(Boolean).join(" · ");
+    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>` +
+      `<span class="pnet">${net}</span><span class="pref">${refs ? refs + " · " : ""}ATM IV ${fP(b.E.atm, 0)} (sets σ) · ${b.dte} d</span>`;
+  }
+  const fillCellBox = side => {
+    const b = bOf(side), open = ui.fills[side];
+    const notApplied = b.na ? 0 : b.flags.filter(f => f.code === "FILL_NOT_APPLIED").length;
+    const label = b.typedCount ? `✎ your fill (${b.typedCount})` : notApplied ? "! your fill" : "your fill";
+    // every leg typed: the mode prices nothing, so it reads as secondary
+    const allTyped = !b.na && b.typedCount === b.legs.length;
+    const mode = allTyped ? `<span class="pdim" title="Every leg has your typed price; mid / natural applies to legs without one">${fillCell(side)}</span>` : fillCell(side);
+    return mode + ` <button type="button" class="d9btn pfb${b.typedCount ? " on" : ""}${notApplied ? " w" : ""}" data-act="fills" data-side="${side}" aria-expanded="${open}" title="Type the prices you actually got, per leg or as one net credit">${label} ▾</button>`;
+  };
+  // the typed-fill editor: one input per leg (empty = the fill mode), and one net price split over the sold legs by mid
+  function fillsEditor(side) {
+    const b = bOf(side);
+    if (b.na) { return ""; }
+    const rows = b.legs.map(l => {
+      const modePx = b.fill === "nat" ? (l.qty < 0 ? l.bid : l.ask) : l.mid;
+      const nat = l.qty < 0 ? `bid ${pxOf(l.bid)}` : `ask ${pxOf(l.ask)}`;
+      return `<span class="pfl"><span class="pfk">${fK(l.K)}${l.cp} ${legWord(l)}</span><span class="pfq">mid ${pxOf(l.mid)} · ${nat}</span>` +
+        `<input type="number" step="0.01" min="0" data-act="fillpx" data-side="${side}" data-slot="${l.key}" placeholder="${pxOf(modePx)}" aria-label="${side} ${att(FILL_SLOT_NAME[l.key])} fill price per share">` +
+        `<button type="button" class="d9i" data-act="fillclr" data-side="${side}" data-slot="${l.key}" title="Back to ${b.fill === "nat" ? "natural" : "mid"}"${l.typed ? "" : " hidden"}>×</button></span>`;
+    }).join("");
+    const stale = b.flags.filter(f => f.code === "FILL_NOT_APPLIED").map(f => `<span class="pfw">! ${esc(f.text)}</span>`).join("");
+    return `<span class="pfx">${rows}<span class="pfl"><span class="pfk">net</span><span class="pfq" title="split over the sold legs in proportion to their mids">${b.cr < 0 ? "debit" : "credit"} / share</span>` +
+      `<input type="number" step="0.01" min="0" data-act="fillnet" data-side="${side}" placeholder="${pxOf(Math.abs(b.cr))}" aria-label="${side} net fill per share"></span>${stale}` +
+      `<span class="cap">Per share, as on the order ticket ($ per contract = ×100). A typed price belongs to its contract: if the strike or expiry changes, it stops applying and says so.</span></span>`;
+  }
+  function updFillsEditor(el, side) {
+    const b = bOf(side);
+    if (b.na) { return; }
+    for (const input of el.querySelectorAll('[data-act="fillpx"]')) {
+      if (document.activeElement === input) { continue; }
+      const leg = legOf(b, input.dataset.slot);
+      input.value = leg && leg.typed ? leg.fillPx.toFixed(2) : "";
     }
-    row("fill", ROWS.fill, () => fillCell("A"), () => fillCell("B"));
+  }
+  // a leg's IV: its own, from its mid; the smile fit at the strike (what marks and odds use) differs and is named
+  const describeLegIv = l => Number.isFinite(l.ivm)
+    ? `this contract's own IV, from its mid ${pxOf(l.mid)}; the smile fit at this strike is ${fP(l.iv, 1)} (marks before expiry and the implied odds use the fit)`
+    : `no IV from this contract's mid (below the model's lower bound); * = the smile fit at this strike, ${fP(l.iv, 1)}`;
+  // the legs, always visible: what each leg is, its quote, its own IV, the fill and its $ per contract
+  function legsList(side) {
+    const b = bOf(side);
+    if (b.na) { return ""; }
+    return b.legs.map(l => {
+      const how = l.typed ? "your fill ✎" : b.fill === "nat" ? (l.qty < 0 ? "at bid" : "at ask") : "at mid";
+      return `<span class="plg${l.typed ? " t" : ""}"><span class="plk">${fK(l.K)}${l.cp}</span><span class="plw">${legWord(l)} ${pxOf(l.fillPx)} ${how}</span>` +
+        `<span class="pli" title="${att(describeLegIv(l))}">IV ${Number.isFinite(l.ivm) ? fP(l.ivm, 0) : fP(l.iv, 0) + "*"}</span><span class="plp">${signedUsd(l.perContract)}</span>` +
+        `<span class="plq">bid ${pxOf(l.bid)} · ask ${pxOf(l.ask)} · spread ${pxOf(l.ask - l.bid)}${l.model ? " · model quote" : ""}</span></span>`;
+    }).join("");
+  }
+  // the box's components in order; keys decide when the box is rebuilt (sliders keep their input across renders)
+  function boxComps(side) {
+    const out = [], P = posOf(side), b = bOf(side), k = side + ":";
+    const row = (aspect, label, control) => out.push({ key: `${k}r:${aspect}`, cls: "prow", row: aspect, inner: () => rowLabel(side, aspect, label) + `<span class="pctl">${control()}</span>` });
+    out.push({ key: `${k}head`, cls: "phead", inner: () => boxHead(side) });
+    row("inst", ROWS.inst, () => instCell(side));
+    if (ui.inst[side]) { out.push({ key: `${k}instx`, cls: "pfull", row: "inst", inner: () => instX(side), upd: el => updInstX(el, side) }); }
+    row("exp", ROWS.exp + (side === "B" ? mapBtn() : ""), () => expCell(side));
+    row("structure", ROWS.structure, () => structCell(side));
+    row("legs", `${ROWS.legs}<button type="button" class="info" data-act="legsinfo" title="Together or detached; make symmetric">i</button>`, () => legsCell(side));
+    row("placement", ROWS.placement, () => basisCell(side));
+    if (!b.na) {
+      // A's sliders mark where B's chain ends while B follows A's strikes on the same structure
+      const followsA = side === "A" && C.comparison.links.placement && !C.B.na && C.Bp.structure === P.structure;
+      placeSliders(side, P, b, out, followsA ? { bE: C.B.E } : {});
+    }
+    for (const [aspect, s] of [["wingCall", "call"], ["wingPut", "put"]]) {
+      row(aspect, ROWS[aspect], () => wingCell(side, s));
+      if (P.wings[s].on && !b.na) { wingSlider(side, s, P, b, P.wings[s].basis || P.basis, out); }
+    }
+    row("fill", ROWS.fill, () => fillCellBox(side));
+    if (ui.fills[side]) { out.push({ key: `${k}fills`, cls: "pfull", row: "fill", inner: () => fillsEditor(side), upd: el => updFillsEditor(el, side) }); }
+    out.push({ key: `${k}legsList`, cls: "plegs", inner: () => legsList(side) });
     return out;
   }
+  // the net typed price split over the sold legs in proportion to their mids; bought legs keep their current fill
+  /** @param {{ side: string, net: number }} input */
+  function setNetFill({ side, net }) {
+    const b = bOf(side);
+    if (b.na || !Number.isFinite(net) || net < 0) { return; }
+    const sold = b.legs.filter(l => l.qty < 0), bought = b.legs.filter(l => l.qty > 0);
+    const soldMid = sold.reduce((t, l) => t + l.mid, 0), boughtPx = bought.reduce((t, l) => t + l.fillPx, 0);
+    if (!(soldMid > 0)) { return; }
+    const target = net + boughtPx;
+    let left = target;
+    sold.forEach((l, i) => {
+      const isLast = i === sold.length - 1;
+      const px = isLast ? Math.max(0, +left.toFixed(4)) : Math.max(0, +(l.mid * target / soldMid).toFixed(2));
+      left -= px;
+      setSide({ side, path: `fills.${l.key}`, value: { tk: b.tk, exp: b.exp, K: l.K, cp: l.cp, px } });
+    });
+  }
+
   function instX(side) {
     const I = instOf(side); if (!I) return "";
     return `<span class="d9x"><span class="d9sh"><span class="key ${side.toLowerCase()}">${side}</span><span class="d9sn">${esc(DOCK_CONFIG.instBoxName)} · ${esc(I.id)}</span></span>spot <input type="number" data-act="spot" data-side="${side}" step="0.01" min="0" aria-label="${side} spot override"> <span class="muted">listed ${fPx2(I.spotListed)}</span>` +
@@ -456,6 +497,9 @@ const DOCK9 = (() => {
     else if (act === "link") { const a = t.dataset.aspect; run({ type: C.comparison.links[a] ? Command.Unlink : Command.Link, aspect: a }); }
     else if (act === "detach") run({ type: Command.Detach, side });
     else if (act === "instx") { ui.inst[side] = !ui.inst[side]; askFrame(); }
+    else if (act === "fills") { ui.fills[side] = !ui.fills[side]; askFrame(); }
+    else if (act === "fillclr") { setSide({ side, path: `fills.${t.dataset.slot}`, value: null }); }
+    else if (act === "relinkall") { run({ type: Command.RelinkAll }); }
     else if (act === "pvset") { if (!t.classList.contains("on")) setPeriodVol({ side, source: t.dataset.v, pct: C.volOf(instOf(side).id).pct }); }
     else if (act === "ovreset") setSide({ side, path: "inst", value: { id: posOf(side).inst.id } });
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
@@ -481,6 +525,13 @@ const DOCK9 = (() => {
     else if (act === "exp") setSide({ side, path: "exp", value: t.value });
     else if (act === "spot") { const v = parseFloat(t.value); setSide({ side, path: "inst.spot", value: Number.isFinite(v) && v > 0 ? v : null }); }
     else if (act === "ivs") { const v = parseFloat(t.value); setSide({ side, path: "inst.ivShift", value: Number.isFinite(v) && v !== 0 ? v : null }); }
+    else if (act === "fillpx") {
+      const b = bOf(side), leg = legOf(b, t.dataset.slot), px = parseFloat(t.value);
+      if (!leg) { return; }
+      const value = Number.isFinite(px) && px >= 0 ? { tk: b.tk, exp: b.exp, K: leg.K, cp: leg.cp, px } : null;
+      setSide({ side, path: `fills.${t.dataset.slot}`, value });
+    }
+    else if (act === "fillnet") { setNetFill({ side, net: parseFloat(t.value) }); t.value = ""; }
     else if (act === "pvnum") {
       const pct = parseFloat(t.value);
       if (Number.isFinite(pct)) { setPeriodVol({ side, source: VolSource.Set, pct }); }
@@ -495,47 +546,62 @@ const DOCK9 = (() => {
     s.input(stepped(+t.value, s));
   }
 
+
   // ---------------------------------------------------------- init, render, reveal
   function init() {
-    root = q("#d9t");
-    root.addEventListener("click", onClick);
-    root.addEventListener("change", onChange);
-    root.addEventListener("input", onInput);
+    const host = q("#d9t");
+    host.innerHTML = `<section class="pbox a" id="d9A" aria-label="Position A"></section><section class="pbox b" id="d9B" aria-label="Position B"></section>`;
+    roots.A = q("#d9A"); roots.B = q("#d9B");
+    for (const el of [roots.A, roots.B]) {
+      el.addEventListener("click", onClick);
+      el.addEventListener("change", onChange);
+      el.addEventListener("input", onInput);
+    }
     q("#dockBtn").addEventListener("click", () => setPref({ dock: false }));
     q("#dockOpen").addEventListener("click", () => setPref({ dock: true }));
     bindSelect({ input: "#d9-size", options: CTX.SIZES, read: state => state.comparison.sizing.rule, command: v => ({ type: Command.SetSizing, patch: { rule: v } }), syncList: SIZING_SYNCS });
     const hc = q("#d9-hc"); hc.addEventListener("change", () => { const v = parseFloat(hc.value); if (Number.isFinite(v) && v > 0) run({ type: Command.SetSizing, patch: { h: clamp(v, 0.05, 20) } }); else askFrame(); });
   }
-  function render(c) {
-    C = c;
-    document.body.classList.toggle("dock-off", !C.prefs.dock);
-    if (!C.prefs.dock) return;
-    const list = comps(), key = list.map(x => x.key).join("|");
-    if (key !== lastKey) {
+  // one box: rebuilt when its component keys change; otherwise each component is refreshed in place, except that a
+  // slider keeps its input element (a drag must survive the render) and a component holding the focused input or
+  // select is only updated, never redrawn
+  function renderBox(side) {
+    const root = roots[side], list = boxComps(side), key = list.map(x => x.key).join("|");
+    if (key !== lastKeys[side]) {
       root.innerHTML = list.map(x => `<span class="${x.cls}" data-ck="${att(x.key)}"${x.row ? ` data-row="${x.row}"` : ""}></span>`).join("");
-      lastKey = key;
+      lastKeys[side] = key;
     }
     const els = root.children;
     list.forEach((x, i) => {
-      const el = els[i]; if (!el) return;
-      // sliders keep their input element (a drag must survive the re-render); everything else is redrawn,
-      // except a cell holding the focused input or select
-      if (SL[x.key]) { if (!el.querySelector("input")) el.innerHTML = x.inner(); x.upd(el); return; }
-      const a = document.activeElement;
-      if (a && el.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT")) { if (x.upd) x.upd(el); return; }
-      el.innerHTML = x.inner(); if (x.title) el.title = x.title;
-      if (x.upd) x.upd(el);
+      const el = els[i];
+      if (!el) { return; }
+      if (SL[x.key]) { if (!el.querySelector("input")) { el.innerHTML = x.inner(); } x.upd(el); return; }
+      const active = document.activeElement;
+      const holdsFocus = !!active && el.contains(active) && (active.tagName === "INPUT" || active.tagName === "SELECT");
+      if (holdsFocus) { if (x.upd) { x.upd(el); } return; }
+      el.innerHTML = x.inner();
+      if (x.upd) { x.upd(el); }
     });
+  }
+  function render(c) {
+    C = c;
+    document.body.classList.toggle("dock-off", !C.prefs.dock);
+    if (!C.prefs.dock) { return; }
+    SL = {};
+    renderBox("A"); renderBox("B");
     q("#d9-legb").innerHTML = legsDetail();
-    q("#d9-legsv").textContent = `· ${C.A.na ? 0 : C.A.legs.length} + ${C.B.na ? 0 : C.B.legs.length} legs, quotes, IV, ITM`;
+    q("#d9-legsv").textContent = `· ITM, intrinsic, deltas, flags`;
     syncSizing();
   }
-  // open the dock and bring one row into view (from a summary pill)
+  // open the dock and bring one row of one box into view (from a summary pill)
   function reveal(row, side) {
-    if (row === "inst" && side) ui.inst[side === "B" && C && C.comparison.links.inst ? "A" : side] = true;
-    if (C && !C.prefs.dock) setPref({ dock: true }); else askFrame();
+    const box = side === "B" ? "B" : "A";
+    if (row === "inst") { ui.inst[box] = true; }
+    if (row === "fill") { ui.fills[box] = true; }
+    if (C && !C.prefs.dock) { setPref({ dock: true }); } else { askFrame(); }
     const go = () => {
-      const els = root.querySelectorAll(`[data-row="${row}"]`); if (!els.length) return;
+      const els = roots[box].querySelectorAll(`[data-row="${row}"]`);
+      if (!els.length) { return; }
       els[0].scrollIntoView({ block: "center", behavior: "smooth" });
       els.forEach(e => { e.classList.add("d9fl"); setTimeout(() => e.classList.remove("d9fl"), 1400); });
     };

@@ -153,3 +153,4 @@
 .pop button .muted{font-weight:400}
 #toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:5px;padding:0 7px;font-size:12px}
 .v9views .full .wn{display:block}
+.v9views .swbadge{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--ink-3);border-radius:4px;font:600 10px/15px var(--f-ui);color:var(--ink-2);vertical-align:1px;text-transform:uppercase;letter-spacing:.04em}

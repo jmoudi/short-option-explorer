@@ -22,8 +22,23 @@ const POS = (() => {
     return {
       exp: pos.exp, structure: pos.structure, legs: pos.legs, basis: b,
       values: { center: v.center === "atm" || v.center === undefined || v.center === null ? "atm" : +v.center, put: +v.put, call: +v.call },
-      wings: { call: wing(w.call), put: wing(w.put) }, fill: pos.fill === "nat" ? "nat" : "mid"
+      wings: { call: wing(w.call), put: wing(w.put) }, fill: pos.fill === "nat" ? "nat" : "mid", fills: canonFills(pos.fills)
     };
+  }
+  // ---------------------------------------------------------- typed fills (the price the trader actually got)
+  // pos.fills = { put | call | wingCall | wingPut: { tk, exp, K, cp, px } }: one typed price per leg slot, pinned to the
+  // contract it was typed for. It prices that leg only while the slot still holds that exact contract; a moved strike
+  // or another expiry falls back to the fill mode and says so (FILL_NOT_APPLIED).
+  const FILL_SLOTS = Object.freeze(["put", "call", "wingCall", "wingPut"]);
+  const isTypedFill = f => !!f && typeof f === "object" && typeof f.tk === "string" && typeof f.exp === "string" && Number.isFinite(+f.K) && (f.cp === "P" || f.cp === "C") && Number.isFinite(+f.px) && +f.px >= 0;
+  function canonFills(fills) {
+    const out = {};
+    if (!fills || typeof fills !== "object") { return out; }
+    for (const slot of FILL_SLOTS) {
+      const f = fills[slot];
+      if (isTypedFill(f)) { out[slot] = { tk: f.tk, exp: f.exp, K: +f.K, cp: f.cp, px: +f.px }; }
+    }
+    return out;
   }
 
   // ---------------------------------------------------------- mark parameters per leg
@@ -48,20 +63,31 @@ const POS = (() => {
   }
 
   // ---------------------------------------------------------- POS.price(inst, expId, legs, fill) -> Priced
-  const price = function (inst, expId, legs, fill) {
+  const price = function (inst, expId, legs, fill, fills) {
     caches();
     fill = fill === "nat" ? "nat" : "mid";
     const E = inst && inst.exp(expId); if (!E) return null;
-    const key = `${inst.version}|${expId}|${legs.map(l => l.role + ":" + l.K).join(",")}|${fill}`;
+    const typed = canonFills(fills);
+    const key = `${inst.version}|${expId}|${legs.map(l => l.role + ":" + l.K).join(",")}|${fill}|${JSON.stringify(typed)}`;
     const hit = PC.get(key); if (hit) return hit;
     const S = inst.spot, T = E.T, F = E.Fpar, nat = fill === "nat", DF = Math.exp(-R * T);
     const sell = o => nat ? o.bid : o.mid, buy = o => nat ? o.ask : o.mid, hs = o => Math.max(0, (o.ask - o.bid) / 2);
+    // the typed price of a leg when its slot holds exactly the contract it was typed for
+    const typedFor = (role, o) => {
+      const f = typed[KEY[role]];
+      const matches = !!f && !!o && f.tk === inst.id && f.exp === expId && Math.abs(f.K - o.K) < 1e-9 && f.cp === o.cp;
+      return matches ? f.px : null;
+    };
+    const pxOf = (role, o) => { const t = typedFor(role, o); if (t !== null) { return t; } return qtyOf(role) < 0 ? sell(o) : buy(o); };
     const rowOut = o => o ? Object.freeze(Object.assign({}, o, { d: o.delta })) : null;
     const byRole = {};
     for (const l of legs) { const o = E.row(l.K, cpOf(l.role)); if (!o) return null; byRole[l.role] = o; }
     const sp = byRole["short put"] || null, sc = byRole["short call"] || null, cw = byRole["long call"] || null, pw = byRole["long put"] || null;
-    const crS = (sp ? sell(sp) : 0) + (sc ? sell(sc) : 0);
-    const capPx = cw ? buy(cw) : 0, wingPx = capPx + (pw ? buy(pw) : 0), cr = crS - wingPx;
+    const crS = (sp ? pxOf("short put", sp) : 0) + (sc ? pxOf("short call", sc) : 0);
+    const capPx = cw ? pxOf("long call", cw) : 0, wingPx = capPx + (pw ? pxOf("long put", pw) : 0), cr = crS - wingPx;
+    // what the same legs fetch at mid and at natural, whatever the fill: the card and the legs compare against them
+    const sideSum = pick => legs.reduce((t, l) => { const o = byRole[l.role]; return t - qtyOf(l.role) * pick(o, qtyOf(l.role)); }, 0);
+    const crMid = sideSum(o => o.mid), crNat = sideSum((o, q) => q < 0 ? o.bid : o.ask);
     const exitCost = nat ? (sp ? hs(sp) : 0) + (sc ? hs(sc) : 0) + (cw ? hs(cw) : 0) + (pw ? hs(pw) : 0) : 0;
     const flags = [];
     if (inst.overridden) {
@@ -73,24 +99,31 @@ const POS = (() => {
     for (const l of legs) {
       const o = byRole[l.role], qty = qtyOf(l.role), m = markOf(E, o, qty);
       marks.push(Object.freeze(Object.assign(m, { role: l.role, tw: m.tw ? Object.freeze(m.tw) : undefined })));
-      const fillPx = qty < 0 ? sell(o) : buy(o), intr = intrinsic(o.K, o.cp, S), itm = o.cp === "P" ? o.K > F : o.K < F;
+      const typedPx = typedFor(l.role, o), fillPx = pxOf(l.role, o), intr = intrinsic(o.K, o.cp, S), itm = o.cp === "P" ? o.K > F : o.K < F;
       const name = fK(o.K) + o.cp;
       if (m.noPin) flags.push({ code: "NO_IV_PIN", leg: KEY[l.role], severity: "note", text: `${name}: mid has no implied vol; marked with a residual that decays to expiry` });
       const tvMid = o.mid - intr, carry = o.K * (1 - DF);
       if (qty < 0 && intr > 0 && (!itm || tvMid < Math.max(0.05, carry))) flags.push({ code: "EARLY_ASSIGN", leg: KEY[l.role], severity: "note", text: `${name}: early assignment risk (intrinsic ${fN(intr, 2)} against spot, time value ${fN(tvMid, 2)})` });
       if (intr > 0 && o.mid < intr - 1e-9) flags.push({ code: "BELOW_INTRINSIC", leg: KEY[l.role], severity: "note", text: `${name}: mid ${fN(o.mid, 2)} is below intrinsic ${fN(intr, 2)}` });
       L.push({
-        role: l.role, key: KEY[l.role], cp: o.cp, K: o.K, qty, bid: o.bid, ask: o.ask, mid: o.mid, fillPx, perContract: -qty * fillPx * 100,
+        role: l.role, key: KEY[l.role], cp: o.cp, K: o.K, qty, bid: o.bid, ask: o.ask, mid: o.mid, fillPx, typed: typedPx !== null, perContract: -qty * fillPx * 100,
         iv: o.iv, ivm: o.ivm, delta: o.delta, money: (o.K / F - 1) * 100, sigma: Math.log(o.K / F) / E.sigma,
         itm, intrinsic: intr, timeValue: fillPx - intr, tvMid, quotePremium: m.mode === "twin" ? m.qp : NaN,
         parity: m.mode === "twin" ? m.parE : NaN, markMode: m.mode, model: !!o.model
       });
     }
     L.sort(sortLegs);
+    for (const slot of FILL_SLOTS) {
+      const f = typed[slot], leg = L.find(x => x.key === slot);
+      if (!f || (leg && leg.typed)) { continue; }
+      const now = leg ? `this leg is now ${fmtE(expId)} ${fK(leg.K)}${leg.cp}` : "this leg is not in the position now";
+      flags.push({ code: "FILL_NOT_APPLIED", leg: slot, severity: "warn", text: `typed fill ${fN(f.px, 2)} was for ${f.tk} ${fmtE(f.exp)} ${fK(f.K)}${f.cp}; ${now}, so it is at ${fill === "nat" ? "natural" : "mid"}` });
+    }
+    const typedCount = L.filter(x => x.typed).length;
     // v8-compatible intrinsic / time value of the two shorts (against spot)
     const legI = (o, cp) => {
       if (!o) return null;
-      const intr = intrinsic(o.K, cp, S), px = sell(o), m = marks.find(x => x.K === o.K && x.cp === cp && x.qty < 0);
+      const intr = intrinsic(o.K, cp, S), px = pxOf(cp === "P" ? "short put" : "short call", o), m = marks.find(x => x.K === o.K && x.cp === cp && x.qty < 0);
       return { intr, px, tv: px - intr, tvMid: o.mid - intr, below: intr > 0 && o.mid < intr - 1e-9, ea: intr > 0 && o.mid - intr < Math.max(0.05, o.K * (1 - DF)), carry: o.K * (1 - DF), par: m && m.mode === "twin" ? m.parE : NaN, from: m && m.mode === "twin" ? rowOut(E.row(o.K, cp === "P" ? "C" : "P")) : null };
     };
     const iP = legI(sp, "P"), iC = legI(sc, "C");
@@ -100,15 +133,16 @@ const POS = (() => {
     const lev = inst.lev, f20 = Math.min(1, 0.2 * lev), f10 = Math.min(1, 0.1 * lev);
     let margin = NaN;
     if (sp && sc) {
-      const rPn = sell(sp) + Math.max(f20 * S - Math.max(0, S - sp.K), f10 * sp.K);
-      const rCn = sell(sc) + Math.max(f20 * S - Math.max(0, sc.K - S), f10 * S);
+      const pxP = pxOf("short put", sp), pxC = pxOf("short call", sc);
+      const rPn = pxP + Math.max(f20 * S - Math.max(0, S - sp.K), f10 * sp.K);
+      const rCn = pxC + Math.max(f20 * S - Math.max(0, sc.K - S), f10 * S);
       const rP = pw ? Math.min(sp.K - pw.K, rPn) : rPn, rC = cw ? Math.min(cw.K - sc.K, rCn) : rCn;
-      margin = rP >= rC ? rP + sell(sc) - (cw ? buy(cw) : 0) : rC + sell(sp) - (pw ? buy(pw) : 0);
+      margin = rP >= rC ? rP + pxC - (cw ? pxOf("long call", cw) : 0) : rC + pxP - (pw ? pxOf("long put", pw) : 0);
     }
     const out = {
       key, tk: inst.id, inst, exp: expId, E, S, T, dte: E.dte, F, Fimpl: F, Fcarry: E.Fcarry, sig: E.sigma, fill,
       sp: rowOut(sp), sc: rowOut(sc), cap: rowOut(cw), capP: rowOut(pw),
-      crS, capPx, wingPx, cr, exitCost, intr, tv, vega, margin, iP, iC,
+      crS, capPx, wingPx, cr, crMid, crNat, typedCount, typedKey: JSON.stringify(typed), exitCost, intr, tv, vega, margin, iP, iC,
       itmP: sp ? sp.K > F : false, itmC: sc ? sc.K < F : false,
       straddle: !!(sp && sc && sp.K === sc.K), guts: !!(sp && sc && sp.K > sc.K), capFb: false,
       legs: L, marks,
@@ -169,7 +203,7 @@ const POS = (() => {
     for (const f of res.flags) flags.push(f);
     if (res.na) return BC.set(key, naBuilt(key, inst, pos, expId, E, res.na, freeze(flags), res));
     const rlegs = [res.put, res.call, res.wingCall, res.wingPut].filter(Boolean);
-    const pr = price(inst, expId, rlegs.map(l => ({ role: l.role, K: l.K })), pos.fill);
+    const pr = price(inst, expId, rlegs.map(l => ({ role: l.role, K: l.K })), pos.fill, pos.fills);
     for (const f of pr.flags) flags.push(f);
     const legs = pr.legs.map(x => { const r = rlegs.find(l => l.role === x.role); return Object.assign({}, x, { target: r.target, achieved: r.achieved, snapErr: r.snapErr, Kshort: r.Kshort }); });
     const b = Object.assign({}, pr, {
