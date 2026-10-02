@@ -116,23 +116,140 @@ async function copyText({ text, fallbackField }) {
 // the element with a data-tip under an event, if any (the target may be a node without closest())
 const findTipTarget = e => { const t = /** @type {Element} */ (e.target); return t.closest ? /** @type {HTMLElement} */ (t.closest("[data-tip]")) : null; };
 const findOpenMenus = () => /** @type {NodeListOf<HTMLDetailsElement>} */ (document.querySelectorAll("details.menu[open]"));
-document.addEventListener("pointerover", e => { const t = findTipTarget(e); if (t) { const r = t.getBoundingClientRect(); showTip(`<p>${t.dataset.tip}</p>`, r.right, r.bottom); } });
-document.addEventListener("pointerout", e => { if (findTipTarget(e)) hideTip(); });
-document.addEventListener("focusin", e => { const t = findTipTarget(e); if (t) { const r = t.getBoundingClientRect(); showTip(`<p>${t.dataset.tip}</p>`, r.right, r.bottom); } });
-document.addEventListener("focusout", e => { if (findTipTarget(e)) hideTip(); });
+// ============================================================ info knobs
+const KNOBS = (() => {
+  // A knob (an ⓘ with data-tip, or any element with data-knob) shows its detail while hovered or focused; a click (or
+  // Enter / Space) pins the detail open as a card next to it, so several can be read side by side; a second click on the
+  // knob, the card's ×, or Escape closes it. Elements with data-tip that act on a click themselves only show the tip.
+  const KNOB_CONFIG = Object.freeze({ offset: 8, maxWidth: 460 });
+  const isKnob = el => !!el && (el.hasAttribute("data-knob") || (el.classList.contains("info") && el.hasAttribute("data-tip") && !el.hasAttribute("data-act")));
+  const knobKey = el => el.dataset.knob || el.dataset.tip;
+  const isInFixedArea = el => {
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      const position = getComputedStyle(node).position;
+      if (position === "fixed" || position === "sticky") { return true; }
+    }
+    return false;
+  };
+  const knobBody = el => el.dataset.knobTitle ? `<span class="h">${el.dataset.knobTitle}</span><p>${el.dataset.tip}</p>` : `<p>${el.dataset.tip}</p>`;
+  // one pinned card per knob key; it lives in the page (it scrolls with the content it explains)
+  class PinnedKnobs {
+    // why a class: it owns the open cards and their keys across renders (a re-render replaces the knob, not the card)
+    constructor() { this.cards = new Map(); }
+    isPinned(key) { return this.cards.has(key); }
+    /** @param {HTMLElement} knob */
+    toggle(knob) {
+      const key = knobKey(knob);
+      if (this.cards.has(key)) { this.close(key); return; }
+      this.open({ key, knob });
+    }
+    /** @param {{ key: string, knob: HTMLElement }} input */
+    open({ key, knob }) {
+      hideTip();
+      const card = document.createElement("div"), anchor = knob.getBoundingClientRect();
+      card.className = "pintip";
+      card.setAttribute("role", "note");
+      card.innerHTML = `<button type="button" class="pinx" aria-label="Close">×</button>${knobBody(knob)}`;
+      card.querySelector(".pinx").addEventListener("click", () => this.close(key));
+      document.body.appendChild(card);
+      const width = Math.min(KNOB_CONFIG.maxWidth, card.offsetWidth);
+      const left = Math.max(8, Math.min(anchor.right + KNOB_CONFIG.offset, innerWidth - width - 8));
+      // a knob in a fixed or sticky area (the summary, the docks) keeps its card on screen with it
+      const isPinnedToScreen = isInFixedArea(knob);
+      card.style.position = isPinnedToScreen ? "fixed" : "absolute";
+      card.style.left = left + (isPinnedToScreen ? 0 : scrollX) + "px";
+      card.style.top = anchor.bottom + KNOB_CONFIG.offset + (isPinnedToScreen ? 0 : scrollY) + "px";
+      knob.classList.add("pinned");
+      this.cards.set(key, { card, knob });
+    }
+    close(key) {
+      const entry = this.cards.get(key);
+      if (!entry) { return; }
+      entry.card.remove();
+      entry.knob.classList.remove("pinned");
+      this.cards.delete(key);
+    }
+    closeAll() { for (const key of [...this.cards.keys()]) { this.close(key); } }
+  }
+  const pinnedKnobs = new PinnedKnobs();
+  const showKnobTip = el => { if (pinnedKnobs.isPinned(knobKey(el))) { return; } const r = el.getBoundingClientRect(); showTip(el.dataset.knobTitle ? knobBody(el) : `<p>${el.dataset.tip}</p>`, r.right, r.bottom); };
+  document.addEventListener("pointerover", e => { const t = findTipTarget(e); if (t) { showKnobTip(t); } });
+  document.addEventListener("pointerout", e => { if (findTipTarget(e)) hideTip(); });
+  document.addEventListener("focusin", e => { const t = findTipTarget(e); if (t) { showKnobTip(t); } });
+  document.addEventListener("focusout", e => { if (findTipTarget(e)) hideTip(); });
+  document.addEventListener("click", e => {
+    const t = findTipTarget(e);
+    if (!isKnob(t)) { return; }
+    e.preventDefault(); e.stopPropagation();
+    pinnedKnobs.toggle(t);
+  }, true);
+  document.addEventListener("keydown", e => {
+    const t = /** @type {HTMLElement} */ (document.activeElement);
+    const isToggleKey = e.key === "Enter" || e.key === " ";
+    if (!isToggleKey || !t || !t.matches || !t.matches("[data-tip]") || !isKnob(t)) { return; }
+    e.preventDefault();
+    pinnedKnobs.toggle(t);
+  });
+  // a knob from JS: the short label shows inline, the detail on hover, a click pins it
+  /** @param {{ id?: string, title?: string, body: string }} knob */
+  function knobHtml({ id, title, body }) {
+    const at = v => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    return `<span class="info" tabindex="0" role="button"${id ? ` data-knob="${at(id)}"` : ""}${title ? ` data-knob-title="${at(title)}"` : ""} data-tip="${at(body)}">i</span>`;
+  }
+  // a plain-text label whose knob stays on the line of its last word (an inline knob may otherwise wrap alone)
+  /** @param {string} text @param {{ id?: string, title?: string, body: string }} knob */
+  function labelWithKnob(text, knob) {
+    const cut = text.lastIndexOf(" ");
+    return `${text.slice(0, cut + 1)}<span class="knw">${text.slice(cut + 1)}${knobHtml(knob)}</span>`;
+  }
+  return { html: knobHtml, label: labelWithKnob, closeAll: () => pinnedKnobs.closeAll(), isPinned: key => pinnedKnobs.isPinned(key) };
+})();
 document.addEventListener("pointerdown", e => {
   const target = /** @type {Node} */ (e.target);
   findOpenMenus().forEach(d => { if (!d.contains(target)) d.open = false; });
   const p = $("#pop"); if (!p.hidden && !p.contains(target)) p.hidden = true;
 });
 document.addEventListener("toggle", e => { const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.classList.contains("menu") || !d.open) return; d.classList.remove("up"); const mb = d.querySelector(".mb"), r = mb.getBoundingClientRect(); if (r.bottom > innerHeight - 8 && d.getBoundingClientRect().top > r.height + 16) d.classList.add("up"); }, true);
-document.addEventListener("keydown", e => { if (e.key === "Escape") { findOpenMenus().forEach(d => d.open = false); $("#pop").hidden = true; hideTip(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { findOpenMenus().forEach(d => d.open = false); $("#pop").hidden = true; hideTip(); KNOBS.closeAll(); } });
 function openPopAt(html, cx, cy, onclick) {
   hideTip(); const pop = $("#pop"); pop.innerHTML = html; pop.hidden = false;
   const w = pop.offsetWidth, h = pop.offsetHeight; let x = cx + 10, y = cy + 10;
   if (x + w > innerWidth - 8) x = cx - w - 10; if (y + h > innerHeight - 8) y = cy - h - 10;
   pop.style.left = Math.max(8, x) + "px"; pop.style.top = Math.max(8, y) + "px"; pop.onclick = onclick;
 }
+
+// ============================================================ axis hover
+// An axis is information too: hovering the band where an axis prints its labels shows what a value there means (the
+// caller's describe), and a guide line marks that value across the plot. One helper for every chart on both tabs.
+const AXES = (() => {
+  /**
+   * @param {{ svg: SVGSVGElement, orient: "x" | "y", band: { x: number, y: number, width: number, height: number },
+   *   toValue: (px: number) => number, toPx: (value: number) => number, guide: { from: number, to: number },
+   *   describe: (value: number) => string }} spec
+   */
+  function attach({ svg, orient, band, toValue, toPx, guide, describe }) {
+    const isX = orient === "x";
+    const line = el("line", { class: "axguide", visibility: "hidden" }, svg);
+    const hit = el("rect", { x: band.x, y: band.y, width: Math.max(1, band.width), height: Math.max(1, band.height), fill: "transparent", class: "axhit" }, svg);
+    const toSvgCoord = ev => {
+      const box = svg.getBoundingClientRect(), view = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.viewBox.baseVal : null;
+      const scale = view ? (isX ? view.width / box.width : view.height / box.height) : 1;
+      return isX ? (ev.clientX - box.left) * scale : (ev.clientY - box.top) * scale;
+    };
+    hit.addEventListener("pointermove", ev => {
+      const value = toValue(toSvgCoord(ev));
+      if (!Number.isFinite(value)) { return; }
+      const at = toPx(value);
+      if (isX) { Object.entries({ x1: at, x2: at, y1: guide.from, y2: guide.to }).forEach(([k, v]) => line.setAttribute(k, String(v))); }
+      else { Object.entries({ y1: at, y2: at, x1: guide.from, x2: guide.to }).forEach(([k, v]) => line.setAttribute(k, String(v))); }
+      line.setAttribute("visibility", "visible");
+      showTip(describe(value), ev.clientX, ev.clientY);
+    });
+    hit.addEventListener("pointerleave", () => { line.setAttribute("visibility", "hidden"); hideTip(); });
+    return hit;
+  }
+  return { attach };
+})();
 
 // nice ticks inside the range plus the range edges themselves
 function axisTicks(lo, hi, n) {

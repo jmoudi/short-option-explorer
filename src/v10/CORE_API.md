@@ -7,6 +7,51 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 
 ---
 
+## v10 round 3: RECOVERY, MANAGE, KNOBS, AXES (read first; the model order is now … ctx, recovery, manage)
+
+`RECOVERY` (recovery.js, pure; config `RECOVERY.CONFIG`):
+
+- `computeRecovery({ built, vol, hit, capital, growth, typedRate })` returns a RecoveryReading.
+  - Inputs: `hit` is `{ basis: HitBasis, k, side: HitSide, fraction }`, `capital` is a `Capital`, and `growth` is a
+    `GrowthRate`.
+  - The reading: `{ status: "ok" | "wiped" | "none" | "na", L, Lmargin, Lnotional, price, rates: { best, noHit,
+    average, typed }, q, worst, growth, cycles: { chosen, best, noHit, average }, wholeCycles, survival, isAmber }`.
+  - `survival` is (1−q)^wholeCycles. `isAmber` is set when survival is below `amberBelow`.
+- `ratesFor({ built, vol, capital, hit })` returns `{ best, worst, average, noHit, q }`. It is memoized.
+- `measureHit({ built, capital, hit })` and `cyclesToRecover({ hit, growth })` are the two steps
+  `computeRecovery` runs.
+- `expectedPnl({ built, vol })` is the closed-form expected P&L at expiry per share, under the zero-drift lognormal.
+- `findBreakEvenVol({ built, low = 0.01, high = 5 })` returns a Result: the vol at which `expectedPnl` is 0. Fault
+  codes are `not_available`, `negative_at_any_vol` and `positive_at_any_vol`.
+
+`MANAGE` (manage.js, pure; config `MANAGE.CONFIG`):
+
+- `simulate({ built, vol, takeProfit, stopLoss, shock, paths, seed })` returns a Result.
+  - `takeProfit` and `stopLoss` are fractions of the credit.
+  - It reports `{ paths, days, takeProfit: { share, meanDay }, stop: { share, meanDay }, expiry: { share }, meanDays,
+    managedMean, heldMean, managedError, managedPerDay, heldPerDay, winRate, heldWinRate, managedWorst, heldWorst }`.
+  - Every money figure is per share.
+  - A net debit returns the fault `net_debit`.
+  - It is seeded and deterministic, with antithetic pairs and a control variate on the exact held EV.
+- `peek(...)` gives the mark grid for tests.
+
+`KNOBS` (ui_common.js):
+
+- `KNOBS.html({ id, title, body })` returns an info knob. Hover shows the body; a click pins it as a card.
+- `KNOBS.label(text, knob)` returns a plain-text label with the knob glued to its last word.
+- `KNOBS.closeAll()` and `KNOBS.isPinned(id)` manage the pinned cards. A card pinned from a fixed area stays fixed.
+
+`AXES` (ui_common.js):
+
+- `AXES.attach({ svg, orient, band, toValue, toPx, guide, describe })` adds a hover band along an axis. Inside it, a
+  dashed guide follows the pointer and `describe(value)` returns the rows of the tip.
+
+Core additions:
+
+- `ReadingUnit.Margin` ("% of A's margin").
+- `GrowthRate { IfNoSuchHit, Average, BestCase, Typed }`.
+- `Capital { Margin, Notional }` and `HitSide { Worse, Down, Up }`.
+
 ## v10 part 2 fix round 1 (read first; it amends 2a–2c below)
 
 - **One reader, one reference list (ctx.js).** `CTX.readTickerVol({periodVol, id, reader = Tab.Compare})` (was

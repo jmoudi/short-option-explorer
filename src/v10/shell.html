@@ -314,6 +314,20 @@ details.notes li{margin:4px 0}
 .tip .r .v{float:right;margin-left:14px}
 .tip i.sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
 .tip p{margin:0;line-height:1.45;white-space:normal}
+.axguide{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:3 3;pointer-events:none}
+.axhit{cursor:crosshair}
+.pintip{position:absolute;z-index:65;max-width:460px;background:var(--surface);border:1px solid var(--ink-3);border-radius:8px;padding:9px 26px 9px 11px;box-shadow:var(--shadow);font-size:12px;line-height:1.45;color:var(--ink)}
+.pintip .h{display:block;font-weight:600;margin-bottom:3px}
+.pintip p{margin:0}
+.pintip .s{display:block;color:var(--ink-3);font-size:11px;margin:6px 0 2px}
+.pintip .r{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px;align-items:baseline;font:12px var(--f-num);line-height:1.5}
+.pintip .r .k{font-family:var(--f-ui);color:var(--ink-2)}
+.pintip .r .v{text-align:right;white-space:nowrap}
+.pintip p+p{margin-top:5px}
+.pintip .pinx{position:absolute;top:3px;right:4px;border:0;background:none;color:var(--ink-3);font-size:15px;line-height:1;padding:2px 4px;cursor:pointer}
+.pintip .pinx:hover{color:var(--ink)}
+.info.pinned{color:var(--surface);background:var(--ink-2);border-color:var(--ink-2)}
+.info[data-tip]{cursor:pointer}
 .pop{position:fixed;z-index:70;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px;box-shadow:var(--shadow);min-width:220px;font-size:12px}
 .pop .h{display:block;font-weight:600}
 .pop .s{display:block;color:var(--ink-3);font:11px var(--f-num);margin-bottom:6px}
@@ -416,14 +430,20 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .pbox.b{border-left-color:var(--b)}
 .pbox>*{display:block;min-width:0}
 .phead{padding:0 0 6px;margin:0 0 6px;border-bottom:1px solid var(--grid)}
-.phead .pt{display:block;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phead .pt{display:block;line-height:20px;padding:1px 0}
 .phead .pt .key{margin-right:7px;vertical-align:1px}
 .phead .pname{font:600 13.5px var(--f-cond);color:var(--ink)}
+.phead .pcopy{margin-left:8px;font-size:10.5px;padding:0 6px;vertical-align:2px}
 .phead .prl{float:right;font-size:10.5px;padding:0 5px;margin-top:2px}
 .phead .pnet{display:block;font-size:13px;color:var(--ink-2);margin-top:2px}
 .phead .pnet b{font:600 16px var(--f-num);color:var(--ink)}
 .phead .pnet.w{color:var(--diff-warn)}
 .phead .pref{display:block;font-size:11px;color:var(--ink-3);margin-top:1px}
+.phead .pedge{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.phead .pedge b{color:var(--ink);font-family:var(--f-num)}
+.phead .pedge .pos{color:var(--pos)}
+.phead .pedge .neg{color:var(--neg)}
+.phead .pedge .info{margin-left:4px;vertical-align:1px}
 .prow{display:grid!important;grid-template-columns:114px minmax(0,1fr);column-gap:6px;align-items:center;min-height:28px}
 .plbl{font-size:12px;color:var(--ink-2);line-height:1.2;white-space:nowrap}
 .plbl .info{background:none;padding:0;width:14px;height:14px;font-size:9.5px;line-height:12px;margin-left:3px;vertical-align:0;cursor:pointer}
@@ -436,6 +456,8 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .pfull{padding:4px 0 6px}
 .pdim{opacity:.45}
 .pfb{margin-left:4px;font-size:11px;padding:1px 6px}
+.prow[data-row=fill] .pctl{white-space:normal;line-height:26px}
+.knw{white-space:nowrap}
 .pfb.on{color:var(--ink);border-color:var(--ink-3)}
 .pfb.w{color:var(--diff-warn)}
 .pfx{display:block;padding:6px 8px;border-radius:6px;background:var(--surface-2)}

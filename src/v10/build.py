@@ -38,7 +38,7 @@ if '--out' in sys.argv:
     ALL_JS = os.path.splitext(OUT)[0] + '_all.js'
 NO_COMPOUNDING = '--no-compounding' in sys.argv
 
-MODEL = ['dist.js', 'inst.js', 'rule.js', 'pos.js', 'cmp.js', 'state.js', 'ctx.js']
+MODEL = ['dist.js', 'inst.js', 'rule.js', 'pos.js', 'cmp.js', 'state.js', 'ctx.js', 'recovery.js', 'manage.js']
 UI9 = ['ui_summary.js', 'ui_dock.js', 'ui_views.js', 'ui_export.js']
 COMPOUND_PURE = ['compound_engine.js', 'compound_stress.js']
 COMPOUND_UI = ['compound_ui.js']
@@ -153,15 +153,15 @@ ALLOWED = {
     'core.js': {'Command', 'EnvelopeType', 'FaultCode', 'FaultSeverity', 'FaultHandling', 'Tab', 'Theme', 'NoticeStyle', 'FrameCause',
                 'ViewCodeError', 'ViewCodeVersion', 'ExportSection', 'VolSource', 'Odds', 'PERIOD_VOL_CONFIG', 'MoveUnit', 'WorstLossRange', 'Align', 'ReadingUnit', 'GrowthRate', 'HitBasis', 'RunSlot', 'RunDiff', 'ActionStep', 'CmpOperation', 'CmpEventType', 'CoreErrorCode', 'ResetTarget', 'TABS', 'THEMES', 'CORE_CONFIG', 'Result', 'createCoreError', 'describeThrown', 'createFault',
                 'createFaultEnvelope', 'createNoticeEnvelope', 'hasTypeField', 'isPlainData', 'describeValue', 'isCommand', 'isHandlerOutcome',
-                'readPeriodVol', 'nameVolSource', 'labelPeriodVol', 'Registry', 'Bus', 'Store', 'CommandExecutor', 'FrameLoop'},
+                'readPeriodVol', 'nameVolSource', 'labelPeriodVol', 'Registry', 'Bus', 'Store', 'CommandExecutor', 'FrameLoop', 'Capital', 'HitSide'},
     'adapters.js': {'ADAPTERS_CONFIG', 'AdapterError', 'describeError', 'isFilledString', 'isDate', 'storage', 'clipboard', 'download', 'calendar'},
     'app_store.js': {'STORAGE_KEY', 'readKey', 'BOOT'},
     'eng_head.js': {'$', 'css', 'MINUS', 'MON', 'TKS', 'EXPS', 'PCT_CAND', 'R', 'N', 'Ninv', 'erf', 'npdf', 'bs', 'bsDelta', 'bsVega',
                     'impliedVol', 'smile', 'wingAnchors', 'clamp', 'ticks', 'pctTicks', 'pctLab', 'fK', 'fN', 'fP', 'fPx', 'fPx2', 'fS', 'fmtE'},
     'dist.js': {'DIST', 'cdfT', 'cdfAt', 'quantAt'}, 'inst.js': {'INST'}, 'rule.js': {'RULE'}, 'pos.js': {'POS'},
-    'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'},
+    'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'}, 'recovery.js': {'RECOVERY'}, 'manage.js': {'MANAGE'},
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',
-                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb'},
+                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES'},
     'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
     'compound_engine.js': {'COMPOUND_ENGINE'}, 'compound_stress.js': {'COMPOUND_STRESS'}, 'compound_ui.js': {'COMPOUND'},
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',

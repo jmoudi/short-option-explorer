@@ -154,3 +154,16 @@
 #toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:5px;padding:0 7px;font-size:12px}
 .v9views .full .wn{display:block}
 .v9views .swbadge{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--ink-3);border-radius:4px;font:600 10px/15px var(--f-ui);color:var(--ink-2);vertical-align:1px;text-transform:uppercase;letter-spacing:.04em}
+.v9views .rec .rrates{display:block;font:12px var(--f-num);color:var(--ink-2);margin-top:6px}
+.v9views .rec .rrates b{color:var(--ink)}
+.v9views .rec .rhon{display:block;font-size:12px;color:var(--ink-2);margin-top:3px}
+.v9views .rec .rhon.w{color:var(--diff-warn)}
+.v9views .rec .rrates .info,.v9views .rec .rhon .info{margin-left:6px;vertical-align:1px}
+.v9views .mg table.mgt{width:100%;border-collapse:collapse;font-size:12.5px}
+.v9views .mg table.mgt td,.v9views .mg table.mgt th{padding:4px 8px;border-bottom:1px solid var(--grid);text-align:right;white-space:nowrap}
+.v9views .mg table.mgt td:first-child,.v9views .mg table.mgt th:first-child{text-align:left;color:var(--ink-2)}
+.v9views .mg table.mgt td{font-family:var(--f-num)}
+.v9views .mg table.mgt td:first-child{font-family:var(--f-ui)}
+.v9views .mg table.mgt .info{margin-left:5px;vertical-align:1px}
+.v9views .mgcap{display:block;margin:-4px 0 8px}
+.v9views table.cmp td.win{font-weight:700;box-shadow:inset 3px 0 0 var(--pos)}

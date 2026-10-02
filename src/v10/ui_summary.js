@@ -304,7 +304,7 @@ const SUM9 = (() => {
     seg({ el: "#s9-unit", options: [["sig", "σ", "Multiples of each instrument's implied move over A's horizon"], ["pct", "%", "Simple % change"], ["pts", "price", "Price change in $ (one instrument only)"]], read: state => state.assumptions.unit, command: buildMoveUnitCommand, syncList: RANGE_SYNCS });
     for (const [id, bound] of [["#s9-rlo", "rlo"], ["#s9-rhi", "rhi"]]) { const field = q(id); field.addEventListener("change", () => commitRangeBound({ bound, field })); }
     bindChk({ input: "#s9-rlink", read: state => state.assumptions.rlink, command: buildSymmetricCommand, syncList: RANGE_SYNCS });
-    seg({ el: "#s9-units", options: [["pct", "% of A's notional"], ["usd", "$ per A contract"], ["cr", "× A's credit"]], read: state => state.prefs.units, command: v => ({ type: Command.SetPref, patch: { units: v } }), syncList: RANGE_SYNCS });
+    seg({ el: "#s9-units", options: [["pct", "% of A's notional"], ["usd", "$ per A contract"], ["cr", "× A's credit"], ["margin", "% of A's margin", "Everything divided by A's Reg T margin at entry (approx.: 20% × leverage plus premium). Under the Equal margin sizing, B's line is B's own return on its margin."]], read: state => state.prefs.units, command: v => ({ type: Command.SetPref, patch: { units: v } }), syncList: RANGE_SYNCS });
     seg({ el: "#s9-dist", options: [[Odds.Implied, "implied", "The risk-neutral distribution from each fitted smile"], [Odds.PeriodVol, "period vol", "A zero-drift lognormal at each ticker's period vol"]], read: state => state.assumptions.dist, command: v => ({ type: Command.SetAssumption, patch: { dist: v } }), syncList: RANGE_SYNCS });
   }
   function syncRange(C) {

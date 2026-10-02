@@ -93,7 +93,8 @@ test("T20 (2): growth prints its sign from the printed value, with a typographic
 test("T20 (2): the verifier's repro: B's growth is a hair below zero and prints 0.00%; A's prints with −", () => {
   const REC = [["setA", "inst.id", "RAM"], ["setA", "exp", "20261016"], ["setA", "structure", "strangle"], ["setA", "basis", "sigma"], ["setA", "values", { put: 0.26995048522949217, call: 0.645901107788086, center: 0.7587093353271485 }], ["setA", "wings.call.on", true], ["setA", "wings.call.value", 1.0719598591327668], ["setA", "wings.put.on", true], ["setA", "wings.put.value", 0.7139980852603912]];
   const S = ops(STATE.defaults(), REC), C = CTX.ctx9(S);
-  const rB = VIEWS.recRun(C, C.B, "B", S.prefs), rA = VIEWS.recRun(C, C.A, "A", S.prefs);
+  const average = Object.assign({}, S.prefs, { rdG: "avg" });
+  const rB = VIEWS.recRun(C, C.B, "B", average), rA = VIEWS.recRun(C, C.A, "A", average);
   assert.ok(rB.g < 0 && rB.g > -0.00005, `B growth ${rB.g}`);
   assert.equal(VIEWS.growthTxt(rB.g), "0.00%");
   assert.equal(VIEWS.growthTxt(rA.g), MINUS + "1.41%");

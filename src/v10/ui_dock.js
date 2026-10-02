@@ -160,7 +160,7 @@ const DOCK9 = (() => {
         side, basis: bas, name: name("center"), muted, lo: e.lo.value, hi: e.hi.value, value: v, ticks,
         readout: `${atm ? "ATM" : fC(+P.values.center, bas)} → ${c ? `${fK(c.K)} ${fC(c.achieved[bas], bas)}` : "n/a"}` + (!atm && !opt.noAtm ? ` <button type="button" class="d9i" data-act="atm" data-side="${side}" title="Back to the strike nearest the forward">ATM</button>` : ""),
         note: end ? `${opt.whose ? opt.whose + "center " : ""}stops at ${fK(e[end].K)}, the ${end === "lo" ? "lowest" : "highest"} strike with a put and a call bid (${fV(e[end].value, bas)})` : "",
-        input: v2 => input("values.center", v2)
+        input: v2 => input("values.center", v2), step: c ? { E, role: "short call", K: c.K } : null
       }));
       return;
     }
@@ -177,7 +177,7 @@ const DOCK9 = (() => {
         side, basis: bas, name: name("put & call"), muted, lo, hi, value: vp, ticks,
         readout: `${fT(vp, bas)} / ${fT(vc, bas)}${RULE.UNIT[bas]} → ${opt.ro ? opt.ro : `${ro(lp, "P")} · ${ro(lc, "C")}`}`,
         note: end ? `${opt.whose || ""}${leg} stops at ${fK(ex.K)}${leg === "put" ? "P" : "C"}, the last ${leg} with a bid (${fV(ex.value, bas)})` : "",
-        input: v2 => { const cur = opt.cur ? opt.cur() : P.values; input("values", RULE.shiftTogether(cur, "put", v2)); }
+        input: v2 => { const cur = opt.cur ? opt.cur() : P.values; input("values", RULE.shiftTogether(cur, "put", v2)); }, step: lp ? { E, role: "short put", K: lp.K } : null
       }));
       return;
     }
@@ -190,7 +190,7 @@ const DOCK9 = (() => {
         side, basis: bas, name: name(k), muted, lo: e.lo.value, hi: e.hi.value, value: v, ticks,
         readout: `${fV(v, bas)} → ${ro(l, cp)}`, warnRo: !!(l && b.flags.some(f => f.code === "CHAIN_END" && f.leg === k)),
         note: end ? `${opt.whose || ""}${k} stops at ${fK(e[end].K)}${cp}, the last ${k} with a bid (${fV(e[end].value, bas)})` : "",
-        input: v2 => input("values." + k, v2)
+        input: v2 => input("values." + k, v2), step: l ? { E, role, K: l.K } : null
       }));
     }
   }
@@ -205,7 +205,7 @@ const DOCK9 = (() => {
       side, basis: wbas, name: `protective ${s}`, lo: e.lo.value, hi: e.hi.value, value: v, ticks: [],
       readout: `${fV(v, wbas)} → ${l ? `${kc(l)} ${fV(l.achieved[wbas], wbas)}` : "n/a"}`, warnRo: !!b.flags.find(f => f.leg === key && f.severity === "warn"),
       note: end ? `stops at ${fK(e[end].K)}${s === "call" ? "C" : "P"}, the ${end === "lo" ? (wbas === "delta" ? "farthest" : "nearest") : (wbas === "delta" ? "nearest" : "farthest")} ${s} with an ask beyond the short ${kc(sh)} (${fV(e[end].value, wbas)})` : "",
-      input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 })
+      input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 }), step: l ? { E, role, K: l.K, Kshort: sh.K } : null
     }));
   }
 
@@ -228,11 +228,33 @@ const DOCK9 = (() => {
     // the instrument is set on its own by default (B is usually another ticker): only the other rows call for it
     const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
     if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
-    const fillWord = b.typedCount ? `your fill on ${b.typedCount} of ${b.legs.length} legs` : b.fill === "nat" ? "natural" : "mid";
+    const fillWord = !b.typedCount ? (b.fill === "nat" ? "natural" : "mid") : b.typedCount === b.legs.length ? "your fill" : `your fill on ${b.typedCount} of ${b.legs.length} legs`;
     const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b> · ${esc(fillWord)}`;
     const refs = [b.typedCount || b.fill === "nat" ? `mid ${usd(b.crMid * 100)}` : "", b.fill !== "nat" || b.typedCount ? `natural ${usd(b.crNat * 100)}` : ""].filter(Boolean).join(" · ");
+    const copy = `<button type="button" class="d9btn pcopy" data-act="copyorder" data-side="${side}" title="Copy an order ticket for this position: the combo, its net limit and every leg">Copy order</button>`;
     return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>` +
-      `<span class="pnet">${net}</span><span class="pref">${refs ? refs + " · " : ""}ATM IV ${fP(b.E.atm, 0)} (sets σ) · ${b.dte} d</span>`;
+      `<span class="pnet">${net}${copy}</span><span class="pref">${refs ? refs + " · " : ""}ATM IV ${fP(b.E.atm, 0)} (sets σ) · ${b.dte} d</span>` + describeVolEdge(b);
+  }
+  // the vol edge in one line: the period vol at which this fill's EV is zero, against the vol assumed
+  function describeVolEdge(b) {
+    const found = RECOVERY.findBreakEvenVol({ built: b }), assumed = C.volOf(b.tk).pct / 100;
+    if (!found.ok) { return `<span class="pedge">${esc(found.error.message)}</span>`; }
+    const edge = (found.value - assumed) * 100, sign = edge >= 0 ? "+" : MINUS, cls = edge >= 0 ? "pos" : "neg";
+    const tip = `Break-even vol: the period vol at which this position's EV at expiry is zero, at this fill. Below it, selling here wins on average; above it, it loses. The edge is break-even minus the period vol you assume (${Math.round(assumed * 100)}%): a short-premium trader's vol edge in one number.`;
+    return `<span class="pedge">break-even vol <b>${(found.value * 100).toFixed(1)}%</b> · <span class="${cls}">${sign}${Math.abs(edge).toFixed(1)} pts</span> over period vol ${Math.round(assumed * 100)}% ${KNOBS.html({ id: `edge-${b.key}`, title: "Break-even vol", body: tip })}</span>`;
+  }
+  // ---------------------------------------------------------- the order ticket
+  const MONTHS = Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
+  const ticketExpiry = exp => `${+exp.slice(6, 8)} ${MONTHS[+exp.slice(4, 6) - 1]} ${exp.slice(2, 4)}`;
+  // one position as order-ticket text: the combo with its net limit, then each leg with its side, contract and price
+  function describeOrderTicket(b) {
+    const expiry = ticketExpiry(b.exp), isCredit = b.cr >= 0, how = b.typedCount ? "your typed fill" : b.fill === "nat" ? "natural" : "mid";
+    const legs = b.legs.map(l => `  ${l.qty < 0 ? "SELL" : "BUY "} 1 ${b.tk} ${expiry} ${fK(l.K)} ${l.cp === "P" ? "PUT " : "CALL"} @ ${l.fillPx.toFixed(2)}${l.typed ? " (typed)" : ""}`);
+    return [
+      `${isCredit ? "SELL" : "BUY"} 1 ${b.tk} ${expiry} ${(b.label.struct || b.kind).replace(/^short /, "")} · net ${isCredit ? "credit" : "debit"} ${Math.abs(b.cr).toFixed(2)} limit (${how})`,
+      ...legs,
+      `mid ${b.crMid.toFixed(2)} · natural ${b.crNat.toFixed(2)} · ${b.dte} days · quotes as of ${String(INST.asof || "").slice(0, 10)}`
+    ].join("\n");
   }
   const fillCellBox = side => {
     const b = bOf(side), open = ui.fills[side];
@@ -500,6 +522,7 @@ const DOCK9 = (() => {
     else if (act === "fills") { ui.fills[side] = !ui.fills[side]; askFrame(); }
     else if (act === "fillclr") { setSide({ side, path: `fills.${t.dataset.slot}`, value: null }); }
     else if (act === "relinkall") { run({ type: Command.RelinkAll }); }
+    else if (act === "copyorder") { const b = bOf(side); if (!b.na) { copyText({ text: describeOrderTicket(b) }); } }
     else if (act === "pvset") { if (!t.classList.contains("on")) setPeriodVol({ side, source: t.dataset.v, pct: C.volOf(instOf(side).id).pct }); }
     else if (act === "ovreset") setSide({ side, path: "inst", value: { id: posOf(side).inst.id } });
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
@@ -547,6 +570,32 @@ const DOCK9 = (() => {
   }
 
 
+  // ---------------------------------------------------------- arrow keys step one listed strike
+  // strikes are chunked, so a strike is the natural step: ←/↓ and →/↑ on a placement or wing slider move to the next
+  // listed strike whose value lies that way (on the slider's own basis), inside the slider's ends
+  const STEP_KEYS = Object.freeze({ ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 });
+  /** @param {{ spec: any, direction: number }} input -> the value at the next strike that way, or NaN */
+  function findNextStrikeValue({ spec, direction }) {
+    const step = spec.step, strikes = step && step.E ? step.E.strikes : null;
+    if (!strikes || !strikes.length) { return NaN; }
+    const valueOf = K => RULE.valueAt(step.E, K, step.role, spec.basis, step.Kshort);
+    // from the strike the leg sits on now (the slider's target may lie between strikes)
+    const atStrike = valueOf(step.K), current = Number.isFinite(atStrike) ? atStrike : spec.value, tolerance = 1e-9 * Math.max(1, Math.abs(current));
+    const candidates = strikes.map(K => valueOf(K)).filter(v => Number.isFinite(v) && v >= spec.lo - tolerance && v <= spec.hi + tolerance);
+    const ahead = candidates.filter(v => direction > 0 ? v > current + tolerance : v < current - tolerance);
+    if (!ahead.length) { return NaN; }
+    return direction > 0 ? Math.min(...ahead) : Math.max(...ahead);
+  }
+  function onKeyDown(ev) {
+    const t = ev.target, direction = STEP_KEYS[ev.key];
+    if (!direction || !t.dataset || !t.dataset.sl) { return; }
+    const spec = SL[t.dataset.sl];
+    if (!spec || !spec.step) { return; }
+    const next = findNextStrikeValue({ spec, direction });
+    ev.preventDefault();
+    if (Number.isFinite(next)) { spec.input(next); }
+  }
+
   // ---------------------------------------------------------- init, render, reveal
   function init() {
     const host = q("#d9t");
@@ -556,6 +605,7 @@ const DOCK9 = (() => {
       el.addEventListener("click", onClick);
       el.addEventListener("change", onChange);
       el.addEventListener("input", onInput);
+      el.addEventListener("keydown", onKeyDown);
     }
     q("#dockBtn").addEventListener("click", () => setPref({ dock: false }));
     q("#dockOpen").addEventListener("click", () => setPref({ dock: true }));

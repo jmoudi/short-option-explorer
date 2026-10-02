@@ -135,9 +135,14 @@ const MoveUnit = Object.freeze({ Sigma: "sig", Percent: "pct", Points: "pts" });
 const WorstLossRange = Object.freeze({ View: "view", Own: "own" });
 const Align = Object.freeze({ Fraction: "frac", Calendar: "cal" });
 // the readings' unit (prefs.units): % of notional, $ per contract, × credit
-const ReadingUnit = Object.freeze({ Percent: "pct", Usd: "usd", Credit: "cr" });
+const ReadingUnit = Object.freeze({ Percent: "pct", Usd: "usd", Credit: "cr", Margin: "margin" });
 // the recovery panel's growth rate per cycle (prefs.rdG): the EV at the period vol, or the reader's own number
-const GrowthRate = Object.freeze({ Ev: "ev", Custom: "custom" });
+// the recovery panel's growth a cycle (the old "ev" reading is Average): see recovery.js
+const GrowthRate = Object.freeze({ IfNoSuchHit: "nohit", Average: "avg", BestCase: "best", Typed: "custom" });
+// what a recovery is measured against: each side's Reg T margin at entry, or its notional
+const Capital = Object.freeze({ Margin: "margin", Notional: "notional" });
+// which side of a move hurts: the worse of the two, or one side
+const HitSide = Object.freeze({ Worse: "worse", Down: "down", Up: "up" });
 // the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
 const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
 // the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)

@@ -83,7 +83,7 @@ test("T15 smile click with legs together: the clicked leg lands, the other follo
 });
 
 test("T15 recovery: the headline counts whole cycles (finding 26), the hit uses the position's own σ", () => {
-  const C = CTX.ctx9(STATE.defaults()), vw = Object.assign({}, C.prefs, { rdK: 1 });
+  const C = CTX.ctx9(STATE.defaults()), vw = Object.assign({}, C.prefs, { rdK: 1, rdG: "avg" });
   const r = VIEWS.recRun(C, C.A, "A", vw), n = VIEWS.recCycles(r.L, r.g, "rec", vw.rdBase);
   assert.ok(n > 2 && n < 3, `n = ${n}`);
   const t = VIEWS.recTime(n, r.days, r.L, d => String(d));

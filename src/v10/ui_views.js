@@ -287,7 +287,9 @@ const VIEWS = (() => {
     LAST.payKinks = kinks.slice();
     const ux = [...us, ...kinks].sort((p, r) => p - r);
     const a = ux.map(u => [u, C.pA(u)]), b = ux.map(u => [u, C.pB(u)]), df = ux.map(u => [u, C.pA(u) - C.pB(u)]);
-    const ys = [...a, ...b].map(p => p[1]).filter(Number.isFinite);
+    // before expiry: the P&L if closed now and half-way to expiry, at the model's marks
+    const timeCurves = vw.pnow ? describeTimeCurves({ ux }) : [];
+    const ys = [...a, ...b, ...timeCurves.flatMap(t => t.points)].map(p => p[1]).filter(Number.isFinite);
     let ylo = Math.min(...ys, 0), yhi = Math.max(...ys, 0); const pad = (yhi - ylo) * 0.08 || 0.01; ylo -= pad; yhi += pad;
     const dys = df.map(p => p[1]).filter(Number.isFinite); let dlo = Math.min(...dys, 0), dhi = Math.max(...dys, 0); const dp = (dhi - dlo) * 0.14 || 0.005; dlo -= dp; dhi += dp;
     const H1 = 270, H2 = 92, nStrip = vw.pso ? (two || diffExp() ? 2 : 1) : 0, H3 = nStrip * 22, gap = 14, m = { l: 62, r: 54, t: two && C.unit !== "sig" ? 28 : 16, b: two ? 52 : 40 };
@@ -315,6 +317,7 @@ const VIEWS = (() => {
     const horizon = (b, y) => { if (diffExp()) txt(svg, W - m.r - 4, y + 17, "to " + fmtE(b.exp), { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10, ...halo }); };
     if (nStrip && !A.na && C.d) { oddsStrip(svg, C.d, C.xA, lo, hi, A.T, X, y3, 20, nStrip > 1 ? `${tkS("A")} odds` : "odds"); horizon(A, y3); }
     if (nStrip > 1 && !B.na && C.dB) { oddsStrip(svg, C.dB, C.xB, lo, hi, B.T, X, y3 + 22, 20, `${tkS("B")} odds`); horizon(B, y3 + 22); }
+    for (const t of timeCurves) { el("path", { d: pathOf(t.points, X, Y), fill: "none", stroke: `var(--${t.side})`, "stroke-width": 1.3, "stroke-dasharray": t.dash, "stroke-opacity": .85, "stroke-linejoin": "round" }, svg); }
     el("path", { d: pathOf(b, X, Y), fill: "none", stroke: "var(--b)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
     el("path", { d: pathOf(a, X, Y), fill: "none", stroke: "var(--a)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-dasharray": C.diff.identical ? "6 4" : "" }, svg);
     const dl = df.filter(p => Number.isFinite(p[1])), leftHigh = dl.length && dl[0][1] > (dlo + dhi) / 2;
@@ -323,7 +326,7 @@ const VIEWS = (() => {
     if (C.diff.identical && !hb()) endLab(a, "A = B", "ink", a); else { endLab(a, "A", "a", b); endLab(b, "B" + hb(), "b", a); }
     const naSides = [["A", A], ["B", B]].filter(([, x]) => x.na);
     if (naSides.length) txt(svg, m.l + 10, y1 + 18, naSides.map(([t, x]) => `${t} is n/a: ${x.naReason}`).join(" · "), { fill: "var(--neg)", "font-size": 12, "font-weight": 600, ...halo });
-    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
+    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${vw.pnow ? ` <span class="muted">· dotted: now · dashed: half-way</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
     const cross = el("line", { y1: y1, y2: y3 + H3, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
     const dots = ["a", "b", "ink"].map(c => el("circle", { r: 4, fill: `var(--${c})`, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg));
     const hit = el("rect", { x: m.l, y: y1, width: W - m.l - m.r, height: y3 + H3 - y1, fill: "transparent" }, svg);
@@ -332,9 +335,119 @@ const VIEWS = (() => {
       cross.setAttribute("x1", X(u)); cross.setAttribute("x2", X(u)); cross.setAttribute("visibility", "visible");
       const va = C.pA(u), vb = C.pB(u), vd = va - vb;
       [[va, Y], [vb, Y], [vd, Y2]].forEach(([v, f], i) => { if (Number.isFinite(v)) { dots[i].setAttribute("cx", X(u)); dots[i].setAttribute("cy", f(v)); dots[i].setAttribute("visibility", "visible"); } else dots[i].setAttribute("visibility", "hidden"); });
-      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}`, ev.clientX, ev.clientY);
+      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${vw.pnow ? describeTimeRows(u) : ""}`, ev.clientX, ev.clientY);
     });
     hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); });
+    // the axes answer questions too: a price below, a P&L on the left of each panel
+    const plotW = W - m.l - m.r;
+    AXES.attach({ svg, orient: "x", band: { x: m.l, y: y3 + H3, width: plotW, height: H - y3 - H3 }, guide: { from: y1, to: y3 + H3 },
+      toValue: px => clamp(lo + (px - m.l) / plotW * (hi - lo), lo, hi), toPx: X, describe: describePriceOnAxis });
+    AXES.attach({ svg, orient: "y", band: { x: 0, y: y1, width: m.l, height: H1 }, guide: { from: m.l, to: W - m.r },
+      toValue: py => yhi - (py - y1) / H1 * (yhi - ylo), toPx: Y, describe: describeValueOnAxis });
+    AXES.attach({ svg, orient: "y", band: { x: 0, y: y2, width: m.l, height: H2 }, guide: { from: m.l, to: W - m.r },
+      toValue: py => dhi - (py - y2) / H2 * (dhi - dlo), toPx: Y2, describe: v => `<span class="h">A − ${hTxt()} at expiry ${fU(v)}</span>${describeUnitRows(v)}` });
+  }
+  // ---------------------------------------------------------- the EV explainer (a knob on the table's EV row)
+  // credit, the expected settlement at the period vol (the plug, so the lines add up), EV in $, on margin and notional;
+  // the odds of the recovery panel's hit and the three growth rates. Under implied odds the row is fill vs mid first.
+  /** @param {{ isImpliedRow: boolean }} input */
+  function describeEvExplainer({ isImpliedRow }) {
+    const blocks = [["A", C.A], ["B", C.B]].map(([side, b]) => {
+      if (b.na) { return ""; }
+      const stats = C.statsAtPeriodVol(b), vol = C.volOf(b.tk);
+      if (!stats) { return ""; }
+      const credit = b.cr * 100, ev = stats.ev * 100, settlement = ev - credit;
+      const usdSigned = v => formatSigned({ value: v, digits: 0, prefix: "$" });
+      const implied = C.stats(b, Odds.Implied), impliedEv = implied ? implied.ev * 100 : NaN;
+      const hit = { basis: V().rdHit, k: V().rdK, side: V().rdDir, fraction: V().rdL / 100 };
+      const rec = RECOVERY.computeRecovery({ built: b, vol: vol.pct / 100, hit, capital: Capital.Margin, growth: GrowthRate.IfNoSuchHit, typedRate: 0 });
+      const hitLine = rec.status === "ok" ? krow(`loss ≥ ${(rec.Lmargin * 100).toFixed(1)}% of margin (the recovery hit)`, `${(rec.q * 100).toFixed(1)}% a cycle`) : "";
+      const rateLine = rec.status === "ok" ? krow("growth a cycle · best case", growthTxt(rec.rates.best)) + krow("growth a cycle · if no such hit", growthTxt(rec.rates.noHit)) + krow("growth a cycle · average", growthTxt(rec.rates.average)) : "";
+      return `<span class="s">${side} · ${esc(b.label.full)}</span>` +
+        (isImpliedRow ? krow("this row (implied odds): fill vs mid", usdSigned(impliedEv)) : "") +
+        krow("credit", `${usdSigned(credit)} a contract`) + krow(`expected settlement at ${esc(vol.label)}`, usdSigned(settlement)) +
+        krow("expected value", `${usdSigned(ev)} = ${formatSigned({ value: stats.ev / b.margin * 100, digits: 1, suffix: "%" })} of margin · ${formatSigned({ value: stats.ev / b.S * 100, digits: 1, suffix: "%" })} of notional`) +
+        hitLine + rateLine;
+    }).join("");
+    return blocks;
+  }
+  // ---------------------------------------------------------- what a value on an axis means (payoff and friends)
+  // the share of a position's expiry distribution whose P&L (page units, scaled like its line) is at least threshold
+  /** @param {{ b: any, d: any, threshold: number, scale: number }} input */
+  function probAtLeast({ b, d, threshold, scale }) {
+    if (!b || b.na || !d || !d.cdf) { return NaN; }
+    let mass = 0, total = 0;
+    for (let i = 1; i <= d.n; i++) {
+      const cell = d.cdf[i] - d.cdf[i - 1];
+      if (cell <= 0) { continue; }
+      total += cell;
+      const price = b.S * Math.exp((d.u[i] + d.u[i - 1]) / 2);
+      if (scale * POS.payoff(b, price) / b.S >= threshold - 1e-12) { mass += cell; }
+    }
+    return total > 0 ? mass / total : NaN;
+  }
+  const fPct = p => Number.isFinite(p) ? `${(p * 100).toFixed(1)}%` : "–";
+  // signed with the typographic minus; a value that rounds to zero prints unsigned
+  /** @param {{ value: number, digits: number, prefix?: string, suffix?: string }} input */
+  function formatSigned({ value, digits, prefix = "", suffix = "" }) {
+    const text = Math.abs(value).toFixed(digits);
+    const sign = +text === 0 ? "" : value < 0 ? MINUS : "+";
+    return `${sign}${prefix}${text}${suffix}`;
+  }
+  // one value in every reading unit at once
+  function describeUnitRows(v) {
+    const A = C.A, rows = [["% of A's notional", formatSigned({ value: v * 100, digits: 2, suffix: "%" })]];
+    if (!A.na) { rows.push(["$ per A contract", formatSigned({ value: v * A.S * 100, digits: 0, prefix: "$" })]); }
+    if (!A.na && A.tv > 0) { rows.push([A.intr > 0 ? "× A's time value" : "× A's credit", formatSigned({ value: v / (A.tv / A.S), digits: 2, suffix: "×" })]); }
+    if (!A.na && A.margin > 0) { rows.push(["% of A's margin", formatSigned({ value: v * A.S / A.margin * 100, digits: 1, suffix: "%" })]); }
+    return rows.map(([k, val]) => krow(k, val)).join("");
+  }
+  // a price on the move axis: where it is in σ (implied and period vol), and the odds of ending beyond or touching it
+  function describePriceOnAxis(u) {
+    const parts = [`<span class="h">${uLab(u, C.unit, 2)}</span>`];
+    for (const [side, b, toS] of [["A", C.A, C.toSA], ["B", C.B, C.toSB]]) {
+      const isRepeat = side === "B" && C.same;
+      if (b.na || isRepeat) { continue; }
+      const price = toS(u), x = Math.log(price / b.S), vol = C.volOf(b.tk).pct / 100;
+      const implied = C.distOf(b, Odds.Implied), periodVol = C.distOf(b, Odds.PeriodVol);
+      const belowImplied = implied ? cdfT(implied, x) : NaN, belowPeriod = periodVol ? cdfT(periodVol, x) : NaN;
+      const beyondPeriod = x < 0 ? belowPeriod : 1 - belowPeriod;
+      parts.push(`<span class="s">${esc(b.tk)} ${fPx2(price)} (${fS(price / b.S - 1, 1)}) · to ${fmtE(b.exp)}</span>` +
+        krow(`σ at ATM IV ${(b.E.atm * 100).toFixed(0)}%`, `${(x / b.sig).toFixed(2)}σ`) +
+        krow(`σ at period vol ${(vol * 100).toFixed(0)}%`, `${(x / (vol * Math.sqrt(b.T))).toFixed(2)}σ`) +
+        krow("ends below · implied / period vol", `${fPct(belowImplied)} / ${fPct(belowPeriod)}`) +
+        krow("ends above · implied / period vol", `${fPct(1 - belowImplied)} / ${fPct(1 - belowPeriod)}`) +
+        krow("touched before expiry (period vol)", `≈ ${fPct(Math.min(1, 2 * beyondPeriod))}`) +
+        krow(`${side} P&amp;L at expiry here`, fU(side === "A" ? C.pA(u) : C.pB(u))));
+    }
+    return parts.join("");
+  }
+  // a P&L on the payoff axis: in every unit, and how likely each position ends at or above it (period vol)
+  function describeValueOnAxis(v) {
+    const odds = [["A", C.A, 1], ["B", C.B, C.h]].map(([side, b, scale]) => {
+      const p = probAtLeast({ b, d: C.distOf(b, Odds.PeriodVol), threshold: v, scale });
+      return Number.isFinite(p) ? krow(`${side} ends at or above (period vol)`, fPct(p)) : "";
+    }).join("");
+    return `<span class="h">P&amp;L at expiry ${fU(v)}</span>${describeUnitRows(v)}${odds}`;
+  }
+  // the P&L before expiry on the payoff's axis: now (all the time left) and half-way, for A and B (B scaled by h)
+  /** @param {{ ux: number[] }} input */
+  function describeTimeCurves({ ux }) {
+    const out = [];
+    for (const [side, b, value] of [["a", C.A, C.vA], ["b", C.B, C.vB]]) {
+      if (b.na) { continue; }
+      out.push({ side, label: "now", dash: "1.5 3", points: ux.map(u => [u, value(u, b.T)]) });
+      out.push({ side, label: "half-way", dash: "6 3", points: ux.map(u => [u, value(u, b.T / 2)]) });
+    }
+    return out;
+  }
+  // the hover's before-expiry rows: what each position closes for now and half-way, at this price
+  function describeTimeRows(u) {
+    const row = (cls, label, now, half) => `<span class="r"><span class="k"><i class="sw" style="background:var(--${cls})"></i>${label}</span><span class="v">${fU(now)} · ${fU(half)}</span></span>`;
+    const rows = [];
+    if (!C.A.na) { rows.push(row("a", "A now · half-way", C.vA(u, C.A.T), C.vA(u, C.A.T / 2))); }
+    if (!C.B.na) { rows.push(row("b", `B${hb()} now · half-way`, C.vB(u, C.B.T), C.vB(u, C.B.T / 2))); }
+    return rows.join("");
   }
   // pair worst loss over the worst-loss range when one price drives both (same instrument and expiry)
   function pairWorst(Cx, a, b, h) {
@@ -349,11 +462,47 @@ const VIEWS = (() => {
     for (let i = 1; i <= d.n; i++) { const mm = d.cdf[i] - d.cdf[i - 1]; if (mm <= 0) continue; const x = A.S * Math.exp((d.u[i] + d.u[i - 1]) / 2), v = POS.payoff(A, x) / A.S - Cx.h * POS.payoff(B, x) / B.S; if (v > eps) pop += mm; }
     return pop;
   }
+  // the chance of touching a price before expiry at the period vol: 2 × the chance of ending beyond it, capped at 1
+  /** @param {{ b: any, price: number }} input */
+  function touchOdds({ b, price }) {
+    const d = C.distOf(b, Odds.PeriodVol);
+    if (!d || !(price > 0)) { return NaN; }
+    const x = Math.log(price / b.S), below = cdfT(d, x), beyond = x < 0 ? below : 1 - below;
+    return Math.min(1, 2 * beyond);
+  }
+  // the comparison table's definitions, one knob per row
+  const ROW_INFO = Object.freeze({
+    credit: ["Credit", "What the fill collects per share, as a share of the page unit. In the money, part of the cash is intrinsic value that is paid back at expiry; time value is the rest, and every ratio below uses it."],
+    creditSigma: ["Credit / σ", "Time value divided by the move the market prices to expiry (spot × σ√T at the ATM IV): how many expected moves of cushion the premium buys. Size-free, so A and B compare directly."],
+    creditDay: ["Credit per day", "Time value divided by the days to expiry: the decay a day if nothing moves. Longer expiries collect more in total but less a day."],
+    odds: ["Profit odds", "The chance the P&L at expiry is above zero, under the odds switch (implied, or the period vol). It says nothing about the size of the losses."],
+    worst: ["Worst loss", "The lowest P&L at expiry anywhere inside the range shown, in the page unit. Beyond the range it can be worse (unbounded for naked legs)."],
+    vega: ["Vega per vol point", "The change in value now if every IV moves one point, in the page unit: negative for a short position. What a vol spike costs before any price move."],
+    margin: ["Margin", "Approximate Reg T margin at entry: 20% of spot × the ETF's leverage (capped at 100%) on the worse side plus the premium. Brokers' house rates for leveraged ETFs are higher (the Compounding tab uses them)."],
+    creditMargin: ["Credit / margin", "Time value divided by the margin: the return on capital if the position expires worthless. The best case of the recovery panel."]
+  });
+  const rowKnob = id => KNOBS.html({ id: `cmp-${id}`, title: ROW_INFO[id][0], body: ROW_INFO[id][1] });
+  // "better" in one direction: a higher EV, odds, break-even vol, credit/σ or credit/margin; a smaller worst loss
+  const Better = Object.freeze({ High: "high", Low: "low" });
+  /** @param {{ a: number, b: number, better: string }} input -> "A" | "B" | "" (no direction, a tie, or a missing side) */
+  function pickBetterSide({ a, b, better }) {
+    if (!better || !Number.isFinite(a) || !Number.isFinite(b)) { return ""; }
+    const isTie = Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+    if (isTie) { return ""; }
+    const aWins = better === Better.High ? a > b : a < b;
+    return aWins ? "A" : "B";
+  }
+  const winClass = (winner, side) => winner === side ? ` class="win" title="the better side on this row"` : "";
   function renderCmp() {
     const { A, B, sa, sb, h } = C, nA = A.na, nB = B.na, rows = [], sc = SC();
     const a = (f, nn) => nn ? NaN : f, sB = v => v * h;
     // every A / B cell reads "–" when B's value prints as zero in its own cell
-    const add = (label, va, vb, fmt, diff = true, rat = true, cls = "") => rows.push(`<tr class="${cls}"><td>${label}</td><td>${fmt(va)}</td><td>${fmt(vb)}</td><td>${diff && Number.isFinite(va) && Number.isFinite(vb) ? fmt(va - vb) : ""}</td><td>${rat ? ratioTxt(va, vb, fmt) : ""}</td></tr>`);
+    // one row: A, B, their difference and ratio; better marks the side that wins where "better" has one direction
+    /** @param {{ label: string, a: number, b: number, format: (v: number) => string, showDiff?: boolean, showRatio?: boolean, rowClass?: string, better?: string }} row */
+    const addRow = ({ label, a: va, b: vb, format, showDiff = true, showRatio = true, rowClass = "", better = "" }) => {
+      const winner = pickBetterSide({ a: va, b: vb, better });
+      rows.push(`<tr class="${rowClass}"><td>${label}</td><td${winClass(winner, "A")}>${format(va)}</td><td${winClass(winner, "B")}>${format(vb)}</td><td>${showDiff && Number.isFinite(va) && Number.isFinite(vb) ? format(va - vb) : ""}</td><td>${showRatio ? ratioTxt(va, vb, format) : ""}</td></tr>`);
+    };
     const pair = C.same && C.sameExp && !nA && !nB;
     if (!C.same && A.tk !== B.tk) rows.push(`<tr class="note"><td colspan="5">No correlation between ${A.tk} and ${B.tk} is modelled, so the pair column only shows figures that add up. The joint-moves panel shows the pair across independent moves.</td></tr>`);
     else if (!C.sameExp) rows.push(`<tr class="note"><td colspan="5">A and B expire on different dates, so pair odds and pair worst loss at one expiry are not defined. The pair column only shows figures that add up.</td></tr>`);
@@ -365,22 +514,26 @@ const VIEWS = (() => {
     const anyI = (!nA && A.intr > 0) || (!nB && B.intr > 0), tvC = anyI ? `<span class="cap">on time value</span>` : "";
     const cv = (b, nn, k) => nn ? "–" : fU(k * b.cr / b.S) + (b.cr < 0 ? ` <span class="debit">net debit</span>` : "") + (b.intr > 0 ? ` <span class="muted">· time value ${fU(k * b.tv / b.S)}</span>` : "");
     const ca = a(A.cr / A.S, nA), cb = a(sB(B.cr / B.S), nB), ta = a(A.tv / A.S, nA), tb = a(sB(B.tv / B.S), nB);
-    rows.push(`<tr><td>Credit${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)}</td></tr>`);
-    add(`Credit/σ<span class="cap">size-free, own σ to expiry</span>${tvC}`, a(A.tv / (A.S * A.sig), nA), a(B.tv / (B.S * B.sig), nB), v => fN0(v, 3), false);
-    add(`Credit per day${tvC}`, a(A.tv / A.S / A.dte, nA), a(sB(B.tv / B.S / B.dte), nB), v => fU(v, 3), true, true, "grp");
-    add(`Expected value<span class="cap">${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}</span>`, a(sa && sa.ev / A.S, nA), a(sb && sB(sb.ev / B.S), nB), v => fU(v, 2));
-    rows.push(`<tr><td>Profit odds<span class="cap">P&amp;L above 0 at expiry</span></td><td>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
+    rows.push(`<tr><td>Credit${rowKnob("credit")}${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)}</td></tr>`);
+    addRow({ label: `Credit/σ${rowKnob("creditSigma")}<span class="cap">size-free, own σ to expiry</span>${tvC}`, a: a(A.tv / (A.S * A.sig), nA), b: a(B.tv / (B.S * B.sig), nB), format: v => fN0(v, 3), showDiff: false, better: Better.High });
+    addRow({ label: `Credit per day${rowKnob("creditDay")}${tvC}`, a: a(A.tv / A.S / A.dte, nA), b: a(sB(B.tv / B.S / B.dte), nB), format: v => fU(v, 3), rowClass: "grp" });
+    addRow({ label: `Expected value${KNOBS.html({ id: "cmp-ev", title: "Expected value, explained", body: describeEvExplainer({ isImpliedRow: sc.dist === Odds.Implied }) })}<span class="cap">${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}</span>`, a: a(sa && sa.ev / A.S, nA), b: a(sb && sB(sb.ev / B.S), nB), format: v => fU(v, 2), better: Better.High });
+    const edge = b => { const r = b.na ? null : RECOVERY.findBreakEvenVol({ built: b }); return r && r.ok ? r.value : NaN; };
+    const ea = edge(A), eb = edge(B);
+    rows.push(`<tr><td>Break-even vol${KNOBS.html({ id: "cmp-edge", title: "Break-even vol", body: "The period vol at which the position's EV at expiry is zero, at its fill. Above the vol you assume, the trade has an edge of that many vol points; below it, it gives one away. It moves with the fill: a typed fill below mid lowers it." })}<span class="cap">the period vol at which EV is 0</span></td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "A")}>${fP(ea, 1)}</td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "B")}>${fP(eb, 1)}</td><td>${Number.isFinite(ea) && Number.isFinite(eb) ? formatSigned({ value: (ea - eb) * 100, digits: 1, suffix: " pts" }) : ""}</td><td></td></tr>`);
+    rows.push(`<tr><td>Profit odds${rowKnob("odds")}<span class="cap">P&amp;L above 0 at expiry</span></td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "A")}>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "B")}>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
     const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
     const own = sc.wl === "own" ? ` −<input type="number" data-wlo value="${+sc.wlo.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> to +<input type="number" data-whi value="${+sc.whi.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> ${STATE.UNAME[C.unit]}` : "";
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
-    rows.push(`<tr class="grp"><td>Worst loss within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)}</td></tr>`);
-    add("Vega per vol point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
-    add(`Margin<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
-    add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false, true, "grp");
-    const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(fPx2).join(" / ") : "none";
-    rows.push(`<tr><td>Breakevens</td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
+    const worstWinner = pickBetterSide({ a: nA || !sa ? NaN : sa.worst / A.S, b: nB || !sb ? NaN : sB(sb.worst / B.S), better: Better.High });
+    rows.push(`<tr class="grp"><td>Worst loss${rowKnob("worst")} within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td${winClass(worstWinner, "A")}>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td${winClass(worstWinner, "B")}>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)}</td></tr>`);
+    addRow({ label: `Vega per vol point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2) });
+    addRow({ label: `Margin${rowKnob("margin")}<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a: a(A.margin / A.S, nA), b: a(sB(B.margin / B.S), nB), format: v => fU(v).replace("+", ""), showDiff: false });
+    addRow({ label: `Credit / margin${rowKnob("creditMargin")}${tvC}`, a: a(A.tv / A.margin, nA), b: a(B.tv / B.margin, nB), format: v => fP0(v, 1), showDiff: false, rowClass: "grp", better: Better.High });
+    const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(price => `${fPx2(price)} <span class="muted">touch ${fPct(touchOdds({ b, price }))}</span>`).join("<br>") : "none";
+    rows.push(`<tr><td>Breakevens${KNOBS.html({ id: "cmp-touch", title: "Touching a breakeven", body: "The chance the price trades through the breakeven at some point before expiry, at the ticker's period vol: about twice the chance of ending beyond it (the reflection principle for a driftless walk). Ending beyond it is what loses money; touching it is when you have to decide whether to adjust." })}<span class="cap">and the odds of touching each before expiry</span></td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     if (A.wingPx > 0 || B.wingPx > 0) {
-      add("Wing cost", A.wingPx > 0 ? A.wingPx / A.S : NaN, B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, v => fU(v));
+      addRow({ label: "Wing cost", a: A.wingPx > 0 ? A.wingPx / A.S : NaN, b: B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, format: v => fU(v) });
       const cw = (b, s) => b.cap && s ? `${fPx2(s.capBE)} · ${fP(s.pCap, 1)}` : "–", pwg = (b, s) => b.capP && s ? `${fPx2(s.capPBE)} · ${fP(s.pCapP, 1)}` : "–";
       if (A.cap || B.cap) rows.push(`<tr><td>Call wing pays above · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${cw(A, sa)}</td><td>${cw(B, sb)}</td><td></td><td></td></tr>`);
       if (A.capP || B.capP) rows.push(`<tr><td>Put wing pays below · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${pwg(A, sa)}</td><td>${pwg(B, sb)}</td><td></td><td></td></tr>`);
@@ -905,23 +1058,76 @@ const VIEWS = (() => {
         showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i], smooth.A && smooth.A[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i], smooth.B && smooth.B[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
       });
       hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
+      const plotH = H - m.t - m.b;
+      AXES.attach({ svg, orient: "x", band: { x: m.l, y: H - m.b, width: pw, height: m.b }, guide: { from: m.t, to: H - m.b },
+        toValue: px => clamp(xOfPx(px), lo, hi), toPx: X, describe: x => describePlacementOnAxis({ x, xs, sa, sb, basis, mode, sides, field: k }) });
+      AXES.attach({ svg, orient: "y", band: { x: 0, y: m.t, width: m.l, height: plotH }, guide: { from: m.l, to: W - m.r },
+        toValue: py => yhi - (py - m.t) / plotH * (yhi - ylo), toPx: Y, describe: v => `<span class="h">${label} ${fU(v)}</span>${describeUnitRows(v)}` });
     }
+  }
+  // a placement value on the sweep's axis: what A and B resolve to there, and their readings at that point
+  /** @param {{ x: number, xs: number[], sa: any[], sb: any[], basis: string, mode: string, sides: any, field: string }} input */
+  function describePlacementOnAxis({ x, xs, sa, sb, basis, mode, sides, field }) {
+    let i = 0;
+    for (let j = 1; j < xs.length; j++) { if (Math.abs(xs[j] - x) < Math.abs(xs[i] - x)) { i = j; } }
+    const rows = [["A", sa], ["B", sb]].map(([side, series]) => {
+      const point = series && series[i];
+      if (!point || point.b.na) { return ""; }
+      const credit = point.b.cr * 100;
+      return `<span class="s">${side}: ${esc(legsTxt(point.b))} · ${point.b.cr < 0 ? "debit" : "credit"} $${Math.abs(credit).toFixed(0)}${point.itm ? " · a leg ITM" : ""}</span>` +
+        krow(`${side} credit, time value`, fU(point.cr)) + krow(`${side} EV at period vol`, fU(point.ev)) + krow(`${side} worst loss in range`, fU(point.worst));
+    }).join("");
+    return `<span class="h">${esc(sweepAxisName(mode, basis, sides))} ${RULE.fmtV(xs[i], basis)}</span>${rows}`;
+  }
+
+  // ============================================================ manage the trade: take profit, stop, or hold (manage.js)
+  // seeded paths at each ticker's period vol, marked daily on the implied smile; computed after paint (a 50-day
+  // position takes a few hundred ms), memoized, and drawn when ready
+  const MANAGE_VIEW = { job: 0 };
+  const manageInputs = (b, vw) => ({ built: b, vol: C.volOf(b.tk).pct / 100, takeProfit: vw.mgTp / 100, stopLoss: vw.mgSl / 100, shock: C.shock });
+  function renderManage() {
+    const vw = V(), host = q("#mg"), sides = [["A", C.A], ["B", C.B]].filter(([, b]) => !b.na);
+    q("#mg-knob").innerHTML = KNOBS.html({ id: "mg-method", title: "How the management rule is simulated", body: `Price paths at each ticker's period vol (zero-drift lognormal, one step a calendar day), the same ${MANAGE.CONFIG.paths.toLocaleString("en-US")} seeded paths for every rule. Each day the position is marked with the model's marks on the implied smile (what you could close it for, at mid; natural fills also pay half the spread to close), and closed when its P&amp;L reaches the take profit (a share of the credit) or the stop (a loss of a multiple of the credit). Otherwise it settles at expiry. Holding to expiry has an exact EV, which also corrects the managed EV's noise (control variate); ± is one standard error. Not modelled: gaps inside a day, IV moving with the price, early assignment.` });
+    q("#mg-cap").textContent = `${vw.mgTp > 0 ? `Close at +${vw.mgTp}% of the credit` : "No take profit"}, ${vw.mgSl > 0 ? `close at a loss of ${vw.mgSl}% of the credit` : "no stop"}; otherwise hold to expiry. $ a contract of each position; marks at the implied smile, moves at the period vol.`;
+    const pending = sides.filter(([, b]) => b.cr > 0 && !MANAGE.peek(manageInputs(b, vw)));
+    if (pending.length) {
+      host.innerHTML = `<span class="cap">computing ${MANAGE.CONFIG.paths.toLocaleString("en-US")} paths…</span>`;
+      const job = ++MANAGE_VIEW.job;
+      setTimeout(() => { if (job !== MANAGE_VIEW.job) { return; } for (const [, b] of pending) { MANAGE.simulate(manageInputs(b, vw)); } if (job === MANAGE_VIEW.job) { renderManage(); } }, 30);
+      return;
+    }
+    const results = sides.map(([side, b]) => [side, b, MANAGE.simulate(manageInputs(b, vw))]);
+    host.innerHTML = describeManageTable(results);
+  }
+  /** @param {any[]} results [side, built, Result] */
+  function describeManageTable(results) {
+    const usd = v => { const dollars = Math.abs(v * 100); return formatSigned({ value: v * 100, digits: dollars >= 100 ? 0 : dollars >= 10 ? 1 : 2, prefix: "$" }); };
+    const cell = (r, f) => !r.ok ? `<td class="muted">${esc(r.error.message)}</td>` : `<td>${f(r.value)}</td>`;
+    const row = (label, f, tip) => `<tr><td>${label}${tip ? KNOBS.html({ body: tip }) : ""}</td>${results.map(([, , r]) => cell(r, f)).join("")}</tr>`;
+    const day = d => Number.isFinite(d) ? ` · day ${d.toFixed(1)}` : "";
+    const head = `<tr><th></th>${results.map(([side, b]) => `<th>${key(side)} <span class="muted">${esc(b.label.tab)}</span></th>`).join("")}</tr>`;
+    return `<table class="cmp mgt"><thead>${head}</thead><tbody>` +
+      row("Take profit hit", v => `${fPct(v.takeProfit.share)}${day(v.takeProfit.meanDay)}`) +
+      row("Stop hit", v => `${fPct(v.stop.share)}${day(v.stop.meanDay)}`) +
+      row("Held to expiry", v => fPct(v.expiry.share)) +
+      row("Days held, on average", v => `${v.meanDays.toFixed(1)} of ${v.days}`) +
+      row("EV a trade · managed / held", v => `<b>${usd(v.managedMean)}</b> ±${(v.managedError * 100).toFixed(1)} / ${usd(v.heldMean)}`, "Expected P&L per contract. Managed: closed by the rule; held: to expiry, exact. A take profit gives up the decay of the last days; a stop cuts the tail. The difference is what the rule costs or earns per trade.") +
+      row("EV a day held · managed / held", v => `<b>${usd(v.managedPerDay)}</b> / ${usd(v.heldPerDay)}`, "EV per day the margin is tied up. If the freed margin goes straight into the next trade, this is the rate that compounds.") +
+      row("Win rate · managed / held", v => `${fPct(v.winRate)} / ${fPct(v.heldWinRate)}`) +
+      row("Worst 5%, mean · managed / held", v => `${usd(v.managedWorst)} / ${usd(v.heldWorst)}`, "The mean of the worst 5% of outcomes per contract: what the stop is for.") +
+      `</tbody></table>`;
   }
 
   // ============================================================ recovery dynamics: how many cycles one bad hit is worth
   // a kσ hit uses the position's own σ to its own expiry; the headline is whole cycles × days, as the date beside it
+  // one side's recovery reading: the hit, the three growth rates and the chosen one (recovery.js does the maths)
   function recRun(Cx, b, who, vw) {
-    if (!b || b.na) return null;
-    const capPS = vw.rdCap === "margin" ? b.margin : b.S;
-    const hv = Cx.statsAtPeriodVol(b), ev = hv ? hv.ev : NaN, g = vw.rdG === GrowthRate.Custom ? vw.rdGc / 100 : ev / capPS;
-    let L, xMove = null;
-    if (vw.rdHit === "fixed") L = vw.rdL / 100;
-    else {
-      const sg = b.sig, dn = b.S * Math.exp(-vw.rdK * sg), up = b.S * Math.exp(vw.rdK * sg);
-      const lDn = -POS.payoff(b, dn) / capPS, lUp = -POS.payoff(b, up) / capPS;
-      if (vw.rdDir === "down") { L = lDn; xMove = dn; } else if (vw.rdDir === "up") { L = lUp; xMove = up; } else { L = Math.max(lDn, lUp); xMove = lDn >= lUp ? dn : up; }
-    }
-    return { b, who, g, L, xMove, days: b.dte, ev, capPS };
+    if (!b || b.na) { return null; }
+    const hit = { basis: vw.rdHit, k: vw.rdK, side: vw.rdDir, fraction: vw.rdL / 100 };
+    const rec = RECOVERY.computeRecovery({ built: b, vol: Cx.volOf(b.tk).pct / 100, hit, capital: vw.rdCap, growth: vw.rdG, typedRate: vw.rdGc / 100 });
+    if (rec.status === "na") { return null; }
+    const capPS = vw.rdCap === Capital.Notional ? b.S : b.margin;
+    return { b, who, rec, g: rec.status === "ok" ? rec.growth : NaN, L: rec.L, xMove: rec.price, days: b.dte, capPS };
   }
   // cycles needed; Infinity when growth cannot get there
   function recCycles(L, g, kind, base) {
@@ -941,6 +1147,39 @@ const VIEWS = (() => {
   }
   // growth a cycle, signed from its printed value: "+1.41%", "−1.41%", and "0.00%" for anything that rounds to zero
   const growthTxt = g => { if (!Number.isFinite(g)) return "–"; const t = Math.abs(g * 100).toFixed(2); return (+t === 0 ? "" : g > 0 ? "+" : MINUS) + t + "%"; };
+  const RATE_WORD = Object.freeze({ [GrowthRate.IfNoSuchHit]: "if no such hit", [GrowthRate.Average]: "average", [GrowthRate.BestCase]: "best case", [GrowthRate.Typed]: "typed" });
+  const rateKnob = () => KNOBS.html({ id: "rec-rates", title: "Three growth rates a cycle", body: "Best case: the most the position can make in one cycle, on its capital (the full credit if the price pins the strike). If no such hit: the compounded growth a cycle in the cycles where no loss as large as the hit happens; the smaller losses still compound in it, so it falls as the hit grows and can sit below the average. Average: the expected P&amp;L a cycle, plain; the expected NAV, but not a compounding rate at full margin. All at the ticker's period vol (zero-drift lognormal), at expiry." });
+  const honestyKnob = () => KNOBS.html({ id: "rec-honesty", title: "Chance of no such hit", body: "The if-no-such-hit rate assumes the hit does not happen again while recovering. q is the chance of a loss at least as large as the hit in one cycle; (1 − q)^N is the chance it does not happen in any of the N cycles the recovery takes. Amber below 50%: then the recovery more likely than not meets another such hit." });
+  /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
+  function describeRecoveryRun({ run, vw, base, dstr }) {
+    const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
+    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
+    const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
+    const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";
+    const onMargin = vw.rdCap !== Capital.Notional, other = onMargin ? `${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional` : `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin`;
+    // against NAV when the hit lands, recovery and buffer take the same time: one column then
+    const isSameTime = base === "nav";
+    const timeCell = (label, t) => `<span class="rv"><span class="l">${label}</span><span class="v">${t.v}<small>${t.s ? ` (${t.s})` : ""}</small></span><span class="d">${t.d}</span></span>`;
+    return `<span class="rrun">${key(run.who)}${head}` +
+      `<span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${MINUS}${(r.L * 100).toFixed(1)}%<small> of ${onMargin ? "margin" : "notional"}</small></span><span class="d">${other} · ${where}</span></span>` +
+      (isSameTime ? timeCell("Recovery", recovery) : timeCell("Recovery (hit first)", recovery) + timeCell("Buffer (climb first)", buffer)) +
+      `<span class="rrates">${describeRates({ rec: r, chosen: vw.rdG })}${rateKnob()}</span>` +
+      (vw.rdG === GrowthRate.IfNoSuchHit ? `<span class="rhon${r.isAmber ? " w" : ""}">${describeHonesty(r)}${honestyKnob()}</span>` : "") + `</span>`;
+  }
+  const describeHitBases = r => `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional`;
+  // the three rates side by side, the chosen one bold, each with its cycles
+  /** @param {{ rec: any, chosen: string }} input */
+  function describeRates({ rec, chosen }) {
+    const cyc = n => Number.isFinite(n) ? `${n.toFixed(1)} cycles` : "never";
+    const items = [[GrowthRate.IfNoSuchHit, rec.rates.noHit, rec.cycles.noHit], [GrowthRate.Average, rec.rates.average, rec.cycles.average], [GrowthRate.BestCase, rec.rates.best, rec.cycles.best]];
+    if (chosen === GrowthRate.Typed) { items.push([GrowthRate.Typed, rec.rates.typed, rec.cycles.chosen]); }
+    return items.map(([id, rate, n]) => { const text = `${growthTxt(rate)} ${RATE_WORD[id]} (${cyc(n)})`; return id === chosen ? `<b>${text}</b>` : text; }).join(" · ");
+  }
+  function describeHonesty(r) {
+    if (!Number.isFinite(r.wholeCycles)) { return `no such hit in any one cycle: ${((1 - r.q) * 100).toFixed(1)}% (${(r.q * 100).toFixed(1)}% a cycle); it never recovers at this rate`; }
+    return `chance of no such hit in the ${r.wholeCycles} cycle${r.wholeCycles === 1 ? "" : "s"}: <b>${(r.survival * 100).toFixed(0)}%</b> (${(r.q * 100).toFixed(1)}% a cycle)`;
+  }
   function renderRecovery() {
     const host = q("#rec"), vw = V();
     const runs = [recRun(C, C.A, "A", vw), recRun(C, C.B, "B", vw)].filter(Boolean);
@@ -951,27 +1190,25 @@ const VIEWS = (() => {
     const narrow = host.clientWidth < 900;
     host.classList.toggle("narrow", narrow);
     const base = vw.rdBase;
-    let L = `<span class="rl">` + runs.map(r => {
-      const rc = recCycles(r.L, r.g, "rec", base), bf = recCycles(r.L, r.g, "buf", base), a = recTime(rc, r.days, r.L, dstr), c = recTime(bf, r.days, base === "nav" ? r.L : 0, dstr);
-      return `<span class="rrun">${key(r.who)}<span class="rh">${esc(r.b.label.full)} · ${r.days}-day cycles · growth ${growthTxt(r.g)} a cycle${vw.rdG === GrowthRate.Ev ? ` (EV ${C.volOddsText({ ids: [r.b.tk] })}` + (vw.rdCap === "margin" ? " on margin" : " on notional") + ")" : ""}</span>` +
-      `<span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${r.L > 0 ? MINUS + (r.L * 100).toFixed(0) + "%" : "no loss"}</span><span class="d">${r.xMove ? "at " + fPx2(r.xMove) + " · " : ""}of ${base === "nav" ? "NAV when it lands" : "starting capital"}</span></span>` +
-      `<span class="rv"><span class="l">Recovery (hit first)</span><span class="v">${a.v}<small>${a.s ? ` (${a.s})` : ""}</small></span><span class="d">${a.d}</span></span>` +
-      `<span class="rv"><span class="l">Buffer (climb first)</span><span class="v">${c.v}<small>${c.s ? ` (${c.s})` : ""}</small></span><span class="d">${c.d}</span></span></span>`;
-    }).join("") + `<span class="cap rcap">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded, and the time counts whole cycles.${base === "nav" ? " Measured against NAV when it lands, the two times are equal at a constant growth rate." : ""}</span></span>`;
+    let L = `<span class="rl">` + runs.map(r => describeRecoveryRun({ run: r, vw, base, dstr })).join("") +
+      `<span class="cap rcap">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded.${base === "nav" ? " Measured against NAV when it lands, recovery and buffer take the same time at a constant growth rate." : ""}</span></span>`;
     host.innerHTML = L + `<span class="rr"><span id="rec-ch" class="rch"></span><span class="cap rcap">cycles needed (capped at 60) against the hit · ${base === "nav" ? "recovery = buffer when the hit is a % of NAV" : "solid: recovery, dashed: buffer"}</span></span>`;
     LAST.rec = runs.map(r => ({ who: r.who, L: r.L, g: r.g, rec: recCycles(r.L, r.g, "rec", base), headline: recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, dstr) }));
     const box = q("#rec-ch"), W = Math.max(320, box.getBoundingClientRect().width), H = 220, m = { l: 48, r: 24, t: 10, b: 28 }, pw = W - m.l - m.r;
     const hs = []; for (let h = 0.05; h <= 0.951; h += 0.01) hs.push(h);
-    let ymax = 1; for (const r of runs) for (const h of hs) for (const k of ["rec", "buf"]) { const n = recCycles(h, r.g, k, base); if (Number.isFinite(n)) ymax = Math.max(ymax, Math.min(n, 60)); }
+    // the curve: each hit size with the chosen rate at that size (the if-no-such-hit rate depends on the hit)
+    const rateAt = (r, h) => { if (vw.rdG === GrowthRate.Typed) { return vw.rdGc / 100; } const x = RECOVERY.ratesFor({ built: r.b, vol: C.volOf(r.b.tk).pct / 100, capital: r.capPS, hit: h }); return vw.rdG === GrowthRate.Average ? x.average : vw.rdG === GrowthRate.BestCase ? x.best : x.noHit; };
+    const runsOk = runs.filter(r => r.rec.status === "ok" || r.rec.status === "wiped" || r.rec.status === "none");
+    let ymax = 1; for (const r of runsOk) for (const h of hs) for (const k of ["rec", "buf"]) { const n = recCycles(h, rateAt(r, h), k, base); if (Number.isFinite(n)) ymax = Math.max(ymax, Math.min(n, 60)); }
     ymax = Math.min(ymax, 60) * 1.05; const X = h => m.l + (h - 0.05) / 0.9 * pw, Y = n => m.t + (1 - Math.min(n, ymax) / ymax) * (H - m.t - m.b);
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "cycles needed against hit size" }, box), ax = el("g", { class: "ax" }, svg);
     for (const t of ticks(0, ymax, 4)) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 5, Y(t) + 3.5, String(t), { "text-anchor": "end" }); }
     for (const t of [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) txt(ax, X(t), H - 10, MINUS + Math.round(t * 100) + "%", { "text-anchor": "middle" });
     for (const r of runs) {
       const cv = r.who.toLowerCase();
-      for (const [k, dash] of [["rec", ""], ["buf", "5 4"]]) { const pts = hs.map(h => [h, recCycles(h, r.g, k, base)]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax); if (pts.length > 1) el("path", { d: pathOf(pts, X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": dash ? 1.4 : 2, "stroke-dasharray": dash }, svg); }
+      for (const [k, dash] of [["rec", ""], ["buf", "5 4"]]) { const pts = hs.map(h => [h, recCycles(h, rateAt(r, h), k, base)]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax); if (pts.length > 1) el("path", { d: pathOf(pts, X, Y), fill: "none", stroke: `var(--${cv})`, "stroke-width": dash ? 1.4 : 2, "stroke-dasharray": dash }, svg); }
       if (r.L > 0.05 && r.L < 0.95) for (const k of ["rec", "buf"]) { const n = recCycles(r.L, r.g, k, base); if (Number.isFinite(n) && n <= ymax) el("circle", { cx: X(r.L), cy: Y(n), r: 3.5, fill: k === "rec" ? `var(--${cv})` : "var(--surface)", stroke: `var(--${cv})`, "stroke-width": 1.5 }, svg); }
-      const last = hs.map(h => [h, recCycles(h, r.g, "rec", base)]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax).pop(); if (last) txt(svg, Math.min(X(last[0]) + 4, W - m.r + 4), Y(last[1]) + 4, r.who, { fill: `var(--${cv})`, "font-weight": 600, "font-size": 11 });
+      const last = hs.map(h => [h, recCycles(h, rateAt(r, h), "rec", base)]).filter(p => Number.isFinite(p[1]) && p[1] <= ymax).pop(); if (last) txt(svg, Math.min(X(last[0]) + 4, W - m.r + 4), Y(last[1]) + 4, r.who, { fill: `var(--${cv})`, "font-weight": 600, "font-size": 11 });
     }
     const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg), hit = el("rect", { x: m.l, y: m.t, width: pw, height: H - m.t - m.b, fill: "transparent" }, svg);
     hit.addEventListener("pointermove", ev => {
@@ -1098,8 +1335,43 @@ const VIEWS = (() => {
         g.addEventListener("pointerenter", ev => showTip(`<span class="h">${fK(p.K)}${p.cp} · ${fmtE(p.e)}</span>${krow("forward Δ", (Math.abs(p.delta) * 100).toFixed(1))}${krow("bid / ask", `${p.bid.toFixed(2)} / ${p.ask.toFixed(2)}`)}${krow("IV mid / fit", `${fP(p.ivm, 1)} / ${fP(p.iv, 1)}`)}<span class="s" style="margin:4px 0 0">click to put a leg on this strike</span>`, ev.clientX, ev.clientY));
         g.addEventListener("pointerleave", hideTip);
       }
+      const plotW = W - m.l - m.r, plotH = H - m.t - m.b;
+      AXES.attach({ svg, orient: "x", band: { x: m.l, y: H - m.b, width: plotW, height: m.b }, guide: { from: m.t, to: H - m.b },
+        toValue: px => xlo + (px - m.l) / plotW * (xhi - xlo), toPx: X, describe: K => describeStrikeOnAxis({ strike: K, inst: I, expiries: exps }) });
+      AXES.attach({ svg, orient: "y", band: { x: 0, y: m.t, width: m.l, height: plotH }, guide: { from: m.l, to: W - m.r },
+        toValue: py => yhi - (py - m.t) / plotH * (yhi - ylo), toPx: Y, describe: iv => describeIvOnAxis({ iv, inst: I, expiries: exps }) });
     }
     q("#sm-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A legs</span> <span><i style="background:var(--b)"></i>B legs, dashed</span> <span class="muted">+ = long wing</span>`;
+  }
+
+  // a strike on the smile's axis: where it sits, the fitted IV and its skew, and the listed quotes nearest to it
+  /** @param {{ strike: number, inst: any, expiries: string[] }} input */
+  function describeStrikeOnAxis({ strike, inst, expiries }) {
+    let html = `<span class="h">${esc(inst.id)} strike ${fPx2(strike)}</span>`;
+    for (const expiry of expiries) {
+      const E = inst.exp(expiry), listed = E.strikes.reduce((best, k) => Math.abs(k - strike) < Math.abs(best - strike) ? k : best, E.strikes[0]);
+      const put = E.row(listed, "P"), call = E.row(listed, "C"), fit = E.smile(strike);
+      const quote = o => o ? `${o.bid.toFixed(2)} / ${o.ask.toFixed(2)}` : "none";
+      html += `<span class="s">${fmtE(expiry)} · forward ${fPx2(E.Fpar)}</span>` +
+        krow("from the forward", `${fS(strike / E.Fpar - 1, 1)} · ${(Math.log(strike / E.Fpar) / E.sigma).toFixed(2)}σ`) +
+        krow("call Δ / put Δ", `${(E.callDelta(strike) * 100).toFixed(0)} / ${(100 - E.callDelta(strike) * 100).toFixed(0)}`) +
+        krow("fitted IV · vs ATM", `${fP(fit, 1)} · ${formatSigned({ value: (fit - E.atm) * 100, digits: 1, suffix: " pts" })}`) +
+        krow(`listed ${fK(listed)}: put · call bid / ask`, `${quote(put)} · ${quote(call)}`);
+    }
+    return html;
+  }
+  // an IV level on the smile's axis: the moves it implies, and an ATM straddle priced at it
+  /** @param {{ iv: number, inst: any, expiries: string[] }} input */
+  function describeIvOnAxis({ iv, inst, expiries }) {
+    const periodVol = C.volOf(inst.id).pct / 100;
+    let html = `<span class="h">IV ${fP(iv, 1)}</span>` + krow("1-day move (1σ)", `±${fP(iv / Math.sqrt(365), 2)}`) + krow("1-week move (1σ)", `±${fP(iv * Math.sqrt(7 / 365), 1)}`) +
+      krow(`vs period vol ${fP(periodVol, 0)}`, formatSigned({ value: (iv - periodVol) * 100, digits: 1, suffix: " pts" }));
+    for (const expiry of expiries) {
+      const E = inst.exp(expiry), move = iv * Math.sqrt(E.T), straddle = 0.7979 * E.Fpar * move * 100;
+      html += `<span class="s">${fmtE(expiry)} · ${E.dte} d</span>` + krow("move to expiry (1σ)", `±${fP(move, 1)}`) +
+        krow("vs ATM IV", formatSigned({ value: (iv - E.atm) * 100, digits: 1, suffix: " pts" })) + krow("ATM straddle at this IV", `≈ $${straddle.toFixed(0)} a contract`);
+    }
+    return html;
   }
 
   // ============================================================ notes
@@ -1138,7 +1410,7 @@ const VIEWS = (() => {
     <div class="tblx" id="ovtable" hidden><table class="full" id="full"></table></div>
   </details>
   <section class="panel" id="p-pay">
-    <div class="ph"><span class="tools"><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2>Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
+    <div class="ph"><span class="tools"><label class="chk" title="The P&amp;L if closed now and at half the time to expiry, at the model's marks (the implied smile, with the shocks below)"><input type="checkbox" id="c-pnow">now · half-way</label><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2>Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
     <div class="chart" id="pay"></div>
     <table class="cmp" id="cmp"></table>
   </section>
@@ -1174,6 +1446,11 @@ const VIEWS = (() => {
     <div class="gfoot" id="gfoot"></div>
     <div class="pins" id="pins"></div>
   </section>
+  <section class="panel" id="p-manage">
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Take profit at</span><input type="number" id="c-mgtp" min="0" max="95" step="5" style="width:52px"> % of the credit</span><span class="ctl" style="margin-right:0"><span class="lbl">Stop at a loss of</span><input type="number" id="c-mgsl" min="0" max="1000" step="25" style="width:58px"> % of the credit</span></span><h2>Manage the trade</h2><span id="mg-knob"></span></div>
+    <span class="cap mgcap" id="mg-cap"></span>
+    <div class="mg" id="mg"></div>
+  </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
     <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes). 0 = the raw stepped lines. The raw lines stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="4" step="0.25" style="width:96px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
@@ -1182,12 +1459,12 @@ const VIEWS = (() => {
     <span class="cap swcap" id="sw-cap"></span>
   </section>
   <section class="panel" id="p-rec">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span>
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span><span class="ctl"><span class="lbl">Growth</span><span class="seg" id="c-rdg"></span></span>
       <details class="menu" id="m-rd"><summary>Basis</summary><span class="mb" style="width:330px">
         <span class="mt">How the hit and the growth are measured</span>
         <span class="mrow"><span class="lbl">The hit is a % of</span><span class="seg" id="c-rdbase"></span></span>
         <span class="mrow"><span class="lbl">Capital per position</span><span class="seg" id="c-rdcap"></span></span>
-        <span class="mrow"><span class="lbl">Growth per cycle</span><span class="seg" id="c-rdg"></span> <span id="rd-gc"><input type="number" id="c-rdgc" step="0.1" style="width:56px">% a cycle</span></span>
+        <span class="mrow"><span class="lbl">Typed growth</span><span id="rd-gc"><input type="number" id="c-rdgc" step="0.1" style="width:56px">% a cycle (when Growth says Typed)</span></span>
         <span class="cap">With the hit as a % of NAV when it lands, recovery and buffer take the same number of cycles at a constant growth rate. Measured against the starting capital they split: recovery needs ln(1/(1−L)) of log-growth, the buffer only ln(1+L).</span></span></details></span><h2>Recovery dynamics</h2><span class="info" tabindex="0" data-tip="How many cycles of normal compounding one bad hit is worth. Recovery: the hit lands in the first cycle, then the account compounds back to its starting NAV. Buffer: the account compounds first, until the same hit would leave it at or above the starting NAV. A cycle is one roll of the same tenor; real time is whole cycles × days. A kσ hit uses each position's own σ to its own expiry.">i</span></div>
     <div class="rec" id="rec"></div>
   </section>
@@ -1208,7 +1485,7 @@ const VIEWS = (() => {
     seg({ el: q("#c-ovv"), options: [["chart", "Charts"], ["table", "Table"]], read: state => state.prefs.ovv, command: pref("ovv") });
     q("#p-over").addEventListener("toggle", () => { if (C) safe(renderOverview, "overview"); });
     q("#ovtable").addEventListener("click", e => { const b = e.target.closest("button[data-set]"); if (!b || b.disabled) return; const c = OV[+b.dataset.i]; if (c) setFromCell(b.dataset.set, c); });
-    bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
+    bindChk({ input: "#c-pnow", read: state => state.prefs.pnow, command: pref("pnow") }); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
       // "own" starts from the move range in view (the render context's bounds)
@@ -1249,7 +1526,7 @@ const VIEWS = (() => {
     seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
     seg({ el: q("#c-rdbase"), options: [["nav", "NAV when it lands"], ["start", "starting capital"]], read: state => state.prefs.rdBase, command: pref("rdBase") });
     seg({ el: q("#c-rdcap"), options: [["margin", "Margin"], ["notional", "Notional"]], read: state => state.prefs.rdCap, command: pref("rdCap") });
-    seg({ el: q("#c-rdg"), options: [["ev", "EV at period vol"], ["custom", "Typed"]], read: state => state.prefs.rdG, command: pref("rdG") });
+    seg({ el: q("#c-rdg"), options: [[GrowthRate.IfNoSuchHit, "If no such hit", "Compounded growth in the cycles without a loss as large as the hit (the default)"], [GrowthRate.Average, "Average", "Expected P&L a cycle"], [GrowthRate.BestCase, "Best", "The most one cycle can make"], [GrowthRate.Typed, "Typed", "Your own rate (under Basis)"]], read: state => state.prefs.rdG, command: pref("rdG") });
     q("#rd-hitin").innerHTML = `<span id="rd-mv"><input type="number" id="c-rdk" min="0.25" max="6" step="0.25" style="width:52px">σ <span class="seg" id="c-rddir"></span></span><span id="rd-fx"><input type="number" id="c-rdl" min="1" max="99" step="1" style="width:52px">%</span>`;
     seg({ el: q("#c-rddir"), options: [["worse", "worse side"], ["down", "down"], ["up", "up"]], read: state => state.prefs.rdDir, command: pref("rdDir") });
     const num = ({ id, key, lo, hi }) => {
@@ -1257,8 +1534,9 @@ const VIEWS = (() => {
       i.addEventListener("change", () => { const v = parseFloat(i.value); if (Number.isFinite(v)) setPref({ [key]: clamp(v, lo, hi) }); else askFrame(); });
       subscribeSync({ sync: state => { if (document.activeElement !== i) i.value = state.prefs[key]; } });
     };
+    num({ id: "#c-mgtp", key: "mgTp", lo: 0, hi: 95 }); num({ id: "#c-mgsl", key: "mgSl", lo: 0, hi: 1000 });
     num({ id: "#c-rdk", key: "rdK", lo: 0.25, hi: 6 }); num({ id: "#c-rdl", key: "rdL", lo: 1, hi: 99 }); num({ id: "#c-rdgc", key: "rdGc", lo: -20, hi: 50 });
-    subscribeSync({ sync: state => { const vw = state.prefs; q("#rd-mv").hidden = vw.rdHit !== "move"; q("#rd-fx").hidden = vw.rdHit !== "fixed"; q("#rd-gc").style.visibility = vw.rdG === "custom" ? "visible" : "hidden"; } });
+    subscribeSync({ sync: state => { const vw = state.prefs; q("#rd-mv").hidden = vw.rdHit !== "move"; q("#rd-fx").hidden = vw.rdHit !== "fixed"; q("#rd-gc").style.opacity = vw.rdG === GrowthRate.Typed ? "1" : ".5"; } });
     if (typeof ResizeObserver === "function") { let w0 = 0; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w0 && Math.abs(w - w0) > 2) askFrame(); w0 = w; }).observe(HOST); }
     notes();
     return HOST;
@@ -1268,7 +1546,7 @@ const VIEWS = (() => {
     C = c || CTX.ctx9(S());
     setStick();
     safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "comparison table");
-    safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderSweep, "sweep");
+    safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderManage, "manage"); safe(renderSweep, "sweep");
     safe(renderRecovery, "recovery"); safe(renderSmile, "smile"); safe(notes, "notes");
     requestAnimationFrame(setStick);
   }

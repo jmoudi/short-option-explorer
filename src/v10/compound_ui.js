@@ -498,12 +498,13 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
       const z = R.main.end, ex = R.exact.end, cap0 = ys.sc.cap0, cc = R.run.fam === "cc";
       const big = ys.view.reading === "typ" ? z.med : z.avg;
       const callTxt = z.called > 0.0005 ? `${fPc(z.called, 0)}<small>${cc ? "on drops" : "either way"}</small>` : "none";
+      const label = (text, id, title, body) => KNOBS.label(text, { id: `yr-${id}`, title, body });
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
-        <span class="cell big"><span class="l">${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
-        <span class="cell c2"><span class="l">10%–90%</span><span class="v" style="font-size:14px">${f$(z.c10)} – ${f$(z.c90)}</span></span>
-        <span class="cell c3"><span class="l">Margin call within ${ys.sc.W} wk</span><span class="v" style="font-size:14px">${callTxt}</span></span>
-        <span class="cell c4"><span class="l">${cc ? "Shares · lots (typical)" : "Contracts (typical)"}</span><span class="v" style="font-size:14px">${cc ? `${fInt(z.shMed)} · ${Math.min(z.lots, ys.costs.liq || 1e9)}` : Math.floor(z.kMed + 1e-9)}</span></span>
-        <span class="cell sm"><span class="l">${ys.view.reading === "typ" ? "Average" : "Typical"} · exactly on the path</span><span class="v">${f$(ys.view.reading === "typ" ? z.avg : z.med)} · ${f$(ex.med)}</span></span>
+        <span class="cell big"><span class="l">${label(`${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}`, "nav", "Typical and average NAV", "Typical: the median outcome at the last week, half the outcomes end above it. Average: the mean, pulled up by the best outcomes. ×n is the multiple of the starting capital. Outcomes spread from the realized moves around your price path, at the moves vol.")}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
+        <span class="cell c2"><span class="l">${label(`10%–90%`, "band", "The 10%–90% band", "One outcome in ten ends below the first number and one in ten above the second: the range a plan should survive, not the worst case.")}</span><span class="v" style="font-size:14px">${f$(z.c10)} – ${f$(z.c90)}</span></span>
+        <span class="cell c3"><span class="l">${label(`Margin call within ${ys.sc.W} wk`, "call", "Margin call odds", "The share of outcomes with at least one margin call by the last week. On drops: the calls come from falls (covered calls hold the shares on margin). Either way: from falls or rallies (a strangle is short both sides). What the account does then follows the run's modus operandi: IBKR's own liquidation to the minimum, or back to the target leverage.")}</span><span class="v" style="font-size:14px">${callTxt}</span></span>
+        <span class="cell c4"><span class="l">${label(`${cc ? "Shares · lots (typical)" : "Contracts (typical)"}`, "size", "Size at the end", "What the typical account carries at the last week: shares and 100-share lots for covered calls, contracts for a strangle. It grows as credit is reinvested.")}</span><span class="v" style="font-size:14px">${cc ? `${fInt(z.shMed)} · ${Math.min(z.lots, ys.costs.liq || 1e9)}` : Math.floor(z.kMed + 1e-9)}</span></span>
+        <span class="cell sm"><span class="l">${label(`${ys.view.reading === "typ" ? "Average" : "Typical"} · exactly on the path`, "path", "Exactly on the path", "The NAV if the price followed your path exactly, with no realized moves around it: every credit kept, no assignment from noise. An upper reference, not a forecast.")}</span><span class="v">${f$(ys.view.reading === "typ" ? z.avg : z.med)} · ${f$(ex.med)}</span></span>
         <span class="bd">${defTxt(R.run)}</span></span>`;
     }).join("");
   }
@@ -606,6 +607,56 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
       hit.addEventListener("click", ev => { const rc = s.getBoundingClientRect(); ys.view.pin = Math.max(1, G.w(ev.clientX - rc.left)); placePin(); renderGrowth(); renderTable(); saveSoon(); });
       hit.addEventListener("dblclick", ev => { if (ys.sc.path.mode !== "pts") return; const rc = s.getBoundingClientRect(), w = Math.max(1, G.w(ev.clientX - rc.left)); const mm = mult(); ys.sc.path.pts.push([w, mm[w]]); schedule(10); });
     }
+    // the axes answer questions too: the week axis, the price, NAV and contracts scales
+    const plotTop = 6;
+    AXES.attach({ svg: s1, orient: "x", band: { x: G.l, y: H1 - 6, width: G.pw, height: 28 }, guide: { from: plotTop, to: H1 - 6 },
+      toValue: px => G.w(px), toPx: G.x, describe: describeWeekOnAxis });
+    AXES.attach({ svg: s1, orient: "y", band: { x: 0, y: plotTop, width: G.l, height: H1 - 12 }, guide: { from: G.l, to: G.l + G.pw },
+      toValue: py => hi - (py - plotTop) / (H1 - 6) * (hi - lo), toPx: Y1, describe: v => describePriceOnAxis({ value: v, isMultiple: unitMult, ticker: tkA }) });
+    AXES.attach({ svg: s2, orient: "y", band: { x: 0, y: plotTop, width: G.l, height: H2 - 12 }, guide: { from: G.l, to: G.l + G.pw },
+      toValue: py => Math.exp(Math.log(nhi) - (py - plotTop) / (H2 - 12) * (Math.log(nhi) - Math.log(nlo))), toPx: Y2, describe: describeNavOnAxis });
+    AXES.attach({ svg: s3, orient: "y", band: { x: 0, y: plotTop, width: G.l, height: H3 - 18 }, guide: { from: G.l, to: G.l + G.pw },
+      toValue: py => kmax - (py - plotTop) / (H3 - 12) * kmax, toPx: Y3, describe: describeContractsOnAxis });
+  }
+  // ---------------------------------------------------------- what a value on a Compounding axis means
+  function describeWeekOnAxis(week) {
+    const w = Math.max(0, Math.round(week)), tkA = RES.A.run.tk, price = RES.mult[w] * ys.sc.S0[tkA];
+    let html = `<span class="h">Week ${w} of ${ys.sc.W} · ${fD(COMPOUND_ENGINE.weekDate(w))}</span><span class="s">day ${w * 7} · ${tkA} on the path ${fKs(price)} (${fPs(RES.mult[w] - 1)} from the start)</span>`;
+    for (const [who, R] of [["A", RES.A], ["B", RES.B]]) {
+      if (!R || w === 0) { continue; }
+      const rows = R.main.rows, r = rowAt(R, w), cycle = rows.indexOf(r) + 1;
+      html += tipRow(who.toLowerCase(), `${who} cycle ${cycle} of ${rows.length}`, `${fD(r.t0)} → ${fD(r.date)}`);
+    }
+    return html;
+  }
+  /** @param {{ value: number, isMultiple: boolean, ticker: string }} input */
+  function describePriceOnAxis({ value, isMultiple, ticker }) {
+    const start = ys.sc.S0[ticker], multiple = isMultiple ? value : value / start;
+    const price = isMultiple ? `×${value.toFixed(3)} of each run's start` : `${ticker} ${fKs(value)}`;
+    return `<span class="h">${price}</span>${tipRow("ink-3", "from the start", fPs(multiple - 1))}${isMultiple ? "" : tipRow("ink-3", "× the start", fX(multiple))}`;
+  }
+  // a NAV: the multiple of the start, the steady weekly growth it takes, and where it falls in each run's final spread
+  function describeNavOnAxis(nav) {
+    const cap0 = ys.sc.cap0, W = ys.sc.W, multiple = nav / cap0;
+    let html = `<span class="h">NAV ${f$(nav)}</span>${tipRow("ink-3", "× the start", fX(multiple))}${tipRow("ink-3", `steady growth for this in ${W} wk`, `${fPs(Math.pow(multiple, 1 / W) - 1, 2)} a week`)}`;
+    for (const [who, R] of [["A", RES.A], ["B", RES.B]]) {
+      if (!R) { continue; }
+      const end = rowAt(R, W);
+      html += tipRow(who.toLowerCase(), `${who} at week ${W}`, describeSpreadPosition({ value: nav, low: end.c10, middle: end.med, high: end.c90 }));
+    }
+    return html;
+  }
+  /** @param {{ value: number, low: number, middle: number, high: number }} spread */
+  function describeSpreadPosition({ value, low, middle, high }) {
+    if (!Number.isFinite(low) || !Number.isFinite(high)) { return "–"; }
+    if (value < low) { return "below its 10% line"; }
+    if (value < middle) { return "between its 10% line and the median"; }
+    if (value < high) { return "between the median and its 90% line"; }
+    return "above its 90% line";
+  }
+  function describeContractsOnAxis(contracts) {
+    const n = Math.max(0, contracts), tkA = RES.A.run.tk, start = ys.sc.S0[tkA];
+    return `<span class="h">${n.toFixed(1)} contracts</span>${tipRow("ink-3", "shares", fInt(n * 100))}${tipRow("ink-3", `notional at ${tkA}'s start ${fKs(start)}`, f$(n * 100 * start))}`;
   }
 
   function ivPathCtl() {
@@ -779,6 +830,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     // the value of a stepped series at week w: its last point at or before w
     const valueAt = (S, w) => { let v = NaN; for (const p of S.pts) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
     const weeks = [...new Set(series.flatMap(S => S.pts.map(p => p[0])))].sort((a, b) => a - b);
+    AXES.attach({ svg: s, orient: "x", band: { x: l, y: H - 8, width: pw, height: 30 }, guide: { from: 6, to: H - 8 }, toValue: px => Math.round(Math.min(W, Math.max(0, (px - l) / pw * W))), toPx: X, describe: describeWeekOnAxis });
     attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H - 8, xs: weeks, toPx: X,
       tipAt: w => `<span class="h">${title}, week ${Math.round(w)} · ${fD(COMPOUND_ENGINE.weekDate(Math.round(w)))}</span>` + series.map(S => tipRow(S.cls, S.cls.toUpperCase(), fmt(valueAt(S, w)))).join("") });
   }
@@ -890,11 +942,12 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     // strip
     q("#y-sstrip").innerHTML = runs.map(([who, o]) => { const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
       const used = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter), lev = cc ? sn.n * sn.S / Math.max(1, nb) : null;
+      const label = (text, id, title, body) => KNOBS.label(text, { id: `ys-${id}`, title, body });
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
-        <span class="cell big"><span class="l">Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin</span><span class="v">${f$(nb)}</span></span>
-        <span class="cell c2"><span class="l">At the low</span><span class="v" style="font-size:14px" class="${r.lossLow > 0 ? "neg" : ""}">${fPs(-r.lossLow / nb)} <small>${f$(-r.lossLow)}</small></span></span>
-        <span class="cell c2"><span class="l">End of the move</span><span class="v ${r.lossEnd > 0 ? "neg" : "pos"}" style="font-size:14px">${fPs(-r.lossEnd / nb)} <small>${f$(-r.lossEnd)}</small></span></span>
-        <span class="cell c3" style="width:200px"><span class="l">Margin call</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
+        <span class="cell big"><span class="l">${label(`Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin`, "before", "Before the move", "The typical NAV at the start of the hit week, before the move. For covered calls the leverage is share value over NAV; the share of margin is the requirement over what the account may borrow against.")}</span><span class="v">${f$(nb)}</span></span>
+        <span class="cell c2"><span class="l">${label("At the low", "low", "At the low", "The change in NAV at the worst price of the move, the options marked at the shocked IV. Margin calls are tested here.")}</span><span class="v ${r.lossLow > 0 ? "neg" : ""}" style="font-size:14px">${fPs(-r.lossLow / nb)} <small>${f$(-r.lossLow)}</small></span></span>
+        <span class="cell c2"><span class="l">${label("End of the move", "end", "End of the move", "The change in NAV once the move is over, marked at the price it ends on. It sits above the low when the price comes back part of the way; a cut at the bottom locks the low in.")}</span><span class="v ${r.lossEnd > 0 ? "neg" : "pos"}" style="font-size:14px">${fPs(-r.lossEnd / nb)} <small>${f$(-r.lossEnd)}</small></span></span>
+        <span class="cell c3" style="width:200px"><span class="l">${label("Margin call", "call", "Margin call in the move", "The day and price of the first margin call inside the move, and how much the broker sells under the run's modus operandi. Closed: the account was shut.")}</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
         ${r.ev.deficit > 0 ? `<span class="cell"><span class="l">Deficit</span><span class="v neg" style="font-size:14px">you owe IBKR ${f$(r.ev.deficit)}</span></span>` : ""}
         ${o.given > 1 ? `<span class="cell"><span class="l">Upside given up (not a loss)</span><span class="v" style="font-size:14px">${f$(o.given)}</span></span>` : ""}
         <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"} (index ${o.room.callDown != null ? fPs(o.room.callDown / COMPOUND_ENGINE.LEV[o.R.run.tk], 1) : "–"} for the call)</span></span>`; }).join("");
@@ -1003,6 +1056,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
       let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[2])}`); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s);
       const er = P.R.main.rows; let e = `M${X(0)},${Y(ys.sc.cap0)}`; er.forEach(r => e += `L${X(Math.min(r.w1, W))},${Y(r.med)}`); sv("path", { d: e, fill: "none", stroke: `var(--${cls})`, "stroke-width": 1.2, "stroke-dasharray": "4 4" }, s);
       st_(s, l + pw + 6, Y(b[W - 1][2]) + 4, `${P.who} ${f$(b[W - 1][2])}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); });
+    AXES.attach({ svg: s, orient: "y", band: { x: 0, y: 8, width: l, height: H - 16 }, guide: { from: l, to: l + pw },
+      toValue: py => Math.exp(Math.log(hi) - (py - 8) / (H - 16) * (Math.log(hi) - Math.log(lo))), toPx: Y, describe: describeNavOnAxis });
+    AXES.attach({ svg: s, orient: "x", band: { x: l, y: H - 8, width: pw, height: 30 }, guide: { from: 8, to: H - 8 }, toValue: px => Math.round(Math.min(W, Math.max(0, (px - l) / pw * W))), toPx: X, describe: describeWeekOnAxis });
     attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 8, xs: Array.from({ length: W }, (_, i) => i + 1), toPx: X,
       tipAt: w => `<span class="h">Random paths, week ${w} · ${fD(COMPOUND_ENGINE.weekDate(w))}</span>` + parts.map((P, k) => { const c = bands[k][w - 1], cls = P.who.toLowerCase();
         return tipRow(cls, `${P.who} median`, f$(c[2])) + tipRow(cls, `${P.who} 25–75%`, `${f$(c[1])} – ${f$(c[3])}`) + tipRow(cls, `${P.who} 5–95%`, `${f$(c[0])} – ${f$(c[4])}`); }).join("") });

@@ -1,4 +1,4 @@
-# v10 status (where the work stopped)
+# v10 status
 
 ## Done and verified
 
@@ -43,14 +43,6 @@
 
 ## Not started
 
-- **Step 2, part II:**
-  - recovery dynamics with the three growth rates (`computeRecovery`, Gauss–Legendre log-mean, the honesty line, Hit on
-    both bases, `rdG "ev"` → Average);
-  - the "% of margin" reading unit;
-  - the EV explainer;
-  - the export alignment (shared formatters, `computeRecovery`, no test hooks, Result).
-  - See PLAN_V10.md §2–§5 and §7. The numeric oracles are in the v9 scratch `crit10/check_r2.js`, `jensen_r2.js` and
-    `quad_r2.js`.
 - **Step 3:** options-object signatures across the model, flags → faults, and the rename list. Already recorded for it:
   compound_ui date formatting through the calendar, CMP `apply` closure removal, and `PlaceLeg` model work moving to STATE/CMP.
 - **Step 4:** panels as classes.
@@ -105,15 +97,62 @@
   the y range includes it, so a fill far from mid stays visible.
 - **The card says "ATM IV"** wherever it shows the expiry's IV. The relink pill reads "↺ B follows A again".
 
+## Done in round 3 (part II, two features, five improvements, axes, knobs)
+
+- **Part II, recovery** (`recovery.js`, namespace RECOVERY, pure). One `computeRecovery({built, vol, hit, capital,
+  growth, typedRate})` returns a RecoveryReading. It has three growth rates per cycle: best case (credit / capital),
+  if no such hit (the log-mean over outcomes above the hit, Gauss–Legendre), and average (the log-mean over all
+  outcomes). It also gives the cycles for each, q (the chance of a hit this bad in one cycle) and the honesty line: the
+  chance of no such hit over the cycles recovery needs, (1−q)^N, amber below 50%. The hit is a move in σ or a fixed %,
+  on the worse side, down or up, measured on margin or on notional. Growth sits in the toolbar. An old `rdG "ev"`
+  loads as Average. The export reads the same reading. Tests: T26.
+- **Part II, the rest.** "% of A's margin" is a reading unit. The EV row has a knob that explains it: credit, the
+  expected settlement at the vol used, and EV, at implied odds or at the period vol.
+- **Feature 1: break-even vol.** For each position, the period vol at which the expected P&L at expiry is zero, at its
+  own fill (bisection on the closed form). It shows in each box head as "break-even vol 85.3% · −32.0 pts over period
+  vol 117%", and as a table row with A − B in vol points.
+- **Feature 2: Manage the trade** (`manage.js`, namespace MANAGE, pure). A take-profit / stop rule (% of the credit)
+  is simulated over seeded daily paths at the period vol, with marks on the implied smile. It uses antithetic pairs,
+  12k paths, a control variate on the exact held EV, and pairwise standard errors. The panel compares managed with held
+  to expiry: how often each exit happens and on which day, days held, EV per trade and per day, win rate, and the mean
+  of the worst 5%. Tests: T27.
+- **Five improvements.**
+  - The payoff shows P&L now and half-way (dotted and dashed) beside expiry.
+  - The better side of each comparable row is marked.
+  - Breakevens show the odds of touching each before expiry.
+  - Copy order puts an order ticket on the clipboard: legs, limit, mid, natural and the date of the quotes.
+  - With a strike slider focused, the arrow keys step one listed strike.
+- **Axis hover (AXES).** Hovering inside an axis shows what that coordinate means.
+  - The payoff's price axis: σ, the move, and the odds of ending beyond the price.
+  - P&L axes: every unit, and the odds of doing at least that well.
+  - The smile: IV against the period vol and the ATM IV, and the 1-day, 1-week and to-expiry moves.
+  - The sweep: Δ, placement and strikes.
+  - Compounding: week and date, price on the path, NAV, contracts.
+  - Check: `tools_checks/axes.js`.
+- **Info knobs (KNOBS).** Hover shows the card; a click pins it, and several can stay pinned. A second click, the × or
+  Escape closes it. `KNOBS.label` keeps a knob on the line of its label's last word. Knobs are on every comparison row,
+  the Compounding headline (Weeks and Stress), recovery, the box heads and the Manage panel. Check:
+  `tools_checks/knobs.js`.
+- **Layout.** The dock fill row wraps inside its box; B's title wraps instead of cutting the strikes. The Weeks
+  headline is a grid, so A and B line up at any width. The Stress strip's "At the low" now turns red on a loss: it had
+  two class attributes.
+- **Checks.** `compounding_drop_b.js` now tests for B's row itself. Before, it looked for "Shares · lots", which is A's
+  label in the default covered-call run.
+
+## Trader notes from this round
+
+- The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill
+  gave away 32 vol points, and its EV is about −$108 per contract. The 19/24.5 strangle at mid needs 127.5%.
+- At 50% take-profit and 200% stop, the strangle keeps its EV per day and cuts the mean of its worst 5% from −$752 to
+  −$579. The straddle at 2.90 stays negative either way.
+- On the payoff's "now" curve, an early move hurts the straddle more than the strangle.
+
 ## Still open
 
-1. Part II, the most useful next step for trading: honest recovery rates (if no such hit / average / best case), the EV
-   explainer (credit, expected settlement at the period vol, EV), and % of margin as a reading unit (PLAN_V10 §2–§4).
-   The recovery panel today reads "Hit −71% at 34.86 · of NAV when it lands", which is hard to read and needs that
-   rework.
-2. Export alignment (PLAN_V10 §5).
-3. Say what "×0.68" is on the card (B contracts per A contract).
-4. Compare tab: a single-position mode (B off), as the Compounding tab has.
-5. Skew at the chosen strikes (put IV − call IV).
-6. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"
+1. Say what "×0.68" is on the card (B contracts per A contract).
+2. Compare tab: a single-position mode (B off), as the Compounding tab has.
+3. Skew at the chosen strikes (put IV − call IV).
+4. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"
    label.
+5. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
+6. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.

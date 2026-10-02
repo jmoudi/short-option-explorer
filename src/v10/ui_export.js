@@ -190,19 +190,24 @@ const EXPORT9 = (() => {
     return para("## Results", `Values are ${C.unitName()}; B is scaled by h = ${h.toFixed(3)}. Ratios use time value.`, notes.join(" "), T);
   }
 
-  // recovery dynamics, as renderRecovery computes it
+  // recovery dynamics: the same RECOVERY.computeRecovery the panel reads
   function recRun(C, b, who, vw) {
-    if (!b || b.na) return null;
-    const capPS = vw.rdCap === "margin" ? b.margin : b.S;
-    const hv = C.statsAtPeriodVol(b), ev = hv ? hv.ev : NaN, g = vw.rdG === GrowthRate.Custom ? vw.rdGc / 100 : ev / capPS;
-    let L, xMove = null;
-    if (vw.rdHit === "fixed") L = vw.rdL / 100;
-    else {
-      const sg = b.sig, dn = b.S * Math.exp(-vw.rdK * sg), up = b.S * Math.exp(vw.rdK * sg);
-      const lDn = -POS.payoff(b, dn) / capPS, lUp = -POS.payoff(b, up) / capPS;
-      if (vw.rdDir === "down") { L = lDn; xMove = dn; } else if (vw.rdDir === "up") { L = lUp; xMove = up; } else { L = Math.max(lDn, lUp); xMove = lDn >= lUp ? dn : up; }
-    }
-    return { b, who, g, L, xMove, days: b.dte };
+    if (!b || b.na) { return null; }
+    const hit = { basis: vw.rdHit, k: vw.rdK, side: vw.rdDir, fraction: vw.rdL / 100 };
+    const rec = RECOVERY.computeRecovery({ built: b, vol: C.volOf(b.tk).pct / 100, hit, capital: vw.rdCap, growth: vw.rdG, typedRate: vw.rdGc / 100 });
+    if (rec.status === "na") { return null; }
+    return { b, who, rec, g: rec.status === "ok" ? rec.growth : NaN, L: rec.L, xMove: rec.price, days: b.dte };
+  }
+  const RATE_WORDS = Object.freeze({ [GrowthRate.IfNoSuchHit]: "if no such hit", [GrowthRate.Average]: "average", [GrowthRate.BestCase]: "best case", [GrowthRate.Typed]: "typed" });
+  function exportRates(r) {
+    if (r.rec.status !== "ok") { return "–"; }
+    const x = r.rec.rates;
+    return `${growthTxt(x.noHit)} if no such hit · ${growthTxt(x.average)} average · ${growthTxt(x.best)} best case`;
+  }
+  function exportHonesty(r) {
+    if (r.rec.status !== "ok") { return "–"; }
+    if (!Number.isFinite(r.rec.wholeCycles)) { return `${(r.rec.q * 100).toFixed(1)}% a cycle; never recovers at this rate`; }
+    return `${(r.rec.survival * 100).toFixed(0)}% over ${r.rec.wholeCycles} cycles (${(r.rec.q * 100).toFixed(1)}% a cycle)`;
   }
   function recCycles(L, g, kind, base) {
     if (!(L > 0)) return 0;
@@ -227,8 +232,10 @@ const EXPORT9 = (() => {
     const rows = [
       ["Position", ...col(r => r.b.label.full)],
       ["Cycle", ...col(r => `${r.days} days`)],
-      [`Growth per cycle${vw.rdG === GrowthRate.Ev ? ` (EV ${C.volOddsText({ isCompact: true })} on ${vw.rdCap === "margin" ? "margin" : "notional"})` : " (set by hand)"}`, ...col(r => growthTxt(r.g))],
-      [`Hit (% of ${base === "nav" ? "NAV when it lands" : "starting capital"})`, ...col(r => (r.L > 0 ? MINUS + (r.L * 100).toFixed(0) + "%" : "no loss") + (r.xMove ? ` at ${fPx2(r.xMove)}` : ""))],
+      [`Growth per cycle used: ${RATE_WORDS[vw.rdG]} (${C.volOddsText({ isCompact: true })}, on ${vw.rdCap === Capital.Margin ? "margin" : "notional"})`, ...col(r => growthTxt(r.g))],
+      ["The three rates", ...col(exportRates)],
+      ["Hit", ...col(r => r.rec.status === "none" ? "no loss" : `${MINUS}${(r.rec.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.rec.Lnotional * 100).toFixed(1)}% of notional${r.xMove ? ` at ${fPx2(r.xMove)}` : ""}`)],
+      ["Chance of no such hit while recovering", ...col(exportHonesty)],
       ["Recovery (hit first)", ...col(r => recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, t0))],
       ["Buffer (climb first)", ...col(r => recTime(recCycles(r.L, r.g, "buf", base), r.days, base === "nav" ? r.L : 0, t0))]
     ];

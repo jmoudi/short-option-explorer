@@ -13,13 +13,18 @@
 .ystrip .sr{display:block;padding:6px 0;line-height:1.35}
 .ystrip .sr+.sr{border-top:1px solid var(--grid)}
 .ystrip .key{margin-right:8px;vertical-align:4px}
-.ystrip .cell{display:inline-block;vertical-align:top;margin-right:26px}
+.ystrip .cell{display:inline-block;vertical-align:top;margin-right:22px}
 .ystrip .cell .l{display:block;font-size:11px;color:var(--ink-3)}
 .ystrip .cell .v{display:block;font:600 17px var(--f-num)}
 .ystrip .cell .v small{font:500 12px var(--f-num);color:var(--ink-2);margin-left:5px}
 .ystrip .cell.sm .v{font:500 13px var(--f-num);color:var(--ink-2)}
 .ystrip .cell.big .v{font-size:20px}
 .ystrip .bd{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+/* the Weeks headline: one grid per row; the same template in both rows keeps A and B aligned at any width */
+#y-strip .sr{display:grid;grid-template-columns:22px minmax(132px,1fr) minmax(140px,1fr) minmax(150px,1.1fr) minmax(118px,.9fr) minmax(160px,1.2fr);column-gap:14px}
+#y-strip .key{align-self:start;justify-self:start;margin:2px 0 0}
+#y-strip .cell{display:block;min-width:0;margin:0}
+#y-strip .bd{grid-column:1/-1}
 .ystrip.live .v{opacity:.55}
 .ystack{display:block;position:relative}
 .ystack svg{display:block;overflow:visible}
@@ -76,11 +81,8 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .ypin{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:1 3;pointer-events:none}
 .yhalo{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 
-.ystrip .cell{margin-right:22px}
-.ystrip .cell{margin-right:14px}
-.ystrip .cell.big{width:150px}.ystrip .cell.c2{width:166px}.ystrip .cell.c3{width:122px}.ystrip .cell.c4{width:118px}.ystrip .cell.sm{width:175px;margin-right:0}
 .ypts input{width:64px}
-#y-sstrip .cell.big{width:230px}
+#y-sstrip .cell.big{width:258px}
 #y-srow .ctl{margin-right:10px}
 
 /* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */

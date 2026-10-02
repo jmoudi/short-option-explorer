@@ -145,22 +145,26 @@ const CTX = (() => {
     const pB = u => B.na ? NaN : h * POS.payoff(B, toSB(u)) / B.S;
     const xA = u => Math.log(toSA(u) / A.S);
     const xB = u => Math.log(toSB(u) / B.S);
-    const units = prefs.units, crOK = !A.na && A.tv > 0;
+    // % of margin rescales the one page scale by A's margin at entry (fixed, so the payoff divides by a constant); under
+    // "Equal margin" sizing B's line is then B's own return on its margin
+    const units = prefs.units, crOK = !A.na && A.tv > 0, marginOK = !A.na && A.margin > 0;
     function fU(v, dd) {
       if (!Number.isFinite(v)) return "–";
       // a value that rounds to zero at the printed precision (pinning noise is ~1e-9 of notional) prints as 0, unsigned
       const sg = n => +n === 0 ? n : (v < 0 ? MINUS : "+") + n;
       if (units === ReadingUnit.Usd) { const x = Math.abs(v * A.S * 100); return sg(x.toFixed(dd ?? (x < 10 ? 2 : 0))).replace(/^([−+]?)/, "$1$$"); }
       if (units === ReadingUnit.Credit && crOK) { const x = Math.abs(v / (A.tv / A.S)); const k = dd != null && x >= 1 ? dd : x >= 10 ? 1 : x >= 1 ? 2 : Math.min(4, Math.max(2, 1 - Math.floor(Math.log10(x || 1e-9)))); return sg(x.toFixed(k)) + "×"; }
+      if (units === ReadingUnit.Margin && marginOK) { const x = Math.abs(v * A.S / A.margin * 100); return sg(x.toFixed(dd ?? (x < 1 ? 2 : 1))) + "% m"; }
       const x = Math.abs(v * 100); return sg(x.toFixed(dd ?? (x < 1 ? 2 : 1))) + "%";
     }
     function fUt(t, step) {
       let s = step * 100;
       if (units === ReadingUnit.Usd) s = step * A.S * 100; else if (units === ReadingUnit.Credit && crOK) s = step / (A.tv / A.S);
+      else if (units === ReadingUnit.Margin && marginOK) s = step * A.S / A.margin * 100;
       return fU(t, s >= 1 ? 0 : s >= 0.1 ? 1 : s >= 0.01 ? 2 : 3);
     }
-    const unitName = () => units === ReadingUnit.Usd ? "$ per A contract" : units === ReadingUnit.Credit && crOK ? (A.intr > 0 ? "multiples of A's time value" : "multiples of A's credit") : "% of A's notional";
-    const unitsNote = units === ReadingUnit.Credit && !crOK ? (A.na ? "A is n/a, so values show % of A's notional" : "A's time value is not positive, so values show % of A's notional instead of multiples of it") : "";
+    const unitName = () => units === ReadingUnit.Usd ? "$ per A contract" : units === ReadingUnit.Margin && marginOK ? "% of A's margin" : units === ReadingUnit.Credit && crOK ? (A.intr > 0 ? "multiples of A's time value" : "multiples of A's credit") : "% of A's notional";
+    const unitsNote = units === ReadingUnit.Margin && !marginOK ? "A has no margin figure, so values show % of A's notional" : units === ReadingUnit.Credit && !crOK ? (A.na ? "A is n/a, so values show % of A's notional" : "A's time value is not positive, so values show % of A's notional instead of multiples of it") : "";
     const hTxt = () => Math.abs(h - 1) < 0.005 ? "B" : `${h.toFixed(2)}·B`;
     const diff = CMP.diff(comparison, A, B);
     const labels = Object.freeze({ A: A.label, B: B.label, title: `${A.label.tab} vs ${B.label.tab}` });

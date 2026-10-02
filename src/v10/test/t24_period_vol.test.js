@@ -144,7 +144,7 @@ test("T24 readers: every EV reading uses the period vol whatever the odds switch
   // the sweep's EV line and the recovery growth read the period vol
   const sw = VIEWS.sweepData(C2, "both", 12), at = sw.xs.indexOf(sw.sides.A.x0);
   assert.ok(Math.abs(sw.sa[at].ev - ev2 / C2.A.S) < 1e-12, "the sweep's EV at the marker");
-  const rr = VIEWS.recRun(C2, C2.A, "A", Object.assign({}, S2.prefs, { rdG: "ev", rdCap: "margin" }));
+  const rr = VIEWS.recRun(C2, C2.A, "A", Object.assign({}, S2.prefs, { rdG: "avg", rdCap: "margin" }));
   assert.ok(Math.abs(rr.g - ev2 / C2.A.margin) < 1e-12, "recovery growth = EV at the period vol / margin");
   // the overview's cells (every ticker × expiry at listed spot and IV) read each ticker's own vol
   const cell = VIEWS.ovCells(C2).find(c => c.id === "KORU" && c.e === "20261016" && c.j === 0);
@@ -152,13 +152,13 @@ test("T24 readers: every EV reading uses the period vol whatever the odds switch
   // the export names the odds of every EV line
   const md = EXPORT9.toMarkdownCompare(C2, S2, {});
   assert.ok(md.includes("| Expected value · implied odds: fill vs mid, 0 at mid"), "the table's EV row under implied odds says so");
-  assert.ok(md.includes("(EV at 140% vol on margin)"), "recovery growth names its vol (A and B both on KORU)");
+  assert.ok(md.includes("(at 140% vol, on margin)"), "recovery growth names its vol (A and B both on KORU)");
   assert.ok(md.includes("KORU vol 140% (set)"), "the assumptions list the period vol");
   const mdP = EXPORT9.toMarkdownCompare(CTX.ctx9(P2), P2, {});
   assert.ok(mdP.includes("| Expected value · at 140% vol"), "the table's EV row under period-vol odds names the vol");
   const R2 = withTab(STATE.applyChange(P2, s => { s.comparison.B.inst = { id: "RAM" }; })), mdR = EXPORT9.toMarkdownCompare(CTX.ctx9(R2), R2, {});
   assert.ok(mdR.includes("| Expected value · at period vol (KORU 140%, RAM 102%)"), "two tickers: the table's EV row names both vols");
-  assert.ok(mdR.includes("(EV at period vol on margin)") && !/\([^()|]*\([^()|]*\)[^()|]*\)/.test(mdR), "the recovery row stays compact (the vols are in the assumptions): no nested parentheses");
+  assert.ok(mdR.includes("(at period vol, on margin)") && !/\([^()|]*\([^()|]*\)[^()|]*\)/.test(mdR), "the recovery row stays compact (the vols are in the assumptions): no nested parentheses");
   assert.ok(mdR.includes("KORU vol 140% (set)") && mdR.includes("RAM vol 102% (HV30)"), "the assumptions list both vols");
 });
 

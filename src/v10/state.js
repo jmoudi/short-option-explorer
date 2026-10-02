@@ -11,9 +11,9 @@ const STATE = (() => {
   const ASSUMPTIONS_DEF = Object.freeze({ unit: MoveUnit.Sigma, rlo: 2, rhi: 2, rlink: true, wl: WorstLossRange.View, wlo: 2, whi: 2, dist: Odds.Implied, ivs: 0, svs: 0, svd: true, align: Align.Fraction });
   const PREFS_DEF = Object.freeze({
     units: ReadingUnit.Percent, ovm: "cr", ovv: "chart", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
-    ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, cs: "comp", cr: "auto", crx: 20, shared: true,
-    sweep: "both", sweepSmoothing: 0, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
-    rdHit: HitBasis.Move, rdK: 2, rdDir: "worse", rdL: 60, rdBase: "nav", rdCap: "margin", rdG: GrowthRate.Ev, rdGc: 2,
+    ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, pnow: true, cs: "comp", cr: "auto", crx: 20, shared: true,
+    sweep: "both", sweepSmoothing: 0, mgTp: 50, mgSl: 200, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
+    rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
     exportSections: Object.freeze({})
@@ -23,7 +23,7 @@ const STATE = (() => {
     units: Object.values(ReadingUnit), ovm: ["cr", "crs", "crd", "ev", "pop", "worst", "wingc", "wingp", "rom"], ovv: ["chart", "table"],
     gview: ["heat", "num"], gval: ["pnl", "contrib"], gtab: ["A", "B", "D"], ct: ["zero", "lev"], cs: ["comp", "lin"], cr: ["auto", "fix"],
     sweep: ["both", "put", "call", "wingCall"], theme: THEMES,
-    rdHit: Object.values(HitBasis), rdDir: ["worse", "down", "up"], rdBase: ["nav", "start"], rdCap: ["margin", "notional"], rdG: Object.values(GrowthRate),
+    rdHit: Object.values(HitBasis), rdDir: Object.values(HitSide), rdBase: ["nav", "start"], rdCap: Object.values(Capital), rdG: Object.values(GrowthRate),
     nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20]
   });
   // which export sections are on until the reader chooses, per tab in document order (the export holds the labels)
@@ -106,9 +106,12 @@ const STATE = (() => {
     }
     return out;
   }
+  // the recovery panel's old "EV" growth reading was the plain average: views that chose it keep their headline
+  const LEGACY_GROWTH = Object.freeze({ ev: GrowthRate.Average });
   function sanitizePrefs(o) {
-    const s = sanFlat(o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.jday = Math.round(clamp(s.jday, -1, 400));
+    const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
+    const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
+    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);
     s.exportSections = sanitizeExportSections(isObj(o) ? o.exportSections : null);
     return s;

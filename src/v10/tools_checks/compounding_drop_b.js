@@ -5,7 +5,8 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/CERT/.test(m.text()) && errs.push(m.text()));
   await p.goto('file://' + (process.env.PAGE || require('path').resolve(__dirname, '../../../dist/ram_koru_lab_v10.html'))); await p.waitForTimeout(800);
   await p.click('#tabs [data-tab=yr]'); await p.waitForTimeout(2500);
-  const rowsB = () => p.evaluate(() => document.querySelector('#tab-yr').innerText.includes('Shares · lots'));
+  // B's headline row carries the b key; A's label text (e.g. Shares · lots for covered calls) says nothing about B
+  const rowsB = () => p.evaluate(() => !!document.querySelector('#y-strip .key.b'));
   console.log('B result row before drop:', await rowsB());
   await p.click('#y-chipB .y-dropb'); await p.waitForTimeout(2500);
   console.log('after drop: B row', await rowsB(), '| bar single', await p.evaluate(() => document.querySelector('#ybar').classList.contains('single')));
