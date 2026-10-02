@@ -117,6 +117,7 @@ details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .mb .mrow>.lbl{display:block;margin-bottom:3px}
 .mb .mt{display:block;font:600 12.5px var(--f-ui);margin:0 0 8px}
 .mb hr{border:0;border-top:1px solid var(--grid);margin:10px 0}
+.mb details.xsec{display:inline-block;margin-left:4px}.mb details.xsec>summary{list-style:none;cursor:pointer;font-size:12px;color:var(--ink-2)}.mb details.xsec>summary::-webkit-details-marker{display:none}.mb .xsecs{display:block;margin-top:6px}.mb .xsecs .chk{display:inline-block;margin:0 12px 4px 0}
 .mb input[type=range]{width:150px}
 
 /* sticky header: comparison + view */
@@ -501,6 +502,8 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
         <span class="mrow"><span class="lbl">View code (both tabs, this exact setup)</span><input type="text" id="vcode" readonly style="width:190px"> <button class="btn" id="vcopy" type="button">Copy</button></span>
         <span class="mrow"><span class="lbl">Load a view code</span><input type="text" id="vload" placeholder="Paste code" style="width:190px"> <button class="btn" id="vgo" type="button">Load</button></span>
         <span class="mrow cap">In the opened file the code also sits after # in the address, so a bookmark restores the view. A v7 code (v5.…) loads into Compare A vs B.</span>
+        <hr>
+        <span class="mrow"><span class="lbl">Export as Markdown <span class="muted" id="xtab"></span></span><button class="btn" id="xcopy" type="button">Copy</button> <button class="btn" id="xdl" type="button">Download .md</button> <details class="xsec"><summary>Sections ▾</summary><span class="xsecs" id="xsecs"></span></details><textarea id="xfall" hidden rows="4" style="width:100%;margin-top:6px" aria-label="Exported markdown"></textarea></span>
         <hr>
         <button class="btn" id="vreset" type="button">Reset this tab</button> <button class="btn" id="vresetAll" type="button">Reset both tabs</button>
       </span>

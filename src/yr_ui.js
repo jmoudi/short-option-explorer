@@ -843,5 +843,5 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     if (mode !== "live") renderSweep();
     saveSoon();
   }
-  return { init, render, getState, setState, reset, _state: () => ys, _res: () => RES };
+  return { init, render, getState, setState, reset, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
 })(YRE, YRS);

@@ -109,6 +109,7 @@ function appInit() {
   const boot = appBoot();
   APP.tab = boot.tab; APP.theme = boot.theme;
   cmpWire(); renderNotes();
+  exportWire({ tab: () => APP.tab, getS9, code: () => lastCode, save: appSave });
   // tab strip
   const tabs = $("#tabs");
   tabs.addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); });

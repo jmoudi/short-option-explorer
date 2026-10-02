@@ -30,7 +30,7 @@ if '--out' in sys.argv:
 NO_YR = '--no-yr' in sys.argv
 
 MODEL = ['dist9.js', 'inst9.js', 'rule9.js', 'pos9.js', 'cmp9.js', 'state9.js', 'ctx9.js']
-UI9 = ['ui9_summary.js', 'ui9_dock.js', 'ui9_views.js']
+UI9 = ['ui9_summary.js', 'ui9_dock.js', 'ui9_views.js', 'ui9_export.js']
 YR_PURE = ['yr_cal.js', 'yr_path.js', 'yr_modus.js', 'yr_margin.js', 'yr_engine.js', 'yr_stress.js', 'yr_mc.js']
 YR_UI = ['yr_state.js', 'yr_ui.js']
 STUB = 'const YR={init(){},render(){},getState(){return null},setState(){},reset(){}};\n'
@@ -119,6 +119,7 @@ ALLOWED = {
     'cmp9.js': {'CMP'}, 'state9.js': {'STATE'}, 'ctx9.js': {'CTX'},
     'ui9_summary.js': {'SUM9', 'cmpRefresh', 'cmpDo', 'cmpChange', 'cmpEvents'}, 'ui9_dock.js': {'DOCK9'},
     'ui9_views.js': {'VIEWS', 'renderViews', 'wireViews'},
+    'ui9_export.js': {'EXPORT9', 'toMarkdownCompare', 'toMarkdownCompounding', 'exportWire'},
     'app_store9.js': {'KEY9', 'KEY8', 'KEY5', 'TABS', 'THEMES', 'readKey', 'writeBlob', 'BOOT'},
     'app9.js': {'S9', 'C', 'getS9', 'setS9', 'appSafe', 'cmpWire', 'renderAll', 'renderNotes', 'APP', 'ASYNC', 'lastCode', 'lastBlob',
                 'applyTheme', 'yrState', 'appSave', 'syncTabs', 'appRender', 'setTab', 'dockClass', 'loadCode', 'codeLoaded', 'appBoot', 'appInit'},
