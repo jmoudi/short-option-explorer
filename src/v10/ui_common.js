@@ -265,3 +265,53 @@ const halo = { "paint-order": "stroke", stroke: "var(--surface)", "stroke-width"
 const pathOf = (pts, X, Y) => { let d = "", pen = false; for (const [x, y] of pts) { if (!Number.isFinite(y)) { pen = false; continue; } d += (pen ? "L" : "M") + X(x).toFixed(1) + " " + Y(y).toFixed(1); pen = true; } return d; };
 function mix(c1, c2, t) { return c1.map((v, i) => Math.round(v + (c2[i] - v) * t)); }
 function rgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map(c => c + c).join(""); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); }
+
+// ---------------------------------------------------------- collapsible panels
+// every section panel with an id and a header gets a show / hide chip after its title; which panels are collapsed is
+// a per-browser convenience (localStorage), never part of the view. decorate() is idempotent: the views call it after
+// they render, so a panel rebuilt from scratch gets its chip back
+const PANELS = (() => {
+  const KEY = "rk-lab-v10-collapsed";
+  /** @type {Set<string> | null} */
+  let closed = null;
+  function readClosed() {
+    if (closed) { return closed; }
+    const stored = storage.read(KEY);
+    closed = new Set(stored.ok && stored.value ? String(stored.value).split(",").filter(Boolean) : []);
+    return closed;
+  }
+  function decorate(root) {
+    if (!root) { return; }
+    const set = readClosed();
+    for (const node of root.querySelectorAll("section.panel[id]")) {
+      const panel = /** @type {HTMLElement} */ (node), head = panel.querySelector(":scope > .ph"), title = head && head.querySelector("h2");
+      if (!title) { continue; }
+      let chip = /** @type {HTMLButtonElement} */ (head.querySelector(".pcol"));
+      if (!chip) { chip = document.createElement("button"); chip.type = "button"; chip.className = "xbtn pcol"; title.insertAdjacentElement("afterend", chip); }
+      const isClosed = set.has(panel.id);
+      panel.classList.toggle("collapsed", isClosed);
+      chip.textContent = isClosed ? "show ▸" : "hide ▾";
+      chip.setAttribute("aria-expanded", String(!isClosed));
+      chip.title = isClosed ? "Show this panel" : "Hide this panel (remembered in this browser)";
+      // a panel with notes (long captions on how it is read) gets a notes chip; the notes start hidden
+      const hasNotes = !!panel.querySelector(".pnote");
+      let notes = /** @type {HTMLButtonElement} */ (head.querySelector(".pnotes"));
+      if (hasNotes && !notes) { notes = document.createElement("button"); notes.type = "button"; notes.className = "xbtn pnotes"; chip.insertAdjacentElement("afterend", notes); }
+      if (notes) { const on = panel.classList.contains("notes-on"); notes.hidden = !hasNotes || isClosed; notes.textContent = on ? "notes ▾" : "notes ▸"; notes.setAttribute("aria-expanded", String(on)); }
+    }
+  }
+  document.addEventListener("click", ev => {
+    const notes = /** @type {Element} */ (ev.target).closest(".pnotes");
+    if (notes) { const panel = /** @type {HTMLElement} */ (notes.closest("section.panel")); panel.classList.toggle("notes-on"); decorate(/** @type {HTMLElement} */ (panel.parentElement)); return; }
+    const chip = /** @type {Element} */ (ev.target).closest(".pcol");
+    if (!chip) { return; }
+    const panel = /** @type {HTMLElement} */ (chip.closest("section.panel[id]")), set = readClosed();
+    if (set.has(panel.id)) { set.delete(panel.id); } else { set.add(panel.id); }
+    storage.write({ key: KEY, text: [...set].join(",") });
+    decorate(/** @type {HTMLElement} */ (panel.parentElement));
+    // a panel shown again draws at its real width
+    dispatchEvent(new Event("resize"));
+    if (typeof page !== "undefined" && page.frames) { page.frames.mark({ cause: FrameCause.Ui }); }
+  });
+  return { decorate };
+})();

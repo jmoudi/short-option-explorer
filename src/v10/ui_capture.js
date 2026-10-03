@@ -283,7 +283,7 @@ const CAPTURE_VIEW = (() => {
   // ---------------------------------------------------------- markup, wiring, render
   const MARKUP = `
   <section class="panel" id="cap-head">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
+    <div class="ph"><span class="tools"><button type="button" class="xbtn" id="cap-det"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
     <span class="capmax" id="cap-max"></span>
     <table class="cmp cpt" id="cap-table"></table>
     <details class="capem" id="cap-emp"><summary>Price history for the empirical preset</summary><span class="cap">Paste daily closes per ticker, oldest first, for this session; the data feed can bring them later.</span><span id="cap-closes"></span></details>
@@ -313,6 +313,8 @@ const CAPTURE_VIEW = (() => {
     HOST.innerHTML = MARKUP;
     const pref = k => v => ({ type: Command.SetPref, patch: { [k]: v } });
     bindNumber({ id: "#cap-x", key: "capX", lo: -300, hi: 100 });
+    // the second line under each number (what it rests on) is behind one chip
+    q("#cap-det").addEventListener("click", () => setPref({ capDetails: !V().capDetails }));
     seg({ el: q("#cc-src"), options: [[CAPTURE.VolSourceChoice.PeriodVol, "period vol"], [CAPTURE.VolSourceChoice.AtmIv, "ATM IV"], [CAPTURE.VolSourceChoice.Typed, "typed"]], read: state => state.prefs.ccSrc, command: pref("ccSrc") });
     seg({ el: q("#cc-gapside"), options: [[CAPTURE.GapSide.Down, "down"], [CAPTURE.GapSide.Either, "either way"]], read: state => state.prefs.ccGapSide, command: pref("ccGapSide") });
     seg({ el: q("#cc-read"), options: [[CAPTURE.Reading.Mean, "average"], [CAPTURE.Reading.Median, "median"], [CAPTURE.Reading.Percentile, "percentile"]], read: state => state.prefs.ccRead, command: pref("ccRead") });
@@ -332,6 +334,8 @@ const CAPTURE_VIEW = (() => {
     C = c;
     const vw = V(), readings = SIDES.map(side => readSide({ side, b: side === "A" ? C.A : C.B, vw }));
     q("#cap-max").innerHTML = describeHeader(readings);
+    q("#cap-head").classList.toggle("nodetail", !vw.capDetails);
+    q("#cap-det").textContent = vw.capDetails ? "hide details ▾" : "show details ▸";
     q("#cap-table").innerHTML = describeTable(readings);
     q("#cap-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A</span> <span><i style="background:var(--b)"></i>B</span> <span class="muted">solid: period vol · dashed: your variant · x = ${vw.capX}%</span>`;
     renderCurve(readings); renderTimePath(readings);

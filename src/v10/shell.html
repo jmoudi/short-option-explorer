@@ -7,7 +7,7 @@
 :root{
   --bg:#eef0f2; --surface:#fafbfc; --surface-2:#e9ecef; --line:#d4d9df; --grid:#e2e6ea;
   --ink:#111418; --ink-2:#47505a; --ink-3:#737c87;
-  --a:#4a3aa7; --b:#eb6834; --on-a:#ffffff; --on-b:#21100a;
+  --a:#4a3aa7; --b:#eb6834; --on-a:#ffffff; --on-b:#21100a; --x:#0b7a80; --x-bg:#dff3f3;
   --pos:#2a78d6; --neg:#e34948; --mid:#e8eaed;
   --warn:#8f5400; --warn-bg:#fff0d4; --shade:#e0a73a;
   --itm:#a9b1bb; --itm-bg:#f0f2f5;
@@ -22,7 +22,7 @@
     color-scheme:dark;
     --bg:#0d0f11; --surface:#15181b; --surface-2:#1f2327; --line:#2e3339; --grid:#23272c;
     --ink:#eef1f4; --ink-2:#b3bac3; --ink-3:#848d98;
-    --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b;
+    --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b; --x:#4cc9d0; --x-bg:#123638;
     --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
     --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
     --itm:#4f5862; --itm-bg:#1b1f23;
@@ -33,7 +33,7 @@
   color-scheme:dark;
   --bg:#0d0f11; --surface:#15181b; --surface-2:#1f2327; --line:#2e3339; --grid:#23272c;
   --ink:#eef1f4; --ink-2:#b3bac3; --ink-3:#848d98;
-  --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b;
+  --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b; --x:#4cc9d0; --x-bg:#123638;
   --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
   --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
   --itm:#4f5862; --itm-bg:#1b1f23;
@@ -448,7 +448,7 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .phead .pt{display:block;line-height:20px;padding:1px 0}
 .phead .pt .key{margin-right:7px;vertical-align:1px}
 .phead .pname{font:600 13.5px var(--f-cond);color:var(--ink)}
-.phead .pcopy{margin-left:8px;font-size:10.5px;padding:0 6px;vertical-align:2px}
+.phead .pcopy{float:right;margin:2px 0 0 8px;font-size:10.5px;padding:0 6px;vertical-align:2px}
 .phead .prl{float:right;font-size:10.5px;padding:0 5px;margin-top:2px}
 .phead .pnet{display:block;font-size:13px;color:var(--ink-2);margin-top:2px}
 .phead .pnet b{font:600 16px var(--f-num);color:var(--ink)}
@@ -474,10 +474,34 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .prow[data-row=fill] .pctl{white-space:normal;line-height:26px}
 .knw{white-space:nowrap}
 .pfr{display:block;font-size:11px;color:var(--ink-3);margin:2px 0}
+/* ===== expanders: one colour (--x), a chip that says show / hide, on every collapsible thing ===== */
+.xbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:999px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);cursor:pointer;white-space:nowrap;vertical-align:middle}
+.xbtn:hover{background:var(--x);color:var(--surface)}
+details.panel>summary,details.sub>summary,details.d9sec>summary,details.capem>summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{content:"show ▸";display:inline-flex;align-items:center;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:999px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);white-space:nowrap;align-self:center}
+details.panel[open]>summary::after,details.sub[open]>summary::after,details.d9sec[open]>summary::after,details.capem[open]>summary::after,details.notes[open]>summary::after{content:"hide ▾"}
+details.panel>summary h2::before,details.sub>summary::before,details.d9sec>summary::before{display:none!important}
+details.panel>summary:hover::after,details.sub>summary:hover::after,details.d9sec>summary:hover::after,details.capem>summary:hover::after,details.notes>summary:hover::after{background:var(--x);color:var(--surface)}
+details.notes>summary{list-style:none;display:flex;align-items:baseline;gap:10px}
+details.notes>summary::-webkit-details-marker,details.capem>summary::-webkit-details-marker,details.d9sec>summary::-webkit-details-marker{display:none}
+details.capem>summary{list-style:none}
+/* a collapsed panel keeps its header only */
+.panel.collapsed>:not(.ph){display:none!important}
+.panel.collapsed>.ph{margin-bottom:0}
+.panel.collapsed>.ph .tools,.panel.collapsed>.ph .lgd{display:none!important}
+.ph .pcol,.ph .pnotes{margin:0 8px 0 2px}
+/* in the side docks the chip leads its line, so it never wraps away from its label */
+details.sub>summary::after,details.d9sec>summary::after{order:-1}
+details.sub>summary,details.d9sec>summary{gap:6px 8px}
+/* rows and details behind a "more" chip */
+.cmp:not(.showmore) tr.xmore{display:none}
+.cmp tr.xtoggle td{text-align:left!important;padding-top:8px}
+.nodetail .cps,.nodetail .xdet{display:none!important}
+.panel:not(.notes-on) .pnote{display:none!important}
 /* the credit you got: the head's input, the highest-leverage edit */
-.pcred{display:flex!important;align-items:center;gap:8px;margin:6px 0 2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);cursor:text}
+.pcred{display:flex!important;align-items:center;gap:8px;margin:6px 0 2px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);cursor:text}
 .pcred.typed{border-color:var(--ink-3)}
-.pcred .pcl{font:600 12.5px var(--f-ui);color:var(--ink)}
+.pcred .pcl{font:600 12.5px var(--f-ui);color:var(--ink);white-space:nowrap}
 .pcred .pcin{width:74px;font:600 16px var(--f-num);padding:2px 6px}
 .pcred .pcu{font-size:12px;color:var(--ink-2)}
 .pcred .pcu b{font:600 14px var(--f-num);color:var(--ink)}

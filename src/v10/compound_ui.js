@@ -53,7 +53,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, gUnit: "span", rule: "gap" },
     view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false },
     // Credit kept: the share x, the managed rule, the preset the NAV chart shows, the custom variant
-    ck: { x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 }
+    ck: { x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25, details: false }
   });
   let ys = DEF();
   const FIELDS = { [RunDiff.Strategy]: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], [RunDiff.Ticker]: ["tk"], [RunDiff.Cadence]: ["cad"], [RunDiff.Strikes]: ["cd", "pd", "wcd", "wpd"], [RunDiff.Size]: ["lev", "use"], [RunDiff.Modus]: ["modus"], [RunDiff.Vol]: [] };
@@ -881,11 +881,11 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
   const KEPT_SHOWN = Object.freeze([[CAPTURE.Preset.Growth, "Growth"], [CAPTURE.Preset.Expected, "Expected"], [CAPTURE.Preset.Fixed, "Fixed share"], [CAPTURE.Preset.Managed, "Managed"], [CAPTURE.Preset.Custom, "Your variant"]]);
   const NAV_WORD = Object.freeze({ [CAPTURE.Preset.Growth]: "typical NAV (log-average)", [CAPTURE.Preset.Expected]: "average NAV", [CAPTURE.Preset.Fixed]: "average NAV, if it held", [CAPTURE.Preset.Managed]: "average NAV", [CAPTURE.Preset.Custom]: "average NAV" });
   const KEPT_CONFIG = Object.freeze({ managedPaths: 6000 });
-  const KEPT_CK_DEF = Object.freeze({ x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 });
+  const KEPT_CK_DEF = Object.freeze({ x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25, details: false });
   // a loaded ck: unknown choices back to their defaults, numbers clamped to the inputs' ranges
   function sanitizeKeptSettings(ck) {
     const d = KEPT_CK_DEF, pick = (v, list, dv) => list.includes(v) ? v : dv, num = (v, lo, hi, dv) => Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dv;
-    return { x: num(ck.x, -300, 100, d.x), tp: num(ck.tp, 0, 95, d.tp), sl: num(ck.sl, 0, 1000, d.sl), show: pick(ck.show, KEPT_SHOWN.map(k => k[0]), d.show), src: pick(ck.src, ["rv", "iv", "typed"], d.src), vol: num(ck.vol, 1, 400, d.vol), gapP: num(ck.gapP, 0, 100, d.gapP), gapS: num(ck.gapS, 0, 95, d.gapS), gapSide: pick(ck.gapSide, ["down", "either"], d.gapSide), read: pick(ck.read, ["mean", "median", "pct"], d.read), pct: num(ck.pct, 1, 99, d.pct) };
+    return { x: num(ck.x, -300, 100, d.x), tp: num(ck.tp, 0, 95, d.tp), sl: num(ck.sl, 0, 1000, d.sl), show: pick(ck.show, KEPT_SHOWN.map(k => k[0]), d.show), src: pick(ck.src, ["rv", "iv", "typed"], d.src), vol: num(ck.vol, 1, 400, d.vol), gapP: num(ck.gapP, 0, 100, d.gapP), gapS: num(ck.gapS, 0, 95, d.gapS), gapSide: pick(ck.gapSide, ["down", "either"], d.gapSide), read: pick(ck.read, ["mean", "median", "pct"], d.read), pct: num(ck.pct, 1, 99, d.pct), details: ck.details === true };
   }
   const ordinal = n => { const k = Math.round(n), tens = k % 100; return k + (tens >= 11 && tens <= 13 ? "th" : ["th", "st", "nd", "rd"][k % 10] || "th"); };
   // results per engine run (a new R.main whenever any engine input changes) and per setting of this view
@@ -1034,7 +1034,7 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
   function renderKeptTable(kepts) {
     const runs = kepts.map(([who, K]) => ({ who, K, c1: K.cycles[0] }));
     q("#y-khead").innerHTML = runs.map(({ who, K, c1 }) => !c1 || c1.na ? `<span class="key ${who.toLowerCase()}">${who}</span> n/a` :
-      `<span class="key ${who.toLowerCase()}">${who}</span><b>${esc(runName(K.R.run))}</b> · cycle 1: ${c1.position.strikes.map((K_, i) => fKs(K_) + cycleLegs(c1.row, K.R.run)[i].cp).join(" / ")}, ${c1.row.days} days, maximum ${fKs(c1.max)} a share (${fPc(c1.max / c1.row.S0, 2)} of the price) · pricing IV ${fPc(c1.row.iv, 0)}, moves ${fPc(c1.row.rv, 0)} · credit ${fPc(c1.account.optionShare * c1.max, 2)} of NAV a cycle${c1.account.cost > 0 ? ` (${fPc(c1.account.cost / c1.position.credit, 1)} of it lost to the fill)` : ""}`).join("<br>");
+      `<span class="key ${who.toLowerCase()}">${who}</span><b>${esc(runName(K.R.run))}</b> · cycle 1: ${c1.position.strikes.map((K_, i) => fKs(K_) + cycleLegs(c1.row, K.R.run)[i].cp).join(" / ")}, ${c1.row.days} days<span class="xdet">, maximum ${fKs(c1.max)} a share (${fPc(c1.max / c1.row.S0, 2)} of the price) · pricing IV ${fPc(c1.row.iv, 0)}, moves ${fPc(c1.row.rv, 0)} · credit ${fPc(c1.account.optionShare * c1.max, 2)} of NAV a cycle${c1.account.cost > 0 ? ` (${fPc(c1.account.cost / c1.position.credit, 1)} of it lost to the fill)` : ""}</span>`).join("<br>");
     const head = `<tr><th>Preset</th>${runs.map(({ who }) => `<th><span class="key ${who.toLowerCase()}">${who}</span> kept a cycle</th><th>NAV week ${ys.sc.W}</th>`).join("")}</tr>`;
     const shownIds = KEPT_SHOWN.map(k => k[0]);
     const rows = KEPT_PRESETS.map(p => {
@@ -1079,12 +1079,15 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
   }
   function renderKept() {
     const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
+    q("#y-kp").classList.toggle("nodetail", !ys.ck.details);
+    q("#y-kdet").textContent = ys.ck.details ? "hide details ▾" : "show details ▸";
     renderKeptTable(kepts); renderKeptChart(kepts);
     q("#y-kcout").innerHTML = describeKeptCustom(kepts);
     q("#y-kchartt").textContent = `NAV if every cycle kept: ${(KEPT_SHOWN.find(k => k[0] === ys.ck.show) || KEPT_SHOWN[0])[1].toLowerCase()}`;
   }
   function buildKeptControls() {
     numY(q("#y-kx"), () => ys.ck.x, v => { ys.ck.x = v; }, { min: -300, max: 100 });
+    q("#y-kdet").onclick = () => { ys.ck.details = !ys.ck.details; schedule(10); };
     numY(q("#y-ktp"), () => ys.ck.tp, v => { ys.ck.tp = v; }, { min: 0, max: 95 });
     numY(q("#y-ksl"), () => ys.ck.sl, v => { ys.ck.sl = v; }, { min: 0, max: 1000 });
     segY(q("#y-kshow"), KEPT_SHOWN.map(([v, l]) => [v, l]), () => ys.ck.show, v => { ys.ck.show = v; });
@@ -1422,11 +1425,12 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     q("#y-yearv").hidden = stress || kept; q("#y-stressv").hidden = !stress; q("#y-keptv").hidden = !kept; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
     q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}`).join(" · ");
 
-    if (stress) { renderStress(); renderMCTools(); saveSoon(); return; }
-    if (kept) { renderKept(); saveSoon(); return; }
+    if (stress) { renderStress(); renderMCTools(); PANELS.decorate(q("#tab-yr")); saveSoon(); return; }
+    if (kept) { renderKept(); PANELS.decorate(q("#tab-yr")); saveSoon(); return; }
     renderStrip(mode === "live");
     renderStack(); renderGrowth(); renderCreditMargin(); renderTable();
     if (mode !== "live") renderSweep();
+    PANELS.decorate(q("#tab-yr"));
     saveSoon();
   }
   // the Credit kept table for the export, as plain text (null before the first run)

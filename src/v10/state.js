@@ -18,6 +18,8 @@ const STATE = (() => {
     // x, and the custom variant (vol source and typed vol, a gap's chance / size / side, the reading, the exit)
     // a side that takes the other's credit as a share of the chain's mid: "off", or the side it is copied from
     fillMatch: "off",
+    // de-soup: the comparison table's extra rows, the details under Capture's numbers
+    cmpMore: false, capDetails: false,
     cmpView: CompareView.Results, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice

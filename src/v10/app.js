@@ -142,6 +142,7 @@ function renderCompare(context) {
   if (view === CompareView.Facts) { runGuarded({ where: "facts", run: () => FACTS.render(context) }); }
   if (view === CompareView.Capture) { runGuarded({ where: "capture", run: () => CAPTURE_VIEW.render(context) }); }
   VIEWS.render(context);
+  PANELS.decorate($("#tab-cmp"));
 }
 // the Compare tab's junior tabs, in the header's second row
 const COMPARE_VIEWS = Object.freeze([[CompareView.Results, "Comparison"], [CompareView.Capture, "Capture"], [CompareView.Facts, "Market facts"]]);

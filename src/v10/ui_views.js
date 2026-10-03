@@ -523,14 +523,14 @@ const VIEWS = (() => {
     for (const [t, x] of [["A", A], ["B", B]]) if (x.na) rows.push(`<tr class="note"><td colspan="5">${key(t)} is n/a: ${esc(x.naReason)}.</td></tr>`);
     if (C.unitsNote) rows.push(`<tr class="note"><td colspan="5">${esc(C.unitsNote)}.</td></tr>`);
     const legsTd = b => b.na ? `<td class="legs">${esc(structTxt(b))}</td>` : `<td class="legs" title="${esc(b.label.full)}">${esc(b.label.tab)}</td>`;
-    rows.push(`<tr class="grp"><td>Legs</td>${legsTd(A)}${legsTd(B)}<td></td><td></td></tr>`);
+    rows.push(`<tr class="grp xmore"><td>Legs</td>${legsTd(A)}${legsTd(B)}<td></td><td></td></tr>`);
     // cash credit (a debit spelled out), with time value beside it where a leg is in the money; every ratio below uses time value
     const anyI = (!nA && A.intr > 0) || (!nB && B.intr > 0), tvC = anyI ? `<span class="cap">on time value</span>` : "";
     const cv = (b, nn, k) => nn ? "–" : fU(k * b.cr / b.S) + (b.cr < 0 ? ` <span class="debit">net debit</span>` : "") + (b.intr > 0 ? ` <span class="muted">· time value ${fU(k * b.tv / b.S)}</span>` : "");
     const ca = a(A.cr / A.S, nA), cb = a(sB(B.cr / B.S), nB), ta = a(A.tv / A.S, nA), tb = a(sB(B.tv / B.S), nB);
     rows.push(`<tr><td>Credit${rowKnob("credit")}${anyI ? `<span class="cap" title="Time value = cash credit − intrinsic value at entry">cash · time value</span>` : ""}</td><td>${cv(A, nA, 1)}</td><td>${cv(B, nB, h)}</td><td>${Number.isFinite(ca) && Number.isFinite(cb) ? fU(ca - cb) + (anyI ? ` <span class="muted">· ${fU(ta - tb)}</span>` : "") : ""}</td><td>${anyI ? ratioTxt(ta, tb, fU) : ratioTxt(ca, cb, fU)}</td></tr>`);
-    addRow({ label: `Credit/σ${rowKnob("creditSigma")}<span class="cap">size-free, own σ to expiry</span>${tvC}`, a: a(A.tv / (A.S * A.sig), nA), b: a(B.tv / (B.S * B.sig), nB), format: v => fN0(v, 3), showDiff: false, better: Better.High });
-    addRow({ label: `Credit per day${rowKnob("creditDay")}${tvC}`, a: a(A.tv / A.S / A.dte, nA), b: a(sB(B.tv / B.S / B.dte), nB), format: v => fU(v, 3), rowClass: "grp" });
+    addRow({ label: `Credit/σ${rowKnob("creditSigma")}<span class="cap">size-free, own σ to expiry</span>${tvC}`, a: a(A.tv / (A.S * A.sig), nA), b: a(B.tv / (B.S * B.sig), nB), format: v => fN0(v, 3), showDiff: false, better: Better.High, rowClass: "xmore" });
+    addRow({ label: `Credit per day${rowKnob("creditDay")}${tvC}`, a: a(A.tv / A.S / A.dte, nA), b: a(sB(B.tv / B.S / B.dte), nB), format: v => fU(v, 3), rowClass: "grp xmore" });
     addRow({ label: `Expected value${KNOBS.html({ id: "cmp-ev", title: "Expected value, explained", body: describeEvExplainer({ isImpliedRow: sc.dist === Odds.Implied }) })}<span class="cap">${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}</span>`, a: a(sa && sa.ev / A.S, nA), b: a(sb && sB(sb.ev / B.S), nB), format: v => fU(v, 2), better: Better.High });
     const edge = b => { const r = b.na ? null : RECOVERY.findBreakEvenVol({ built: b }); return r && r.ok ? r.value : NaN; };
     const ea = edge(A), eb = edge(B);
@@ -544,15 +544,19 @@ const VIEWS = (() => {
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const worstWinner = pickBetterSide({ a: nA || !sa ? NaN : sa.worst / A.S, b: nB || !sb ? NaN : sB(sb.worst / B.S), better: Better.High });
     rows.push(`<tr class="grp"><td>Worst loss${rowKnob("worst")} within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td${winClass(worstWinner, "A")}>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td${winClass(worstWinner, "B")}>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)}</td></tr>`);
-    addRow({ label: `Vega per vol point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2) });
+    addRow({ label: `Vega per vol point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2), rowClass: "xmore" });
     addRow({ label: `Margin${rowKnob("margin")}<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a: a(A.margin / A.S, nA), b: a(sB(B.margin / B.S), nB), format: v => fU(v).replace("+", ""), showDiff: false });
-    addRow({ label: `Credit / margin${rowKnob("creditMargin")}${tvC}`, a: a(A.tv / A.margin, nA), b: a(B.tv / B.margin, nB), format: v => fP0(v, 1), showDiff: false, rowClass: "grp", better: Better.High });
+    addRow({ label: `Credit / margin${rowKnob("creditMargin")}${tvC}`, a: a(A.tv / A.margin, nA), b: a(B.tv / B.margin, nB), format: v => fP0(v, 1), showDiff: false, rowClass: "grp xmore", better: Better.High });
     if (A.wingPx > 0 || B.wingPx > 0) {
-      addRow({ label: "Wing cost", a: A.wingPx > 0 ? A.wingPx / A.S : NaN, b: B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, format: v => fU(v) });
+      addRow({ rowClass: "xmore", label: "Wing cost", a: A.wingPx > 0 ? A.wingPx / A.S : NaN, b: B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, format: v => fU(v) });
       const cw = (b, s) => b.cap && s ? `${fPx2(s.capBE)} · ${fP(s.pCap, 1)}` : "–", pwg = (b, s) => b.capP && s ? `${fPx2(s.capPBE)} · ${fP(s.pCapP, 1)}` : "–";
-      if (A.cap || B.cap) rows.push(`<tr><td>Call wing pays above · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${cw(A, sa)}</td><td>${cw(B, sb)}</td><td></td><td></td></tr>`);
-      if (A.capP || B.capP) rows.push(`<tr><td>Put wing pays below · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${pwg(A, sa)}</td><td>${pwg(B, sb)}</td><td></td><td></td></tr>`);
+      if (A.cap || B.cap) rows.push(`<tr class="xmore"><td>Call wing pays above · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${cw(A, sa)}</td><td>${cw(B, sb)}</td><td></td><td></td></tr>`);
+      if (A.capP || B.capP) rows.push(`<tr class="xmore"><td>Put wing pays below · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${pwg(A, sa)}</td><td>${pwg(B, sb)}</td><td></td><td></td></tr>`);
     }
+    // the core rows always; the rest behind one chip
+    const hidden = rows.filter(r => r.includes('class="xmore"') || r.includes(' xmore"')).length, isMore = !!V().cmpMore;
+    if (hidden) { rows.push(`<tr class="xtoggle"><td colspan="5"><button type="button" class="xbtn" data-xmore="1" aria-expanded="${isMore}">${isMore ? `fewer rows ▾` : `show ${hidden} more rows ▸`}</button> <span class="cap">${isMore ? "" : "legs, credit per σ and per day, vega, credit / margin, wings"}</span></td></tr>`); }
+    q("#cmp").classList.toggle("showmore", isMore);
     q("#cmp").innerHTML = `<thead><tr><th></th><th>${key("A")}</th><th><span class="key b">B${hb()}</span></th><th><span class="key d">A − ${hTxt()}</span></th><th>A / B</th></tr></thead><tbody>${rows.join("")}</tbody>`;
   }
 
@@ -1211,7 +1215,7 @@ const VIEWS = (() => {
     host.classList.toggle("narrow", narrow);
     const base = vw.rdBase;
     let L = `<span class="rl">` + runs.map(r => describeRecoveryRun({ run: r, vw, base, dstr })).join("") +
-      `<span class="cap rcap">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded.${base === "nav" ? " Measured against NAV when it lands, recovery and buffer take the same time at a constant growth rate." : ""}</span></span>`;
+      `<span class="cap rcap pnote">${hitTxt}; a cycle rolls the same tenor; whole cycles round up, because a partly elapsed cycle cannot be traded.${base === "nav" ? " Measured against NAV when it lands, recovery and buffer take the same time at a constant growth rate." : ""}</span></span>`;
     host.innerHTML = L + `<span class="rr"><span id="rec-ch" class="rch"></span><span class="cap rcap">cycles needed (capped at 60) against the hit · ${base === "nav" ? "recovery = buffer when the hit is a % of NAV" : "solid: recovery, dashed: buffer"}</span></span>`;
     LAST.rec = runs.map(r => ({ who: r.who, L: r.L, g: r.g, rec: recCycles(r.L, r.g, "rec", base), headline: recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, dstr) }));
     const box = q("#rec-ch"), W = Math.max(320, box.getBoundingClientRect().width), H = 220, m = { l: 48, r: 24, t: 10, b: 28 }, pw = W - m.l - m.r;
@@ -1468,7 +1472,7 @@ const VIEWS = (() => {
   </section>
   <section class="panel" id="p-manage">
     <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Take profit at</span><input type="number" id="c-mgtp" min="0" max="95" step="5" style="width:52px"> % of the credit</span><span class="ctl" style="margin-right:0"><span class="lbl">Stop at a loss of</span><input type="number" id="c-mgsl" min="0" max="1000" step="25" style="width:58px"> % of the credit</span></span><h2>Manage the trade</h2><span id="mg-knob"></span></div>
-    <span class="cap mgcap" id="mg-cap"></span>
+    <span class="cap mgcap pnote" id="mg-cap"></span>
     <div class="mg" id="mg"></div>
   </section>
   <section class="panel" id="p-joint"></section>
@@ -1476,7 +1480,7 @@ const VIEWS = (() => {
     <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes), on a logarithmic slider: the left half only rounds the corners, the right end averages over about two strikes. Far left = the raw stepped lines, which stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="20" step="1" style="width:110px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
-    <span class="cap swcap" id="sw-cap"></span>
+    <span class="cap swcap pnote" id="sw-cap"></span>
   </section>
   <section class="panel" id="p-rec">
     <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span><span class="ctl"><span class="lbl">Growth</span><span class="seg" id="c-rdg"></span></span>
@@ -1506,6 +1510,7 @@ const VIEWS = (() => {
     q("#p-over").addEventListener("toggle", () => { if (C) safe(renderOverview, "overview"); });
     q("#ovtable").addEventListener("click", e => { const b = e.target.closest("button[data-set]"); if (!b || b.disabled) return; const c = OV[+b.dataset.i]; if (c) setFromCell(b.dataset.set, c); });
     q("#c-payleft").addEventListener("input", ev => runControlCommand({ command: pref("payLeft"), value: +(/** @type {HTMLInputElement} */ (ev.target)).value, source: "c-payleft" })); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
+    q("#cmp").addEventListener("click", e => { if (/** @type {Element} */ (e.target).closest("[data-xmore]")) { setPref({ cmpMore: !V().cmpMore }); } });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
       // "own" starts from the move range in view (the render context's bounds)

@@ -161,7 +161,7 @@ ALLOWED = {
     'dist.js': {'DIST', 'cdfT', 'cdfAt', 'quantAt'}, 'inst.js': {'INST'}, 'rule.js': {'RULE'}, 'pos.js': {'POS'},
     'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'}, 'recovery.js': {'RECOVERY'}, 'manage.js': {'MANAGE'}, 'capture.js': {'CAPTURE'},
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',
-                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES'},
+                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES', 'PANELS'},
     'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_facts.js': {'FACTS'}, 'ui_capture.js': {'CAPTURE_VIEW'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
     'compound_engine.js': {'COMPOUND_ENGINE'}, 'compound_stress.js': {'COMPOUND_STRESS'}, 'compound_ui.js': {'COMPOUND'},
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',

@@ -218,7 +218,7 @@ const DOCK9 = (() => {
     const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
     if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
     const copy = `<button type="button" class="d9btn pcopy" data-act="copyorder" data-side="${side}" title="Copy an order ticket for this position: the combo, its net limit and every leg">Copy order</button>`;
-    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>${creditEditor(side, b)}<span class="pnet">${copy}</span>`;
+    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${copy}${relink}</span>${creditEditor(side, b)}`;
   }
   // the credit you actually got, typed right in the head: one net price a share (as on the order ticket), split over
   // the sold legs by mid; every reading in the app uses it. Per leg prices stay in the Fill row's editor
@@ -226,10 +226,10 @@ const DOCK9 = (() => {
     const isDebit = b.cr < 0, isTyped = b.typedCount > 0;
     const state = isTyped
       ? `<span class="pcst on">your price ✎</span><button type="button" class="d9btn pcrst" data-act="fillreset" data-side="${side}" title="Forget the typed prices; back to ${b.fill === "nat" ? "natural" : "mid"}">back to ${b.fill === "nat" ? "natural" : "mid"}</button>`
-      : `<span class="pcst">at ${b.fill === "nat" ? "natural" : "mid"}: type what you got</span>`;
-    return `<label class="pcred${isTyped ? " typed" : ""}${isMatchTarget(side) ? " matched" : ""}"><span class="pcl">${isDebit ? "Debit you paid" : "Credit you got"}</span>` +
+      : "";
+    return `<label class="pcred${isTyped ? " typed" : ""}${isMatchTarget(side) ? " matched" : ""}"><span class="pcl" title="Type the net price from your order ticket, per share; empty or 'back to mid' uses the chain">${isDebit ? "Debit paid" : "Credit got"}</span>` +
       `<input type="number" step="0.01" min="0" class="pcin" data-act="fillnet" data-keep="1" data-side="${side}" value="${Math.abs(b.cr).toFixed(2)}" aria-label="${side} ${isDebit ? "debit paid" : "credit received"}, per share">` +
-      `<span class="pcu">a share = <b>${usd(b.cr * 100)}</b> a contract</span></label><span class="pcstate">${state}${describeShareOfMid(b)}</span>${matchControl(side)}`;
+      `<span class="pcu">/share · <b>${usd(b.cr * 100)}</b></span></label>${state || describeShareOfMid(b) ? `<span class="pcstate">${state}${describeShareOfMid(b)}</span>` : ""}${matchControl(side)}`;
   }
   // ---------------------------------------------------------- the credit as a share of the chain's mid, and matching it
   // A and B are not coupled: a side can take the other's share of mid (got 67% of mid on A → 67% of mid on B), or not
@@ -271,11 +271,11 @@ const DOCK9 = (() => {
   const fillCellBox = side => {
     const b = bOf(side), open = ui.fills[side];
     const notApplied = b.na ? 0 : b.flags.filter(f => f.code === "FILL_NOT_APPLIED").length;
-    const label = b.typedCount ? `✎ your fill (${b.typedCount})` : notApplied ? "! your fill" : "your fill";
+    const label = notApplied ? "! per-leg prices" : `per-leg prices${b.typedCount ? ` (${b.typedCount} typed)` : ""}`;
     // every leg typed: the mode prices nothing, so it reads as secondary
     const allTyped = !b.na && b.typedCount === b.legs.length;
     const mode = allTyped ? `<span class="pdim" title="Every leg has your typed price; mid / natural applies to legs without one">${fillCell(side)}</span>` : fillCell(side);
-    return mode + ` <button type="button" class="d9btn pfb${b.typedCount ? " on" : ""}${notApplied ? " w" : ""}" data-act="fills" data-side="${side}" aria-expanded="${open}" title="Type the prices you actually got, per leg or as one net credit">${label} ▾</button>`;
+    return mode + ` <button type="button" class="xbtn pfb${notApplied ? " w" : ""}" data-act="fills" data-side="${side}" aria-expanded="${open}" title="Type the price of each leg you got (the head's credit splits one net price by mid)">${label} ${open ? "▾" : "▸"}</button>`;
   };
   // the typed-fill editor: one input per leg (empty = the fill mode), and one net price split over the sold legs by mid
   function fillsEditor(side) {
