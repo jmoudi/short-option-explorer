@@ -437,16 +437,16 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     if (q("#" + g("pd"))) rangeY(q("#" + g("pd")), q("#" + g("pdo")), () => eff().pd, v => set("pd", v), dfmt);
     if (q("#" + g("lev"))) { const s = q("#" + g("lev")); s.max = (1 / ys.costs.mOvr[eff().tk]).toFixed(4); rangeY(s, q("#" + g("levo")), () => eff().lev, v => set("lev", v), v => `${(+v).toFixed(2)}x`); }
     if (q("#" + g("use"))) rangeY(q("#" + g("use")), q("#" + g("useo")), () => eff().use, v => set("use", v), v => `${Math.round(v * 100)}%`);
-    if (q("#" + g("puts"))) { const c = q("#" + g("puts")); c.onchange = () => { R.puts = c.checked; schedule(30); }; SYD.push(() => { c.checked = !!eff().puts; q("#" + g("putsv")).textContent = eff().puts ? "· puts" : ""; }); }
+    if (q("#" + g("puts"))) { const c = q("#" + g("puts")); c.onchange = () => { R.puts = c.checked; schedule(30); }; SYD.push(() => { c.checked = !!eff().puts; q("#" + g("putsv")).textContent = eff().puts ? "puts" : ""; }); }
     if (q("#" + g("wcd"))) { const wf = v => v ? `${v}Δ` : "none"; rangeY(q("#" + g("wcd")), q("#" + g("wcdo")), () => eff().wcd, v => set("wcd", v), wf); rangeY(q("#" + g("wpd")), q("#" + g("wpdo")), () => eff().wpd, v => set("wpd", v), wf);
-      SYD.push(() => { const r = eff(); q("#" + g("wsv")).textContent = r.wcd || r.wpd ? `· ${r.wpd ? r.wpd + "Δ put" : ""}${r.wpd && r.wcd ? " / " : ""}${r.wcd ? r.wcd + "Δ call" : ""}` : "· none"; }); }
+      SYD.push(() => { const r = eff(); q("#" + g("wsv")).textContent = r.wcd || r.wpd ? `${r.wpd ? r.wpd + "Δ put" : ""}${r.wpd && r.wcd ? " / " : ""}${r.wcd ? r.wcd + "Δ call" : ""}` : "none"; }); }
     if (show("modus")) {
       const M = () => { if (!R.modus) R.modus = { ...MODUS0 }; return R.modus; };
       segY(q("#" + g("mcr")), [["reinvest", "Reinvest", "Covered calls: the kept credit × leverage buys KORU. Strangles: the next cycle is sized from the grown NAV."], ["rebal", "Rebalance", "Shares go back to target leverage × NAV at each expiry"], ["cash", "Keep as cash", "Baseline: shares stay at the starting count; strangles sized from the starting capital"]], () => eff().modus.credit, v => { M().credit = v; });
       segY(q("#" + g("mcall")), [["ibkr", "Only what IBKR requires", "Sell the smallest amount that restores the requirement; the account then rides the limit"], ["target", "Back to"]], () => eff().modus.call, v => { M().call = v; });
       numY(q("#" + g("mtgt")), () => eff().modus.target, v => { M().target = v; }, { min: 0, max: 2 });
       segY(q("#" + g("mmove")), [["keep", "Keeps trading"], ["stop", "Stops at the first move"]], () => eff().modus.move, v => { M().move = v; });
-      SYD.push(() => { q("#" + g("msv")).textContent = "· " + modusTxt(eff().modus); q("#" + g("mtg")).style.visibility = eff().modus.call === "target" ? "visible" : "hidden"; });
+      SYD.push(() => { q("#" + g("msv")).textContent = modusTxt(eff().modus); q("#" + g("mtg")).style.visibility = eff().modus.call === "target" ? "visible" : "hidden"; });
     }
     SYD.push(() => readouts(who));
   }
@@ -490,7 +490,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     numY(q("#y-cbm"), () => Rt.bm, v => Rt.bm = v, { min: 0 });
     numY(q("#y-cloan"), () => Rt.loan, v => Rt.loan = v, { min: 0 });
     numY(q("#y-ccash"), () => Rt.cash, v => Rt.cash = v, { min: 0 });
-    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
+    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `$${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
   }
 
   // ---------------------------------------------------------- result strip

@@ -46,10 +46,13 @@ const FACTS = (() => {
     const I = instOf(ticker.sides[0]), vol = C.volOf(ticker.id), keys = ticker.sides.map(keyHtml).join("");
     const spot = I.overridden && Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? `spot <b>${pxOf(I.spot)}</b> ✎ <span class="muted">listed ${pxOf(I.spotListed)}</span>` : `spot <b>${pxOf(I.spot)}</b>`;
     const shift = I.ivShift ? ` · IV shift ${I.ivShift > 0 ? "+" : MINUS}${Math.abs(I.ivShift)} pts ✎` : "";
-    const refs = C.periodVolRefs(ticker.id).map(r => `${r.label} ${Math.round(r.pct)}%`).join(" · ");
+    // the other references beside the one in use (the period vol's own label already names that one)
+    const inUse = String(vol.label);
+    const refs = C.periodVolRefs(ticker.id).filter(r => !inUse.includes(r.label)).map(r => `${r.label} ${Math.round(r.pct)}%`).join(" · ");
     const isOpen = open.has(ticker.id);
-    return `<span class="fxt">${keys}<b class="fxn">${esc(I.name || I.id)}</b>${spot}${shift} · period vol <b>${esc(vol.label.replace(/^vol /, ""))}</b>${vol.source === VolSource.Set ? " ✎" : ""} <span class="muted">(${esc(refs)})</span>` +
-      `<button type="button" class="d9btn fxe" data-act="fxedit" data-id="${att(ticker.id)}" aria-expanded="${isOpen}">${isOpen ? "Done" : "Edit"}</button></span>`;
+    return `<span class="fxt">${keys}<b class="fxn">${esc(I.name || I.id)}</b>${spot}${shift} · period vol <b>${esc(vol.label.replace(/^vol /, ""))}</b>${vol.source === VolSource.Set ? " ✎" : ""}` +
+      `<button type="button" class="d9btn fxe" data-act="fxedit" data-id="${att(ticker.id)}" aria-expanded="${isOpen}">${isOpen ? "Done" : "Edit"}</button>` +
+      `${refs ? `<span class="fxrefs muted">also: ${esc(refs)}</span>` : ""}</span>`;
   }
   // every listed expiry of the ticker: days, forward, ATM IV, the 1σ move to expiry; the ones in use marked
   function describeExpiries(ticker) {
@@ -86,7 +89,7 @@ const FACTS = (() => {
       if (b.na || !b.E || !(b.E.atm > 0)) { return ""; }
       const pts = v => signed(v * 100, 1, " pts"), puts = b.legs.filter(l => l.cp === "P"), calls = b.legs.filter(l => l.cp === "C");
       const vsAtm = b.legs.map(l => `${fK(l.K)}${l.cp} ${pts(legIv(l) - b.E.atm)}`).join(" · ");
-      const wing = puts.length && calls.length ? ` · put wing over call wing <b>${pts(Math.max(...puts.map(legIv)) - Math.max(...calls.map(legIv)))}</b>` : "";
+      const wing = puts.length && calls.length ? ` · put wing over call wing <span class="fsk">${pts(Math.max(...puts.map(legIv)) - Math.max(...calls.map(legIv)))}</span>` : "";
       return `<span class="fskew">${keyHtml(side)} vs ATM IV ${fP(b.E.atm, 1)}: ${vsAtm}${wing}</span>`;
     }).filter(Boolean);
     return lines.length ? `<span class="fskews"><span class="lbl">Skew at the chosen strikes</span>${lines.join("")}</span>` : "";

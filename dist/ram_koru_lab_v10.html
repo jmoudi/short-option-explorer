@@ -52,6 +52,7 @@
   --shadow:0 8px 28px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box}
+:where(button,select,input,summary,[tabindex]):focus-visible{outline:2px solid var(--x);outline-offset:1px}
 [hidden]{display:none!important}
 html{min-width:1200px}
 body{margin:0;min-width:1200px;background:var(--bg);color:var(--ink);font:13px/1.45 var(--f-ui);font-variant-numeric:tabular-nums}
@@ -207,7 +208,7 @@ body.dock-off #dock .rail,body.ydock-off #ydock .rail{display:block;text-align:c
 /* panels */
 .panel{scroll-margin-top:140px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
 .ph{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-bottom:10px;white-space:nowrap}
-.ph .tools{margin-left:auto}
+.ph .tools{margin-left:auto;order:9}
 .ph .tools>*{margin-left:8px}
 .ph .sub{font-size:12px;color:var(--ink-2);white-space:normal}
 .lgd{font-size:12px;color:var(--ink-2)}
@@ -660,10 +661,11 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
    --v9-stick is set by VIEWS.render (setStick) to the bottom of the sticky summary, so table keys stick just below it. */
 .v9views{display:block;--v9-stick:150px}
 .v9views .panel{display:block;scroll-margin-top:calc(var(--v9-stick) + 8px);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
-.v9views .ph{display:block;margin-bottom:10px;line-height:26px;min-height:26px;white-space:normal}
-.v9views .ph:after{content:"";display:block;clear:both}
-.v9views .ph h2{font:600 15px/1.2 var(--f-cond);margin:0 10px 0 0;display:inline;vertical-align:middle;white-space:nowrap}
-.v9views .ph .tools{float:right;white-space:nowrap;margin-left:12px}
+/* a panel head: title · its chips · caption or legend, then the tools at the right; tools that do not fit wrap under */
+.v9views .ph{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-bottom:10px;line-height:26px;min-height:26px;white-space:normal}
+.v9views .ph h2{font:600 15px/1.2 var(--f-cond);margin:0;white-space:nowrap}
+.v9views .ph .tools{order:9;margin-left:auto;white-space:nowrap;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.v9views .ph .tools>*{margin-left:0!important}
 .v9views .ph .tools>*{margin-left:8px;vertical-align:middle}
 .v9views .ph .sub{font-size:12px;color:var(--ink-2);white-space:normal;vertical-align:middle}
 .v9views .ph .info{vertical-align:middle}
@@ -915,6 +917,15 @@ math[display="block"]{text-align:left}
 .fskews{display:flex;flex-direction:column;gap:2px;margin:8px 0 2px;font-size:12px;color:var(--ink-2)}
 .fskews .lbl{font-weight:600;color:var(--ink)}
 
+/* usability pass */
+.fxrefs{display:block;font-size:11.5px;line-height:16px;margin:0 0 2px}
+.fskew{display:block}.fskew .fsk{font:600 12px var(--f-num);color:var(--ink)}
+.v9views .rec .rv.wide{width:100%}
+.v9views .rec .rv.wide .d{font-family:var(--f-ui);font-size:12px;color:var(--ink-2)}
+/* a dock row whose control stacks (Fill: the mode, then the per-leg prices chip) keeps its label on the first line */
+.prow[data-row="fill"]{align-items:start}
+.prow[data-row="fill"]>:first-child{padding-top:5px}
+
 /* ===== Compounding tab ===== */
 #tab-yr .panel{display:block}
 .ybar .crow .ctl{margin-right:12px}
@@ -1024,6 +1035,10 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .ysym td{padding:2px 10px 2px 0;vertical-align:baseline;color:var(--ink-2)}
 .ysym td:first-child{color:var(--ink);font-size:14px;min-width:28px}
 .ysym td:nth-child(2){font:600 12px var(--f-num);color:var(--ink);white-space:nowrap}
+/* usability pass: the week card's head is title · caption, with the run switch and steps at the right */
+#y-growth h3{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+#y-growth h3 .sub{margin-left:0}
+#y-growth h3 .stp{float:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px}
 
 </style>
 </head>
@@ -1034,7 +1049,7 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
   <nav class="tabstrip" id="tabstrip" aria-label="Lab">
     <span class="apptitle">Short Options Comparer</span><span class="tabs" id="tabs" role="tablist" aria-label="Tabs"><button type="button" class="tab" role="tab" data-tab="compare" id="tb-compare" aria-controls="tab-cmp">Compare A vs B</button><button type="button" class="tab" role="tab" data-tab="yr" id="tb-yr" aria-controls="tab-yr">Compounding</button></span>
     <details class="menu" id="pmenu">
-      <summary aria-label="Page settings">⋯</summary>
+      <summary aria-label="Theme, view codes and export" title="Theme, view codes and the Markdown export">Theme · share · export ▾</summary>
       <span class="mb">
         <span class="mrow"><span class="lbl">Theme</span><span class="seg" id="c-theme"></span></span>
         <hr>
@@ -6347,7 +6362,7 @@ const DOCK9 = (() => {
     q("#d9-rhc").hidden = sz.rule !== "custom";
     const hc = q("#d9-hc"); if (document.activeElement !== hc) hc.value = +(+sz.h).toFixed(3);
     const k = C.A.na || C.B.na ? NaN : C.h * C.A.S / C.B.S, nm = I => I ? I.name || I.id : "";
-    q("#d9-sizesv").textContent = `· ${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
+    q("#d9-sizesv").textContent = `${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
     q("#d9-oh").innerHTML = (sz.rule === "auto" ? `Auto uses equal notional when A and B are the same instrument at the same spot and IV, equal vega otherwise (${INST.list().map(x => `${esc(x.name || x.id)} ${x.lev}×`).join(", ")} leveraged). ` : "") +
       `B is held at h = ${C.h.toFixed(3)} × A's notional${C.same || !Number.isFinite(k) ? "." : nm(C.instA) === nm(C.instB) ? `, about ${k.toFixed(2)} B contracts per A contract.` : `, about ${k.toFixed(2)} ${esc(nm(C.instB))} contracts per ${esc(nm(C.instA))} contract.`}` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
   }
@@ -6563,10 +6578,13 @@ const FACTS = (() => {
     const I = instOf(ticker.sides[0]), vol = C.volOf(ticker.id), keys = ticker.sides.map(keyHtml).join("");
     const spot = I.overridden && Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? `spot <b>${pxOf(I.spot)}</b> ✎ <span class="muted">listed ${pxOf(I.spotListed)}</span>` : `spot <b>${pxOf(I.spot)}</b>`;
     const shift = I.ivShift ? ` · IV shift ${I.ivShift > 0 ? "+" : MINUS}${Math.abs(I.ivShift)} pts ✎` : "";
-    const refs = C.periodVolRefs(ticker.id).map(r => `${r.label} ${Math.round(r.pct)}%`).join(" · ");
+    // the other references beside the one in use (the period vol's own label already names that one)
+    const inUse = String(vol.label);
+    const refs = C.periodVolRefs(ticker.id).filter(r => !inUse.includes(r.label)).map(r => `${r.label} ${Math.round(r.pct)}%`).join(" · ");
     const isOpen = open.has(ticker.id);
-    return `<span class="fxt">${keys}<b class="fxn">${esc(I.name || I.id)}</b>${spot}${shift} · period vol <b>${esc(vol.label.replace(/^vol /, ""))}</b>${vol.source === VolSource.Set ? " ✎" : ""} <span class="muted">(${esc(refs)})</span>` +
-      `<button type="button" class="d9btn fxe" data-act="fxedit" data-id="${att(ticker.id)}" aria-expanded="${isOpen}">${isOpen ? "Done" : "Edit"}</button></span>`;
+    return `<span class="fxt">${keys}<b class="fxn">${esc(I.name || I.id)}</b>${spot}${shift} · period vol <b>${esc(vol.label.replace(/^vol /, ""))}</b>${vol.source === VolSource.Set ? " ✎" : ""}` +
+      `<button type="button" class="d9btn fxe" data-act="fxedit" data-id="${att(ticker.id)}" aria-expanded="${isOpen}">${isOpen ? "Done" : "Edit"}</button>` +
+      `${refs ? `<span class="fxrefs muted">also: ${esc(refs)}</span>` : ""}</span>`;
   }
   // every listed expiry of the ticker: days, forward, ATM IV, the 1σ move to expiry; the ones in use marked
   function describeExpiries(ticker) {
@@ -6603,7 +6621,7 @@ const FACTS = (() => {
       if (b.na || !b.E || !(b.E.atm > 0)) { return ""; }
       const pts = v => signed(v * 100, 1, " pts"), puts = b.legs.filter(l => l.cp === "P"), calls = b.legs.filter(l => l.cp === "C");
       const vsAtm = b.legs.map(l => `${fK(l.K)}${l.cp} ${pts(legIv(l) - b.E.atm)}`).join(" · ");
-      const wing = puts.length && calls.length ? ` · put wing over call wing <b>${pts(Math.max(...puts.map(legIv)) - Math.max(...calls.map(legIv)))}</b>` : "";
+      const wing = puts.length && calls.length ? ` · put wing over call wing <span class="fsk">${pts(Math.max(...puts.map(legIv)) - Math.max(...calls.map(legIv)))}</span>` : "";
       return `<span class="fskew">${keyHtml(side)} vs ATM IV ${fP(b.E.atm, 1)}: ${vsAtm}${wing}</span>`;
     }).filter(Boolean);
     return lines.length ? `<span class="fskews"><span class="lbl">Skew at the chosen strikes</span>${lines.join("")}</span>` : "";
@@ -7410,7 +7428,7 @@ const LENSES = (() => {
       const z = s.zone[i], first = s.zone[Math.min(1, last)], end = s.zone[last], inside = readInsideOdds({ s, i, kit });
       if (!Number.isFinite(z.lo) && !Number.isFinite(z.hi)) { return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · no profit at spot on ${kit.esc(kit.dayLabel(time.stops[i].date))}</span>`; }
       const width = zz => zz.hi - zz.lo;
-      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · ${kit.esc(kit.dayLabel(time.stops[i].date))}: in profit between <b>${pct(z.lo)}</b> and <b>${pct(z.hi)}</b>${Number.isFinite(inside) ? ` · odds the price is inside that day ${(inside * 100).toFixed(0)}%` : ""} · ${Number.isFinite(width(first)) && Number.isFinite(width(end)) ? ` · the zone is ${(width(first) * 100).toFixed(0)} points wide after one day and ${(width(end) * 100).toFixed(0)} at expiry` : ""}</span>`;
+      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · ${kit.esc(kit.dayLabel(time.stops[i].date))}: in profit between <b>${pct(z.lo)}</b> and <b>${pct(z.hi)}</b>${Number.isFinite(inside) ? ` · odds the price is inside that day ${(inside * 100).toFixed(0)}%` : ""}${Number.isFinite(width(first)) && Number.isFinite(width(end)) ? ` · the zone is ${(width(first) * 100).toFixed(0)} points wide after one day and ${(width(end) * 100).toFixed(0)} at expiry` : ""}</span>`;
     }).join("");
   }
 
@@ -9012,7 +9030,7 @@ const VIEWS = (() => {
   /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
   function describeRecoveryRun({ run, vw, base, dstr }) {
     const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
-    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
     if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
     const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
     const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";
@@ -10899,16 +10917,16 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     if (q("#" + g("pd"))) rangeY(q("#" + g("pd")), q("#" + g("pdo")), () => eff().pd, v => set("pd", v), dfmt);
     if (q("#" + g("lev"))) { const s = q("#" + g("lev")); s.max = (1 / ys.costs.mOvr[eff().tk]).toFixed(4); rangeY(s, q("#" + g("levo")), () => eff().lev, v => set("lev", v), v => `${(+v).toFixed(2)}x`); }
     if (q("#" + g("use"))) rangeY(q("#" + g("use")), q("#" + g("useo")), () => eff().use, v => set("use", v), v => `${Math.round(v * 100)}%`);
-    if (q("#" + g("puts"))) { const c = q("#" + g("puts")); c.onchange = () => { R.puts = c.checked; schedule(30); }; SYD.push(() => { c.checked = !!eff().puts; q("#" + g("putsv")).textContent = eff().puts ? "· puts" : ""; }); }
+    if (q("#" + g("puts"))) { const c = q("#" + g("puts")); c.onchange = () => { R.puts = c.checked; schedule(30); }; SYD.push(() => { c.checked = !!eff().puts; q("#" + g("putsv")).textContent = eff().puts ? "puts" : ""; }); }
     if (q("#" + g("wcd"))) { const wf = v => v ? `${v}Δ` : "none"; rangeY(q("#" + g("wcd")), q("#" + g("wcdo")), () => eff().wcd, v => set("wcd", v), wf); rangeY(q("#" + g("wpd")), q("#" + g("wpdo")), () => eff().wpd, v => set("wpd", v), wf);
-      SYD.push(() => { const r = eff(); q("#" + g("wsv")).textContent = r.wcd || r.wpd ? `· ${r.wpd ? r.wpd + "Δ put" : ""}${r.wpd && r.wcd ? " / " : ""}${r.wcd ? r.wcd + "Δ call" : ""}` : "· none"; }); }
+      SYD.push(() => { const r = eff(); q("#" + g("wsv")).textContent = r.wcd || r.wpd ? `${r.wpd ? r.wpd + "Δ put" : ""}${r.wpd && r.wcd ? " / " : ""}${r.wcd ? r.wcd + "Δ call" : ""}` : "none"; }); }
     if (show("modus")) {
       const M = () => { if (!R.modus) R.modus = { ...MODUS0 }; return R.modus; };
       segY(q("#" + g("mcr")), [["reinvest", "Reinvest", "Covered calls: the kept credit × leverage buys KORU. Strangles: the next cycle is sized from the grown NAV."], ["rebal", "Rebalance", "Shares go back to target leverage × NAV at each expiry"], ["cash", "Keep as cash", "Baseline: shares stay at the starting count; strangles sized from the starting capital"]], () => eff().modus.credit, v => { M().credit = v; });
       segY(q("#" + g("mcall")), [["ibkr", "Only what IBKR requires", "Sell the smallest amount that restores the requirement; the account then rides the limit"], ["target", "Back to"]], () => eff().modus.call, v => { M().call = v; });
       numY(q("#" + g("mtgt")), () => eff().modus.target, v => { M().target = v; }, { min: 0, max: 2 });
       segY(q("#" + g("mmove")), [["keep", "Keeps trading"], ["stop", "Stops at the first move"]], () => eff().modus.move, v => { M().move = v; });
-      SYD.push(() => { q("#" + g("msv")).textContent = "· " + modusTxt(eff().modus); q("#" + g("mtg")).style.visibility = eff().modus.call === "target" ? "visible" : "hidden"; });
+      SYD.push(() => { q("#" + g("msv")).textContent = modusTxt(eff().modus); q("#" + g("mtg")).style.visibility = eff().modus.call === "target" ? "visible" : "hidden"; });
     }
     SYD.push(() => readouts(who));
   }
@@ -10952,7 +10970,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     numY(q("#y-cbm"), () => Rt.bm, v => Rt.bm = v, { min: 0 });
     numY(q("#y-cloan"), () => Rt.loan, v => Rt.loan = v, { min: 0 });
     numY(q("#y-ccash"), () => Rt.cash, v => Rt.cash = v, { min: 0 });
-    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `· $${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
+    syncTarget.push(() => { q("#y-cflat").hidden = Rt.tiered; q("#y-costsum").textContent = `$${CO.comm}/contract · ${CO.grid.KORU === 1 && CO.grid.RAM === 1 ? "$1 strikes" : "$0.50 strikes on " + TKS.filter(t => CO.grid[t] === 0.5).join(", ")} · ${Rt.tiered ? "tiered " + Rt.bm + "%" : "flat"}`; });
   }
 
   // ---------------------------------------------------------- result strip

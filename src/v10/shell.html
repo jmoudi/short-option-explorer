@@ -47,6 +47,7 @@
   --shadow:0 8px 28px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box}
+:where(button,select,input,summary,[tabindex]):focus-visible{outline:2px solid var(--x);outline-offset:1px}
 [hidden]{display:none!important}
 html{min-width:1200px}
 body{margin:0;min-width:1200px;background:var(--bg);color:var(--ink);font:13px/1.45 var(--f-ui);font-variant-numeric:tabular-nums}
@@ -202,7 +203,7 @@ body.dock-off #dock .rail,body.ydock-off #ydock .rail{display:block;text-align:c
 /* panels */
 .panel{scroll-margin-top:140px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
 .ph{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-bottom:10px;white-space:nowrap}
-.ph .tools{margin-left:auto}
+.ph .tools{margin-left:auto;order:9}
 .ph .tools>*{margin-left:8px}
 .ph .sub{font-size:12px;color:var(--ink-2);white-space:normal}
 .lgd{font-size:12px;color:var(--ink-2)}
@@ -658,7 +659,7 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
   <nav class="tabstrip" id="tabstrip" aria-label="Lab">
     <span class="apptitle">Short Options Comparer</span><span class="tabs" id="tabs" role="tablist" aria-label="Tabs"><button type="button" class="tab" role="tab" data-tab="compare" id="tb-compare" aria-controls="tab-cmp">Compare A vs B</button><button type="button" class="tab" role="tab" data-tab="yr" id="tb-yr" aria-controls="tab-yr">Compounding</button></span>
     <details class="menu" id="pmenu">
-      <summary aria-label="Page settings">⋯</summary>
+      <summary aria-label="Theme, view codes and export" title="Theme, view codes and the Markdown export">Theme · share · export ▾</summary>
       <span class="mb">
         <span class="mrow"><span class="lbl">Theme</span><span class="seg" id="c-theme"></span></span>
         <hr>

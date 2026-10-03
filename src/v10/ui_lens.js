@@ -263,7 +263,7 @@ const LENSES = (() => {
       const z = s.zone[i], first = s.zone[Math.min(1, last)], end = s.zone[last], inside = readInsideOdds({ s, i, kit });
       if (!Number.isFinite(z.lo) && !Number.isFinite(z.hi)) { return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · no profit at spot on ${kit.esc(kit.dayLabel(time.stops[i].date))}</span>`; }
       const width = zz => zz.hi - zz.lo;
-      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · ${kit.esc(kit.dayLabel(time.stops[i].date))}: in profit between <b>${pct(z.lo)}</b> and <b>${pct(z.hi)}</b>${Number.isFinite(inside) ? ` · odds the price is inside that day ${(inside * 100).toFixed(0)}%` : ""} · ${Number.isFinite(width(first)) && Number.isFinite(width(end)) ? ` · the zone is ${(width(first) * 100).toFixed(0)} points wide after one day and ${(width(end) * 100).toFixed(0)} at expiry` : ""}</span>`;
+      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · ${kit.esc(kit.dayLabel(time.stops[i].date))}: in profit between <b>${pct(z.lo)}</b> and <b>${pct(z.hi)}</b>${Number.isFinite(inside) ? ` · odds the price is inside that day ${(inside * 100).toFixed(0)}%` : ""}${Number.isFinite(width(first)) && Number.isFinite(width(end)) ? ` · the zone is ${(width(first) * 100).toFixed(0)} points wide after one day and ${(width(end) * 100).toFixed(0)} at expiry` : ""}</span>`;
     }).join("");
   }
 

@@ -1515,7 +1515,7 @@ const VIEWS = (() => {
   /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
   function describeRecoveryRun({ run, vw, base, dstr }) {
     const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
-    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
     if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
     const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
     const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";

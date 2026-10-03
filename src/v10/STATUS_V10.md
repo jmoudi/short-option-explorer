@@ -239,6 +239,19 @@
 - Tests: `test/t29_lens.test.js` (edges, the theta–gamma check, the zone at expiry, the EV cells); check:
   `tools_checks/lenses.js` covers the new lenses, the IV band, the keys and the export.
 
+## Round 8: usability and looks
+
+- Panel heads on Compare are flex like the rest: title · chips · caption, the tools last at the right and wrapping
+  under the title (Recovery dynamics no longer puts its tools above its name).
+- The page menu is labelled "Theme · share · export ▾" instead of "⋯".
+- One keyboard focus ring (teal) on buttons, inputs, selects, summaries and the focusable chart.
+- Summaries in the docks lose their leading "·" (the chip sits between the name and the value now).
+- Market facts: one line per ticker (spot, period vol, Edit) and the other vol references under it ("also: …");
+  the skew lines no longer break mid-number.
+- Recovery dynamics: a wiped-out run reads across the full width in plain text.
+- The week card's head: title and caption, the run switch and steps at the right.
+- The Fill row in the dock keeps its label on the first line.
+
 ## Trader notes from this round
 
 - The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill

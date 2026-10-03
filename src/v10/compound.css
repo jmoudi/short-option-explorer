@@ -107,3 +107,7 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .ysym td{padding:2px 10px 2px 0;vertical-align:baseline;color:var(--ink-2)}
 .ysym td:first-child{color:var(--ink);font-size:14px;min-width:28px}
 .ysym td:nth-child(2){font:600 12px var(--f-num);color:var(--ink);white-space:nowrap}
+/* usability pass: the week card's head is title · caption, with the run switch and steps at the right */
+#y-growth h3{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+#y-growth h3 .sub{margin-left:0}
+#y-growth h3 .stp{float:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px}

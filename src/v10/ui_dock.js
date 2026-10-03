@@ -359,7 +359,7 @@ const DOCK9 = (() => {
     q("#d9-rhc").hidden = sz.rule !== "custom";
     const hc = q("#d9-hc"); if (document.activeElement !== hc) hc.value = +(+sz.h).toFixed(3);
     const k = C.A.na || C.B.na ? NaN : C.h * C.A.S / C.B.S, nm = I => I ? I.name || I.id : "";
-    q("#d9-sizesv").textContent = `· ${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
+    q("#d9-sizesv").textContent = `${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
     q("#d9-oh").innerHTML = (sz.rule === "auto" ? `Auto uses equal notional when A and B are the same instrument at the same spot and IV, equal vega otherwise (${INST.list().map(x => `${esc(x.name || x.id)} ${x.lev}×`).join(", ")} leveraged). ` : "") +
       `B is held at h = ${C.h.toFixed(3)} × A's notional${C.same || !Number.isFinite(k) ? "." : nm(C.instA) === nm(C.instB) ? `, about ${k.toFixed(2)} B contracts per A contract.` : `, about ${k.toFixed(2)} ${esc(nm(C.instB))} contracts per ${esc(nm(C.instA))} contract.`}` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
   }
