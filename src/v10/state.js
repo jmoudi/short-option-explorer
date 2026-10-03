@@ -16,6 +16,8 @@ const STATE = (() => {
     rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,
     // the Compare tab's junior tab; the Capture view: the share x for the fixed preset and the odds of keeping at least
     // x, and the custom variant (vol source and typed vol, a gap's chance / size / side, the reading, the exit)
+    // a side that takes the other's credit as a share of the chain's mid: "off", or the side it is copied from
+    fillMatch: "off",
     cmpView: CompareView.Results, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
@@ -28,7 +30,7 @@ const STATE = (() => {
     sweep: ["both", "put", "call", "wingCall"], theme: THEMES,
     rdHit: Object.values(HitBasis), rdDir: Object.values(HitSide), rdBase: ["nav", "start"], rdCap: Object.values(Capital), rdG: Object.values(GrowthRate),
     nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20],
-    cmpView: Object.values(CompareView), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
+    fillMatch: ["off", "A", "B"], cmpView: Object.values(CompareView), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
   });
   // which export sections are on until the reader chooses, per tab in document order (the export holds the labels)
   const EXPORT_SECTION_DEFAULTS = Object.freeze({

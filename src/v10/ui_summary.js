@@ -100,7 +100,7 @@ const SUM9 = (() => {
     h += naF.filter(f => f.leg === "wingCall").map(naTok).join("");
     const n = b.net, deb = n.isDebit;
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
-    h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
+    h += `<span class="s9dv"></span><span class="s9credit" data-credit="${side}" role="button" tabindex="0" title="Type the credit you actually got (in Positions)">${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}<span class="s9pen">✎</span></span>`;
     // what it collects, not how the fill was got (that is set and shown in the box's Fill row)
     h += `<span class="s9t">`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
@@ -382,6 +382,12 @@ const SUM9 = (() => {
   function init() {
     q("#s9swap").addEventListener("click", () => page.executor.execute({ type: Command.Swap, source: "summary" }));
     q("#s9pills").addEventListener("click", onPills);
+    // a card's net credit opens its credit field in Positions
+    for (const id of ["#s9A", "#s9B"]) {
+      const go = ev => { const t = ev.target.closest("[data-credit]"); if (t && typeof DOCK9 !== "undefined") { DOCK9.focusCredit(t.dataset.credit); } };
+      q(id).addEventListener("click", go);
+      q(id).addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); go(ev); } });
+    }
     wireRange(); wireToast();
     const sum = q("#sum9"), setH = () => document.documentElement.style.setProperty("--sumh", Math.ceil(sum.getBoundingClientRect().height) + "px");
     if (window.ResizeObserver) { ro = new ResizeObserver(setH); ro.observe(sum); }

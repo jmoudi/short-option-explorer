@@ -474,6 +474,22 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .prow[data-row=fill] .pctl{white-space:normal;line-height:26px}
 .knw{white-space:nowrap}
 .pfr{display:block;font-size:11px;color:var(--ink-3);margin:2px 0}
+/* the credit you got: the head's input, the highest-leverage edit */
+.pcred{display:flex!important;align-items:center;gap:8px;margin:6px 0 2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);cursor:text}
+.pcred.typed{border-color:var(--ink-3)}
+.pcred .pcl{font:600 12.5px var(--f-ui);color:var(--ink)}
+.pcred .pcin{width:74px;font:600 16px var(--f-num);padding:2px 6px}
+.pcred .pcu{font-size:12px;color:var(--ink-2)}
+.pcred .pcu b{font:600 14px var(--f-num);color:var(--ink)}
+.pcstate{display:block;font-size:11px;color:var(--ink-3);margin:0 0 2px}
+.pcstate .pcst.on{color:var(--ink);font-weight:600}
+.pcstate .pcrst{margin-left:8px;font-size:10.5px;padding:0 6px}
+.pcred.matched{border-style:dashed}
+.pmatch{display:block;font-size:11px;color:var(--ink-2);margin:2px 0 4px}
+.pmatch.on{color:var(--ink);font-weight:600}
+.pmatch .d9btn{font-size:10.5px;padding:0 6px;margin-left:4px}
+.s9credit{cursor:pointer}.s9credit:hover{text-decoration:underline dotted}
+.s9pen{font-size:11px;color:var(--ink-3);margin-left:3px}
 /* Market facts */
 .facts{display:block}
 .fxb{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:10px 24px;margin-top:8px}

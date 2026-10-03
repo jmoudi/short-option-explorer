@@ -217,9 +217,43 @@ const DOCK9 = (() => {
     // the instrument is set on its own by default (B is usually another ticker): only the other rows call for it
     const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
     if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
-    const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b>`;
     const copy = `<button type="button" class="d9btn pcopy" data-act="copyorder" data-side="${side}" title="Copy an order ticket for this position: the combo, its net limit and every leg">Copy order</button>`;
-    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span><span class="pnet">${net}${copy}</span>`;
+    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>${creditEditor(side, b)}<span class="pnet">${copy}</span>`;
+  }
+  // the credit you actually got, typed right in the head: one net price a share (as on the order ticket), split over
+  // the sold legs by mid; every reading in the app uses it. Per leg prices stay in the Fill row's editor
+  function creditEditor(side, b) {
+    const isDebit = b.cr < 0, isTyped = b.typedCount > 0;
+    const state = isTyped
+      ? `<span class="pcst on">your price ✎</span><button type="button" class="d9btn pcrst" data-act="fillreset" data-side="${side}" title="Forget the typed prices; back to ${b.fill === "nat" ? "natural" : "mid"}">back to ${b.fill === "nat" ? "natural" : "mid"}</button>`
+      : `<span class="pcst">at ${b.fill === "nat" ? "natural" : "mid"}: type what you got</span>`;
+    return `<label class="pcred${isTyped ? " typed" : ""}${isMatchTarget(side) ? " matched" : ""}"><span class="pcl">${isDebit ? "Debit you paid" : "Credit you got"}</span>` +
+      `<input type="number" step="0.01" min="0" class="pcin" data-act="fillnet" data-keep="1" data-side="${side}" value="${Math.abs(b.cr).toFixed(2)}" aria-label="${side} ${isDebit ? "debit paid" : "credit received"}, per share">` +
+      `<span class="pcu">a share = <b>${usd(b.cr * 100)}</b> a contract</span></label><span class="pcstate">${state}${describeShareOfMid(b)}</span>${matchControl(side)}`;
+  }
+  // ---------------------------------------------------------- the credit as a share of the chain's mid, and matching it
+  // A and B are not coupled: a side can take the other's share of mid (got 67% of mid on A → 67% of mid on B), or not
+  const otherSide = side => side === "A" ? "B" : "A";
+  const shareOfMid = b => !b.na && b.crMid > 0 ? b.cr / b.crMid : NaN;
+  const isMatchTarget = side => C.prefs.fillMatch === otherSide(side);
+  const describeShareOfMid = b => Number.isFinite(shareOfMid(b)) && Math.abs(shareOfMid(b) - 1) > 0.0005 ? ` · ${(shareOfMid(b) * 100).toFixed(0)}% of the chain's mid ${usd(b.crMid * 100)}` : "";
+  function matchControl(side) {
+    const from = otherSide(side), src = bOf(from), ratio = shareOfMid(src);
+    if (isMatchTarget(side)) { return `<span class="pmatch on">follows ${from}: ${(ratio * 100).toFixed(0)}% of mid <button type="button" class="d9btn" data-act="fillmatch" data-v="off" data-side="${side}">unlink</button></span>`; }
+    if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < 0.0005) { return ""; }
+    return `<span class="pmatch"><button type="button" class="d9btn" data-act="fillmatch" data-v="${from}" data-side="${side}" title="Set this side's credit to the same share of its own chain mid as ${from}'s, and keep it so while ${from} changes">use ${from}'s ${(ratio * 100).toFixed(0)}% of mid here</button></span>`;
+  }
+  // the matched side follows: its net credit = the source's share of mid × its own mid (one command, next frame agrees)
+  let matchPending = false;
+  function applyFillMatch() {
+    const from = C.prefs.fillMatch;
+    if (from === "off" || matchPending) { return; }
+    const to = otherSide(from), src = bOf(from), dst = bOf(to), ratio = shareOfMid(src);
+    if (!Number.isFinite(ratio) || dst.na || !(dst.crMid > 0)) { return; }
+    const want = +(ratio * dst.crMid).toFixed(2);
+    if (Math.abs(dst.cr - want) < 0.006) { return; }
+    matchPending = true;
+    setTimeout(() => { matchPending = false; setNetFill({ side: to, net: want }); }, 0);
   }
   // ---------------------------------------------------------- the order ticket
   const MONTHS = Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
@@ -354,6 +388,8 @@ const DOCK9 = (() => {
     else if (act === "detach") run({ type: Command.Detach, side });
     else if (act === "fills") { ui.fills[side] = !ui.fills[side]; askFrame(); }
     else if (act === "fillclr") { setSide({ side, path: `fills.${t.dataset.slot}`, value: null }); }
+    else if (act === "fillmatch") { setPref({ fillMatch: t.dataset.v }); }
+    else if (act === "fillreset") { if (C.prefs.fillMatch === otherSide(side)) { setPref({ fillMatch: "off" }); } for (const l of bOf(side).legs.filter(x => x.typed)) { setSide({ side, path: `fills.${l.key}`, value: null }); } }
     else if (act === "relinkall") { run({ type: Command.RelinkAll }); }
     else if (act === "copyorder") { const b = bOf(side); if (!b.na) { copyText({ text: describeOrderTicket(b) }); } }
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
@@ -383,7 +419,12 @@ const DOCK9 = (() => {
       const value = Number.isFinite(px) && px >= 0 ? { tk: b.tk, exp: b.exp, K: leg.K, cp: leg.cp, px } : null;
       setSide({ side, path: `fills.${t.dataset.slot}`, value });
     }
-    else if (act === "fillnet") { setNetFill({ side, net: parseFloat(t.value) }); t.value = ""; }
+    else if (act === "fillnet") {
+      // typing on a matched side unlinks it: the typed price wins
+      if (C.prefs.fillMatch === otherSide(side)) { setPref({ fillMatch: "off" }); }
+      setNetFill({ side, net: parseFloat(t.value) });
+      if (t.dataset.keep) { t.blur(); } else { t.value = ""; }
+    }
   }
   function onInput(ev) {
     const t = ev.target;
@@ -462,6 +503,7 @@ const DOCK9 = (() => {
     if (!C.prefs.dock) { return; }
     SL = {};
     renderBox("A"); renderBox("B");
+    applyFillMatch();
     syncSizing();
   }
   // open the dock and bring one row of one box into view (from a summary pill)
@@ -477,5 +519,10 @@ const DOCK9 = (() => {
     };
     requestAnimationFrame(() => requestAnimationFrame(go));
   }
-  return { init, render, reveal, updSlider, ui };
+  // the head's credit field, from a summary card's net credit
+  function focusCredit(side) {
+    if (C && !C.prefs.dock) { setPref({ dock: true }); }
+    requestAnimationFrame(() => { const input = /** @type {HTMLInputElement} */ (roots[side === "B" ? "B" : "A"].querySelector(".pcin")); if (input) { input.scrollIntoView({ block: "center" }); input.focus(); input.select(); } });
+  }
+  return { init, render, reveal, updSlider, focusCredit, ui };
 })();
