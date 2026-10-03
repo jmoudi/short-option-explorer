@@ -6,9 +6,10 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   await p.goto('file://' + (process.env.PAGE || require('path').resolve(__dirname, '../../../dist/ram_koru_lab_v10.html'))); await p.waitForTimeout(900);
   const sweepBands = async (label, scope) => {
     const bands = p.locator(`${scope} .axhit`), n = await bands.count(); let ok = 0, bad = [];
+    // each band centred first: a band partly under the fixed summary would hover the summary
     for (let i = 0; i < n; i++) {
-      const band = bands.nth(i); await band.scrollIntoViewIfNeeded(); const r = await band.boundingBox(); if (!r) { bad.push(i); continue; }
-      await p.mouse.move(r.x + r.width * 0.5, r.y + r.height * 0.5); await p.waitForTimeout(120);
+      const band = bands.nth(i); await band.evaluate(e => e.scrollIntoView({ block: 'center' })); await p.waitForTimeout(100); const r = await band.boundingBox(); if (!r) { bad.push(i); continue; }
+      await p.mouse.move(r.x + r.width * 0.5, r.y + r.height * 0.5); await p.waitForTimeout(250);
       const tip = await p.evaluate(() => { const t = document.querySelector('#tip'); return t && !t.hidden ? t.innerText : ''; });
       const guide = await p.evaluate(() => [...document.querySelectorAll('.axguide')].some(g => g.getAttribute('visibility') === 'visible'));
       if (tip && guide) ok++; else bad.push(i);

@@ -26,18 +26,11 @@ const DOCK9 = (() => {
   const CH_OFF = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8.4 3.6 9.6 2.4a2.6 2.6 0 0 1 3.7 3.7L12.1 7.3"/><path d="M7.6 12.4 6.4 13.6a2.6 2.6 0 0 1-3.7-3.7L3.9 8.7"/><path d="M5.6 2.2 6.2 4.2M2.2 5.6 4.2 6.2M10.4 13.8 9.8 11.8M13.8 10.4 11.8 9.8"/></svg>`;
 
   const DOCK_CONFIG = Object.freeze({
-    // the instrument cell's button that opens the spot / IV / period vol box (its title and the box heading carry the
-    // full name): short enough to leave the B cell slack under any font (the cell clips: a longer label lost the button)
-    instButtonLabel: Object.freeze({ plain: "IV/vol ▾", overridden: "✎ on ▾" }),
-    instBoxName: "spot / IV / period vol",
-    // the period-vol slider's step in % (its span: the comparer's floor to the stored cap, PERIOD_VOL_CONFIG)
-    periodVolStep: 1,
-    periodVolInfo: "One number per ticker, used for every expiry; annualized like IV (calendar days). Every EV reading uses it (the overview's EV, the sweep, recovery, the export), and so do the odds when the odds switch says period vol. Leg prices and IVs stay at their quotes. The ticks mark the reference vols listed under the slider."
   });
   let C = null, SL = {};
   const roots = { A: null, B: null }, lastKeys = { A: "", B: "" };
-  // local view state, not stored: which side's spot / IV / period vol box and typed-fill editor are open
-  const ui = { inst: { A: false, B: false }, fills: { A: false, B: false } };
+  // local view state, not stored: which side's typed-fill editor is open
+  const ui = { fills: { A: false, B: false } };
   // the sizing select's sync (bindSelect hands it over): run in syncSizing, while the dock shows
   // the sizing select's sync (bindSelect hands it over): run in syncSizing, as v9's list was, so it runs only while
   // the dock shows and only when the dock rendered
@@ -54,19 +47,12 @@ const DOCK9 = (() => {
   const amber = (side, row) => C.diff.items.filter(it => !it.asked && it.side === side && it.dockRow === row);
   const legOf = (b, key) => b && !b.na ? b.legs.find(l => l.key === key) || null : null;
   const segH = (side, path, opts, cur, eq) => `<span class="seg${eq === false ? "" : " eq"}">${opts.map(([v, l, t]) => `<button type="button" data-act="set" data-side="${side}" data-path="${path}" data-v="${v}" class="${String(cur) === v ? "on" : ""}" aria-pressed="${String(cur) === v}"${t ? ` title="${att(t)}"` : ""}>${l}</button>`).join("")}</span>`;
-  const ovShort = I => Math.abs(I.spot - I.spotListed) > 1e-9 * I.spotListed ? fPx2(I.spot) : `IV ${I.ivShift > 0 ? "+" : MINUS}${+Math.abs(I.ivShift).toFixed(2)}`;
   const kc = l => l ? fK(l.K) + l.cp : "–";
   // ---------------------------------------------------------- cells
+  // the ticker only: its market facts (spot, IV, period vol) are read and edited under Market facts
   function instCell(side) {
-    const P = posOf(side), I = instOf(side);
-    return `<select data-act="inst" data-side="${side}" aria-label="${side} instrument">${INST.list().map(x => `<option value="${esc(x.id)}"${x.id === P.inst.id ? " selected" : ""}>${esc(x.name || x.id)}</option>`).join("")}</select>` +
-      `<button type="button" class="d9ov${I && I.overridden ? " on" : ""}" data-act="instx" data-side="${side}" aria-expanded="${ui.inst[side]}" title="${att(describeInstControls({ instrument: I, id: P.inst.id }))}">${I && I.overridden ? DOCK_CONFIG.instButtonLabel.overridden : DOCK_CONFIG.instButtonLabel.plain}</button>`;
-  }
-  // the instrument button's tip: spot / IV / period vol, with what is set
-  /** @param {{ instrument: any, id: string }} input */
-  function describeInstControls({ instrument: I, id }) {
-    const override = I && I.overridden ? `Override: spot ${fPx2(I.spot)} (listed ${fPx2(I.spotListed)})${I.ivShift ? `, IV ${I.ivShift > 0 ? "+" : MINUS}${Math.abs(I.ivShift)} pts` : ""}` : "Override spot or implied vol";
-    return `${DOCK_CONFIG.instBoxName}. ${override}; ${id} ${C.volOf(id).label}`;
+    const P = posOf(side);
+    return `<select data-act="inst" data-side="${side}" aria-label="${side} instrument">${INST.list().map(x => `<option value="${esc(x.id)}"${x.id === P.inst.id ? " selected" : ""}>${esc(x.name || x.id)}</option>`).join("")}</select>`;
   }
   function expCell(side) {
     const I = instOf(side), cur = bOf(side).exp;
@@ -222,26 +208,16 @@ const DOCK9 = (() => {
     const warn = marks.length ? `<span class="pwarn" title="${att(marks.map(x => x.text).join(" · "))}">!</span>` : "";
     return `<span class="plbl">${label}${linkBtn(aspect)}${warn}</span>`;
   }
-  // the box head: which position, what it collects, and what the same legs fetch at mid and at natural
+  // the box head: which position and what it collects; how the fill was got lives in the Fill row, the market facts
+  // under Market facts, and every reading of the position in the comparison
   function boxHead(side) {
     const b = bOf(side), key = `<span class="key ${side.toLowerCase()}">${side}</span>`;
     // the instrument is set on its own by default (B is usually another ticker): only the other rows call for it
     const relink = side === "B" && Object.entries(C.comparison.links).some(([aspect, on]) => !on && aspect !== "inst") ? `<button type="button" class="d9btn prl" data-act="relinkall" title="Make every row of B follow A again">Follow A everywhere</button>` : "";
     if (b.na) { return `<span class="pt">${key}<span class="pname">${esc(b.label ? b.label.full : side)}</span>${relink}</span><span class="pnet w">n/a: ${esc(b.naReason)}</span>`; }
-    const fillWord = !b.typedCount ? (b.fill === "nat" ? "natural" : "mid") : b.typedCount === b.legs.length ? "your fill" : `your fill on ${b.typedCount} of ${b.legs.length} legs`;
-    const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b> · ${esc(fillWord)}`;
-    const refs = [b.typedCount || b.fill === "nat" ? `mid ${usd(b.crMid * 100)}` : "", b.fill !== "nat" || b.typedCount ? `natural ${usd(b.crNat * 100)}` : ""].filter(Boolean).join(" · ");
+    const net = `${b.cr < 0 ? "net debit" : "net credit"} <b>${usd(b.cr * 100)}</b>`;
     const copy = `<button type="button" class="d9btn pcopy" data-act="copyorder" data-side="${side}" title="Copy an order ticket for this position: the combo, its net limit and every leg">Copy order</button>`;
-    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span>` +
-      `<span class="pnet">${net}${copy}</span><span class="pref">${refs ? refs + " · " : ""}ATM IV ${fP(b.E.atm, 0)} (sets σ) · ${b.dte} d</span>` + describeVolEdge(b);
-  }
-  // the vol edge in one line: the period vol at which this fill's EV is zero, against the vol assumed
-  function describeVolEdge(b) {
-    const found = RECOVERY.findBreakEvenVol({ built: b }), assumed = C.volOf(b.tk).pct / 100;
-    if (!found.ok) { return `<span class="pedge">${esc(found.error.message)}</span>`; }
-    const edge = (found.value - assumed) * 100, sign = edge >= 0 ? "+" : MINUS, cls = edge >= 0 ? "pos" : "neg";
-    const tip = `Break-even vol: the period vol at which this position's EV at expiry is zero, at this fill. Below it, selling here wins on average; above it, it loses. The edge is break-even minus the period vol you assume (${Math.round(assumed * 100)}%): a short-premium trader's vol edge in one number.`;
-    return `<span class="pedge">break-even vol <b>${(found.value * 100).toFixed(1)}%</b> · <span class="${cls}">${sign}${Math.abs(edge).toFixed(1)} pts</span> over period vol ${Math.round(assumed * 100)}% ${KNOBS.html({ id: `edge-${b.key}`, title: "Break-even vol", body: tip })}</span>`;
+    return `<span class="pt">${key}<span class="pname">${esc(b.label.full)}</span>${relink}</span><span class="pnet">${net}${copy}</span>`;
   }
   // ---------------------------------------------------------- the order ticket
   const MONTHS = Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
@@ -279,6 +255,7 @@ const DOCK9 = (() => {
     const stale = b.flags.filter(f => f.code === "FILL_NOT_APPLIED").map(f => `<span class="pfw">! ${esc(f.text)}</span>`).join("");
     return `<span class="pfx">${rows}<span class="pfl"><span class="pfk">net</span><span class="pfq" title="split over the sold legs in proportion to their mids">${b.cr < 0 ? "debit" : "credit"} / share</span>` +
       `<input type="number" step="0.01" min="0" data-act="fillnet" data-side="${side}" placeholder="${pxOf(Math.abs(b.cr))}" aria-label="${side} net fill per share"></span>${stale}` +
+      `<span class="pfr">the same legs: mid ${usd(b.crMid * 100)} · natural ${usd(b.crNat * 100)} a contract</span>` +
       `<span class="cap">Per share, as on the order ticket ($ per contract = ×100). A typed price belongs to its contract: if the strike or expiry changes, it stops applying and says so.</span></span>`;
   }
   function updFillsEditor(el, side) {
@@ -290,20 +267,12 @@ const DOCK9 = (() => {
       input.value = leg && leg.typed ? leg.fillPx.toFixed(2) : "";
     }
   }
-  // a leg's IV: its own, from its mid; the smile fit at the strike (what marks and odds use) differs and is named
-  const describeLegIv = l => Number.isFinite(l.ivm)
-    ? `this contract's own IV, from its mid ${pxOf(l.mid)}; the smile fit at this strike is ${fP(l.iv, 1)} (marks before expiry and the implied odds use the fit)`
-    : `no IV from this contract's mid (below the model's lower bound); * = the smile fit at this strike, ${fP(l.iv, 1)}`;
-  // the legs, always visible: what each leg is, its quote, its own IV, the fill and its $ per contract
+  // the legs, always visible: each leg, its fill (✎ = typed) and its $ per contract; the contract's quote and IV are
+  // market facts (Market facts, Contracts in use)
   function legsList(side) {
     const b = bOf(side);
     if (b.na) { return ""; }
-    return b.legs.map(l => {
-      const how = l.typed ? "your fill ✎" : b.fill === "nat" ? (l.qty < 0 ? "at bid" : "at ask") : "at mid";
-      return `<span class="plg${l.typed ? " t" : ""}"><span class="plk">${fK(l.K)}${l.cp}</span><span class="plw">${legWord(l)} ${pxOf(l.fillPx)} ${how}</span>` +
-        `<span class="pli" title="${att(describeLegIv(l))}">IV ${Number.isFinite(l.ivm) ? fP(l.ivm, 0) : fP(l.iv, 0) + "*"}</span><span class="plp">${signedUsd(l.perContract)}</span>` +
-        `<span class="plq">bid ${pxOf(l.bid)} · ask ${pxOf(l.ask)} · spread ${pxOf(l.ask - l.bid)}${l.model ? " · model quote" : ""}</span></span>`;
-    }).join("");
+    return b.legs.map(l => `<span class="plg${l.typed ? " t" : ""}"><span class="plk">${fK(l.K)}${l.cp}</span><span class="plw">${legWord(l)} ${pxOf(l.fillPx)}${l.typed ? " ✎" : ""}</span><span class="plp">${signedUsd(l.perContract)}</span></span>`).join("");
   }
   // the box's components in order; keys decide when the box is rebuilt (sliders keep their input across renders)
   function boxComps(side) {
@@ -311,7 +280,6 @@ const DOCK9 = (() => {
     const row = (aspect, label, control) => out.push({ key: `${k}r:${aspect}`, cls: "prow", row: aspect, inner: () => rowLabel(side, aspect, label) + `<span class="pctl">${control()}</span>` });
     out.push({ key: `${k}head`, cls: "phead", inner: () => boxHead(side) });
     row("inst", ROWS.inst, () => instCell(side));
-    if (ui.inst[side]) { out.push({ key: `${k}instx`, cls: "pfull", row: "inst", inner: () => instX(side), upd: el => updInstX(el, side) }); }
     row("exp", ROWS.exp + (side === "B" ? mapBtn() : ""), () => expCell(side));
     row("structure", ROWS.structure, () => structCell(side));
     row("legs", `${ROWS.legs}<button type="button" class="info" data-act="legsinfo" title="Together or detached; make symmetric">i</button>`, () => legsCell(side));
@@ -346,109 +314,6 @@ const DOCK9 = (() => {
       left -= px;
       setSide({ side, path: `fills.${l.key}`, value: { tk: b.tk, exp: b.exp, K: l.K, cp: l.cp, px } });
     });
-  }
-
-  function instX(side) {
-    const I = instOf(side); if (!I) return "";
-    return `<span class="d9x"><span class="d9sh"><span class="key ${side.toLowerCase()}">${side}</span><span class="d9sn">${esc(DOCK_CONFIG.instBoxName)} · ${esc(I.id)}</span></span>spot <input type="number" data-act="spot" data-side="${side}" step="0.01" min="0" aria-label="${side} spot override"> <span class="muted">listed ${fPx2(I.spotListed)}</span>` +
-      `<br>IV shift <input type="number" data-act="ivs" data-side="${side}" step="1" aria-label="${side} implied vol shift in vol points"> vol pts <button type="button" class="d9btn" data-act="ovreset" data-side="${side}">Reset</button>` +
-      `<span class="cap">IV +x pts re-prices the entry from model quotes. The IV shock under P&amp;L through time is a move after entry.</span>` +
-      periodVolHtml({ side, instrument: I }) + `</span>`;
-  }
-  // ---------------------------------------------------------- the ticker's period vol (inside the spot / IV / period vol box)
-  // presets: the listed vol, ATM at A's horizon (stored with A's expiry), custom (the box or the slider, 1–300%). The
-  // presets and ticks come from the one reference list both tabs show (C.periodVolRefs)
-  const periodVolSpan = () => ({ lo: PERIOD_VOL_CONFIG.floor[Tab.Compare], hi: PERIOD_VOL_CONFIG.range[1], step: DOCK_CONFIG.periodVolStep });
-  const findRef = (id, source) => C.periodVolRefs(id).find(r => r.source === source) || null;
-  // which preset reads as chosen: the stored source, except an ATM read at another horizon than A's current one (it
-  // stays as stored, and a click on ATM re-reads it at A's horizon)
-  function findActivePreset(id) {
-    const vol = C.volOf(id);
-    if (vol.source !== VolSource.Atm) { return vol.source; }
-    const atm = findRef(id, VolSource.Atm);
-    const isCurrent = !!atm && atm.expiry === vol.expiry;
-    return isCurrent ? VolSource.Atm : "";
-  }
-  function describePreset({ id, source }) {
-    const ref = findRef(id, source);
-    if (source === VolSource.Hv30) { return { label: `${ref.label} ${Math.round(ref.pct)}%`, tip: `IBKR's listed 30-day historical vol of ${id}` }; }
-    if (source === VolSource.Atm) {
-      const vol = C.volOf(id), isStale = vol.source === VolSource.Atm && vol.expiry !== ref.expiry;
-      const stale = isStale ? `. The vol in use was read at ${fmtE(vol.expiry)}: click to re-read it at ${fmtE(ref.expiry)}` : "";
-      return { label: `${ref.label} ${Math.round(ref.pct)}%`, tip: `${id}'s ATM implied vol at A's horizon (${fmtE(ref.expiry)}), listed (no IV shift), kept as a number when chosen${stale}` };
-    }
-    return { label: "custom", tip: "Type a number or drag the slider" };
-  }
-  /** @param {{ side: string, instrument: any }} input */
-  function periodVolHtml({ side, instrument }) {
-    const id = instrument.id, active = findActivePreset(id), span = periodVolSpan();
-    const sources = [VolSource.Hv30, VolSource.Atm, VolSource.Set].filter(source => source === VolSource.Set || !!findRef(id, source));
-    const seg = sources.map(source => {
-      const preset = describePreset({ id, source }), isOn = active === source;
-      return `<button type="button" data-act="pvset" data-side="${side}" data-v="${source}" class="${isOn ? "on" : ""}" aria-pressed="${isOn}" title="${att(preset.tip)}">${esc(preset.label)}</button>`;
-    }).join("");
-    // each reference on its own unbreakable run, so a line breaks only between them
-    const refs = C.periodVolRefs(id).map(r => `<span class="d9nw">${esc(`${r.label} ${Math.round(r.pct)}%`)}</span>`).join(" · ");
-    return `<span class="d9pv ${side.toLowerCase()}"><span class="d9sh"><span class="d9sn">Period vol · ${esc(id)}</span><span class="info" tabindex="0" data-tip="${att(DOCK_CONFIG.periodVolInfo)}">i</span><span class="d9ro"></span></span>` +
-      `<span class="seg d9pvs">${seg}</span><span class="d9pvn"><input type="number" data-act="pvnum" data-side="${side}" min="${span.lo}" max="${span.hi}" step="${span.step}" aria-label="${side} ${esc(id)} period vol in %">%</span>` +
-      `<span class="d9tr"><input type="range" data-act="pvsl" data-side="${side}" step="${span.step}" aria-label="${side} ${esc(id)} period vol"><span class="d9tks"></span></span><span class="d9note" hidden></span><span class="d9pvref">${refs}</span></span>`;
-  }
-  // the box's note: the other side on the same ticker, a stored value below the comparer's floor
-  /** @param {{ side: string, id: string }} input */
-  function describePeriodVolNote({ side, id }) {
-    const vol = C.volOf(id), other = side === "A" ? C.B : C.A, notes = [];
-    const shares = !other.na && other.tk === id;
-    if (shares) { notes.push(`${side === "A" ? "B" : "A"} is on ${id} too: one period vol for both`); }
-    const isFloored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct;
-    if (isFloored) { notes.push(`${+vol.storedPct.toFixed(2)}% set on Compounding (exactly on the path); Compare reads ${Math.round(vol.pct)}%, its floor`); }
-    return notes.join(". ");
-  }
-  // the slider spec of the period-vol box: its ticks are the reference list (a tick whose label has no room keeps its
-  // mark; the list under the slider names it)
-  /** @param {{ side: string, instrument: any }} input */
-  function periodVolSpec({ side, instrument }) {
-    const id = instrument.id, vol = C.volOf(id), span = periodVolSpan();
-    const ticks = C.periodVolRefs(id).map((r, i) => ({ v: r.pct, t: r.short, pri: i, tip: `${r.label} ${Math.round(r.pct)}%` }));
-    return { side, lo: span.lo, hi: span.hi, value: vol.pct, ticks, keepMarks: true, format: v => `${Math.round(v)}%`, readout: esc(vol.label), note: describePeriodVolNote({ side, id }) };
-  }
-  function updInstX(el, side) {
-    const I = instOf(side); if (!I) return;
-    const s = el.querySelector('[data-act="spot"]'), v = el.querySelector('[data-act="ivs"]');
-    if (s && document.activeElement !== s) s.value = +I.spot.toFixed(4);
-    if (v && document.activeElement !== v) v.value = +I.ivShift.toFixed(2);
-    const box = el.querySelector(".d9pv"), num = el.querySelector('[data-act="pvnum"]'), active = findActivePreset(I.id);
-    if (box) { updSlider(box, periodVolSpec({ side, instrument: I })); }
-    if (num && document.activeElement !== num) { num.value = String(+C.volOf(I.id).pct.toFixed(1)); }
-    // the cell is not redrawn while one of its inputs has focus: the preset buttons follow the state here
-    for (const button of el.querySelectorAll('[data-act="pvset"]')) {
-      const isOn = button.dataset.v === active;
-      button.classList.toggle("on", isOn);
-      button.setAttribute("aria-pressed", String(isOn));
-    }
-  }
-  // one ticker's period vol; source Set from the box or the slider, a preset from its button (ATM: read at A's horizon
-  // now, stored with that expiry)
-  /** @param {{ side: string, source: string, pct?: number }} edit @returns {LabResult | null} null: no instrument or no ATM */
-  function setPeriodVol({ side, source, pct }) {
-    const I = instOf(side);
-    if (!I) { return null; }
-    const command = { type: Command.SetPeriodVol, ticker: I.id, source };
-    if (source === VolSource.Atm) {
-      const atm = findRef(I.id, VolSource.Atm);
-      if (!atm) { return null; }
-      Object.assign(command, { pct: atm.pct, expiry: atm.expiry });
-    }
-    if (source === VolSource.Set) { Object.assign(command, { pct }); }
-    return run(command);
-  }
-  // the box after a typed value: it shows what the comparer reads, also while it keeps focus (the frame leaves a focused
-  // box alone), so a value floored or capped by SetPeriodVol never stays on screen as typed
-  /** @param {{ input: HTMLInputElement, side: string }} target */
-  function showAppliedPeriodVol({ input, side }) {
-    const I = instOf(side);
-    if (!I) { return; }
-    const applied = CTX.readTickerVol({ periodVol: page.store.read().periodVol, id: I.id });
-    input.value = String(+applied.pct.toFixed(1));
   }
 
   // ---------------------------------------------------------- Legs in detail and Pair sizing
@@ -518,13 +383,10 @@ const DOCK9 = (() => {
     }
     else if (act === "link") { const a = t.dataset.aspect; run({ type: C.comparison.links[a] ? Command.Unlink : Command.Link, aspect: a }); }
     else if (act === "detach") run({ type: Command.Detach, side });
-    else if (act === "instx") { ui.inst[side] = !ui.inst[side]; askFrame(); }
     else if (act === "fills") { ui.fills[side] = !ui.fills[side]; askFrame(); }
     else if (act === "fillclr") { setSide({ side, path: `fills.${t.dataset.slot}`, value: null }); }
     else if (act === "relinkall") { run({ type: Command.RelinkAll }); }
     else if (act === "copyorder") { const b = bOf(side); if (!b.na) { copyText({ text: describeOrderTicket(b) }); } }
-    else if (act === "pvset") { if (!t.classList.contains("on")) setPeriodVol({ side, source: t.dataset.v, pct: C.volOf(instOf(side).id).pct }); }
-    else if (act === "ovreset") setSide({ side, path: "inst", value: { id: posOf(side).inst.id } });
     else if (act === "atm") setSide({ side, path: "values.center", value: "atm" });
     else if (act === "expmap") {
       const r = t.getBoundingClientRect(), m = C.comparison.expMap;
@@ -546,8 +408,6 @@ const DOCK9 = (() => {
     const t = ev.target, act = t.dataset && t.dataset.act, side = t.dataset && t.dataset.side; if (!act) return;
     if (act === "inst") setSide({ side, path: "inst.id", value: t.value });
     else if (act === "exp") setSide({ side, path: "exp", value: t.value });
-    else if (act === "spot") { const v = parseFloat(t.value); setSide({ side, path: "inst.spot", value: Number.isFinite(v) && v > 0 ? v : null }); }
-    else if (act === "ivs") { const v = parseFloat(t.value); setSide({ side, path: "inst.ivShift", value: Number.isFinite(v) && v !== 0 ? v : null }); }
     else if (act === "fillpx") {
       const b = bOf(side), leg = legOf(b, t.dataset.slot), px = parseFloat(t.value);
       if (!leg) { return; }
@@ -555,15 +415,9 @@ const DOCK9 = (() => {
       setSide({ side, path: `fills.${t.dataset.slot}`, value });
     }
     else if (act === "fillnet") { setNetFill({ side, net: parseFloat(t.value) }); t.value = ""; }
-    else if (act === "pvnum") {
-      const pct = parseFloat(t.value);
-      if (Number.isFinite(pct)) { setPeriodVol({ side, source: VolSource.Set, pct }); }
-      showAppliedPeriodVol({ input: t, side });
-    }
   }
   function onInput(ev) {
     const t = ev.target;
-    if (t.dataset && t.dataset.act === "pvsl") { setPeriodVol({ side: t.dataset.side, source: VolSource.Set, pct: +t.value }); return; }
     if (!t.dataset || !t.dataset.sl) return;
     const s = SL[t.dataset.sl]; if (!s) return;
     s.input(stepped(+t.value, s));
@@ -646,7 +500,6 @@ const DOCK9 = (() => {
   // open the dock and bring one row of one box into view (from a summary pill)
   function reveal(row, side) {
     const box = side === "B" ? "B" : "A";
-    if (row === "inst") { ui.inst[box] = true; }
     if (row === "fill") { ui.fills[box] = true; }
     if (C && !C.prefs.dock) { setPref({ dock: true }); } else { askFrame(); }
     const go = () => {
@@ -657,5 +510,5 @@ const DOCK9 = (() => {
     };
     requestAnimationFrame(() => requestAnimationFrame(go));
   }
-  return { init, render, reveal, ui };
+  return { init, render, reveal, updSlider, ui };
 })();

@@ -139,6 +139,29 @@
 - **Checks.** `compounding_drop_b.js` now tests for B's row itself. Before, it looked for "Shares · lots", which is A's
   label in the default covered-call run.
 
+## Done in round 4 (inputs apart from readings and facts)
+
+- **Payoff: one time at a time.** A Days left slider, from 0 (at expiry) to today. It replaces the now and half-way
+  curves. The title says what is shown ("P&L with 8 of 50 days left"). A and B are drawn at that day, and the expiry
+  payoff stays as a faint line. The A − B panel and the tooltip read the same day; the tooltip adds A and B at expiry.
+  The `pnow` pref is gone and `payLeft` (days left on A) replaces it.
+- **Position boxes define the position only.** The head shows the name, the net credit and Copy order. Break-even vol,
+  "mid", the mid / natural references, ATM IV and days left are gone from it. Mid and natural for the same legs now
+  sit in the Fill editor. The legs list shows each leg, its fill (✎ when typed) and its $ per contract.
+- **Summary cards.** They show the position, the legs and the net credit with its % of spot. The fill word, both vols,
+  the days and the forward are gone.
+- **Market facts** (new panel, `ui_facts.js`, namespace FACTS). It covers each ticker in use:
+  - spot (✎ when typed) and the period vol with its references;
+  - every listed expiry: days, forward, ATM IV, and the 1σ move to expiry in % and in price;
+  - the contracts A and B hold: bid, ask, mid, spread, own IV and delta.
+  
+  The spot / IV / period vol editor moved here from the box's Instrument row (Edit per ticker). There is one editor
+  per side on the ticker; B gets its own only while B sets its instrument on its own.
+- **Break-evens.** In the table, "Break-even price" (each price, its move from spot and the odds of touching it) sits
+  directly above "Break-even vol".
+- **Checks.** `axes.js` centres each band before hovering it, so a band partly under the fixed summary no longer
+  reads as silent. T25 reads the floored vol and the editor under Market facts.
+
 ## Trader notes from this round
 
 - The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill
@@ -154,5 +177,7 @@
 3. Skew at the chosen strikes (put IV − call IV).
 4. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"
    label.
-5. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
-6. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.
+5. "Legs in detail" (collapsed, under the boxes) still repeats forward, spot and ATM IV per side. It could move to
+   Market facts or go.
+6. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
+7. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.

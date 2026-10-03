@@ -286,10 +286,12 @@ const VIEWS = (() => {
     for (const [b, inv] of [[A, C.uOfSA], [B, C.uOfSB]]) for (const K of legsOf(b).map(l => l.K)) { const u = inv(K); if (u > lo && u < hi) kinks.push(u); }
     LAST.payKinks = kinks.slice();
     const ux = [...us, ...kinks].sort((p, r) => p - r);
-    const a = ux.map(u => [u, C.pA(u)]), b = ux.map(u => [u, C.pB(u)]), df = ux.map(u => [u, C.pA(u) - C.pB(u)]);
-    // before expiry: the P&L if closed now and half-way to expiry, at the model's marks
-    const timeCurves = vw.pnow ? describeTimeCurves({ ux }) : [];
-    const ys = [...a, ...b, ...timeCurves.flatMap(t => t.points)].map(p => p[1]).filter(Number.isFinite);
+    // one time at a time: the chosen days left, with the expiry payoff behind it as a faint reference
+    const time = readPayoffTime(), at = valuesAt(time);
+    const a = ux.map(u => [u, at.a(u)]), b = ux.map(u => [u, at.b(u)]), df = ux.map(u => [u, at.a(u) - at.b(u)]);
+    const ghosts = time.isExpiry ? [] : [{ side: "b", points: ux.map(u => [u, C.pB(u)]) }, { side: "a", points: ux.map(u => [u, C.pA(u)]) }];
+    describePayoffTime(time);
+    const ys = [...a, ...b, ...ghosts.flatMap(g => g.points)].map(p => p[1]).filter(Number.isFinite);
     let ylo = Math.min(...ys, 0), yhi = Math.max(...ys, 0); const pad = (yhi - ylo) * 0.08 || 0.01; ylo -= pad; yhi += pad;
     const dys = df.map(p => p[1]).filter(Number.isFinite); let dlo = Math.min(...dys, 0), dhi = Math.max(...dys, 0); const dp = (dhi - dlo) * 0.14 || 0.005; dlo -= dp; dhi += dp;
     const H1 = 270, H2 = 92, nStrip = vw.pso ? (two || diffExp() ? 2 : 1) : 0, H3 = nStrip * 22, gap = 14, m = { l: 62, r: 54, t: two && C.unit !== "sig" ? 28 : 16, b: two ? 52 : 40 };
@@ -317,7 +319,7 @@ const VIEWS = (() => {
     const horizon = (b, y) => { if (diffExp()) txt(svg, W - m.r - 4, y + 17, "to " + fmtE(b.exp), { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10, ...halo }); };
     if (nStrip && !A.na && C.d) { oddsStrip(svg, C.d, C.xA, lo, hi, A.T, X, y3, 20, nStrip > 1 ? `${tkS("A")} odds` : "odds"); horizon(A, y3); }
     if (nStrip > 1 && !B.na && C.dB) { oddsStrip(svg, C.dB, C.xB, lo, hi, B.T, X, y3 + 22, 20, `${tkS("B")} odds`); horizon(B, y3 + 22); }
-    for (const t of timeCurves) { el("path", { d: pathOf(t.points, X, Y), fill: "none", stroke: `var(--${t.side})`, "stroke-width": 1.3, "stroke-dasharray": t.dash, "stroke-opacity": .85, "stroke-linejoin": "round" }, svg); }
+    for (const { side, points } of ghosts) { el("path", { d: pathOf(points, X, Y), fill: "none", stroke: `var(--${side})`, "stroke-width": 1.2, "stroke-opacity": .35, "stroke-linejoin": "round" }, svg); }
     el("path", { d: pathOf(b, X, Y), fill: "none", stroke: "var(--b)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
     el("path", { d: pathOf(a, X, Y), fill: "none", stroke: "var(--a)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-dasharray": C.diff.identical ? "6 4" : "" }, svg);
     const dl = df.filter(p => Number.isFinite(p[1])), leftHigh = dl.length && dl[0][1] > (dlo + dhi) / 2;
@@ -326,16 +328,16 @@ const VIEWS = (() => {
     if (C.diff.identical && !hb()) endLab(a, "A = B", "ink", a); else { endLab(a, "A", "a", b); endLab(b, "B" + hb(), "b", a); }
     const naSides = [["A", A], ["B", B]].filter(([, x]) => x.na);
     if (naSides.length) txt(svg, m.l + 10, y1 + 18, naSides.map(([t, x]) => `${t} is n/a: ${x.naReason}`).join(" · "), { fill: "var(--neg)", "font-size": 12, "font-weight": 600, ...halo });
-    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${vw.pnow ? ` <span class="muted">· dotted: now · dashed: half-way</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
+    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${time.isExpiry ? "" : ` <span class="muted">· faint: the same at expiry</span>`}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
     const cross = el("line", { y1: y1, y2: y3 + H3, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
     const dots = ["a", "b", "ink"].map(c => el("circle", { r: 4, fill: `var(--${c})`, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg));
     const hit = el("rect", { x: m.l, y: y1, width: W - m.l - m.r, height: y3 + H3 - y1, fill: "transparent" }, svg);
     hit.addEventListener("pointermove", ev => {
       const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width, u = clamp(lo + (px - m.l) / (W - m.l - m.r) * (hi - lo), lo, hi);
       cross.setAttribute("x1", X(u)); cross.setAttribute("x2", X(u)); cross.setAttribute("visibility", "visible");
-      const va = C.pA(u), vb = C.pB(u), vd = va - vb;
+      const va = at.a(u), vb = at.b(u), vd = va - vb;
       [[va, Y], [vb, Y], [vd, Y2]].forEach(([v, f], i) => { if (Number.isFinite(v)) { dots[i].setAttribute("cx", X(u)); dots[i].setAttribute("cy", f(v)); dots[i].setAttribute("visibility", "visible"); } else dots[i].setAttribute("visibility", "hidden"); });
-      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${vw.pnow ? describeTimeRows(u) : ""}`, ev.clientX, ev.clientY);
+      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${time.isExpiry ? "" : describeExpiryRows(u)}`, ev.clientX, ev.clientY);
     });
     hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); });
     // the axes answer questions too: a price below, a P&L on the left of each panel
@@ -345,7 +347,7 @@ const VIEWS = (() => {
     AXES.attach({ svg, orient: "y", band: { x: 0, y: y1, width: m.l, height: H1 }, guide: { from: m.l, to: W - m.r },
       toValue: py => yhi - (py - y1) / H1 * (yhi - ylo), toPx: Y, describe: describeValueOnAxis });
     AXES.attach({ svg, orient: "y", band: { x: 0, y: y2, width: m.l, height: H2 }, guide: { from: m.l, to: W - m.r },
-      toValue: py => dhi - (py - y2) / H2 * (dhi - dlo), toPx: Y2, describe: v => `<span class="h">A − ${hTxt()} at expiry ${fU(v)}</span>${describeUnitRows(v)}` });
+      toValue: py => dhi - (py - y2) / H2 * (dhi - dlo), toPx: Y2, describe: v => `<span class="h">A − ${hTxt()} ${time.isExpiry ? "at expiry" : esc(time.phrase)} ${fU(v)}</span>${describeUnitRows(v)}` });
   }
   // ---------------------------------------------------------- the EV explainer (a knob on the table's EV row)
   // credit, the expected settlement at the period vol (the plug, so the lines add up), EV in $, on margin and notional;
@@ -430,24 +432,35 @@ const VIEWS = (() => {
     }).join("");
     return `<span class="h">P&amp;L at expiry ${fU(v)}</span>${describeUnitRows(v)}${odds}`;
   }
-  // the P&L before expiry on the payoff's axis: now (all the time left) and half-way, for A and B (B scaled by h)
-  /** @param {{ ux: number[] }} input */
-  function describeTimeCurves({ ux }) {
-    const out = [];
-    for (const [side, b, value] of [["a", C.A, C.vA], ["b", C.B, C.vB]]) {
-      if (b.na) { continue; }
-      out.push({ side, label: "now", dash: "1.5 3", points: ux.map(u => [u, value(u, b.T)]) });
-      out.push({ side, label: "half-way", dash: "6 3", points: ux.map(u => [u, value(u, b.T / 2)]) });
-    }
-    return out;
+  // ---------------------------------------------------------- the payoff's time: days left on A (0 = at expiry)
+  // each position's own days left follow from the days elapsed, so a later expiry still has time when A expires
+  /** @returns {{ left: number, total: number, elapsed: number, isExpiry: boolean, phrase: string, title: string }} */
+  function readPayoffTime() {
+    const lead = !C.A.na ? C.A : !C.B.na ? C.B : null, total = lead ? lead.dte : 0;
+    const left = clamp(Math.round(V().payLeft), 0, total), isExpiry = left === 0;
+    const phrase = isExpiry ? "at expiry" : left === total ? `now, ${left} days left` : `with ${left} of ${total} days left`;
+    return { left, total, elapsed: total - left, isExpiry, phrase, title: isExpiry ? "Payoff at expiry" : `P&L ${phrase}` };
   }
-  // the hover's before-expiry rows: what each position closes for now and half-way, at this price
-  function describeTimeRows(u) {
-    const row = (cls, label, now, half) => `<span class="r"><span class="k"><i class="sw" style="background:var(--${cls})"></i>${label}</span><span class="v">${fU(now)} · ${fU(half)}</span></span>`;
-    const rows = [];
-    if (!C.A.na) { rows.push(row("a", "A now · half-way", C.vA(u, C.A.T), C.vA(u, C.A.T / 2))); }
-    if (!C.B.na) { rows.push(row("b", `B${hb()} now · half-way`, C.vB(u, C.B.T), C.vB(u, C.B.T / 2))); }
-    return rows.join("");
+  // a position's time to expiry in years once `elapsed` days have passed; 0 at or past its expiry
+  /** @param {{ b: any, elapsed: number }} input */
+  const tauAfter = ({ b, elapsed }) => b.dte > 0 ? b.T * Math.max(0, b.dte - elapsed) / b.dte : 0;
+  // A's and B's P&L at the payoff's time, on the move axis (B scaled like its line): marked to the model before expiry
+  function valuesAt(time) {
+    if (time.isExpiry) { return { a: C.pA, b: C.pB }; }
+    const markOr = (b, value, payoff) => { const tau = tauAfter({ b, elapsed: time.elapsed }); return tau > 0 ? u => value(u, tau) : payoff; };
+    return { a: C.A.na ? C.pA : markOr(C.A, C.vA, C.pA), b: C.B.na ? C.pB : markOr(C.B, C.vB, C.pB) };
+  }
+  // the panel's title and the days-left slider follow the time
+  function describePayoffTime(time) {
+    q("#pay-h").textContent = time.title;
+    const slider = /** @type {HTMLInputElement} */ (q("#c-payleft"));
+    slider.max = String(time.total);
+    if (document.activeElement !== slider) { slider.value = String(time.left); }
+    q("#c-paylefto").textContent = time.isExpiry ? "expiry" : time.left === time.total ? `now · ${time.left} d` : `${time.left} d`;
+  }
+  // the hover's reference rows when the chart shows a time before expiry: A and B at expiry, at this price
+  function describeExpiryRows(u) {
+    return `<span class="s">at expiry</span>${C.A.na ? "" : trow("A", C.pA(u), "a")}${C.B.na ? "" : trow("B" + hb(), C.pB(u), "b")}`;
   }
   // pair worst loss over the worst-loss range when one price drives both (same instrument and expiry)
   function pairWorst(Cx, a, b, h) {
@@ -520,6 +533,9 @@ const VIEWS = (() => {
     addRow({ label: `Expected value${KNOBS.html({ id: "cmp-ev", title: "Expected value, explained", body: describeEvExplainer({ isImpliedRow: sc.dist === Odds.Implied }) })}<span class="cap">${sc.dist === Odds.Implied ? "implied odds: fill vs mid, 0 at mid" : C.volOddsText()}</span>`, a: a(sa && sa.ev / A.S, nA), b: a(sb && sB(sb.ev / B.S), nB), format: v => fU(v, 2), better: Better.High });
     const edge = b => { const r = b.na ? null : RECOVERY.findBreakEvenVol({ built: b }); return r && r.ok ? r.value : NaN; };
     const ea = edge(A), eb = edge(B);
+    // break-even: the spot move first (what loses money), then the vol (what the fill gave away)
+    const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(price => `${fPx2(price)} <span class="muted">${fS(price / b.S - 1, 1)} · touch ${fPct(touchOdds({ b, price }))}</span>`).join("<br>") : "none";
+    rows.push(`<tr class="grp"><td>Break-even price${KNOBS.html({ id: "cmp-touch", title: "Touching a breakeven", body: "The chance the price trades through the breakeven at some point before expiry, at the ticker's period vol: about twice the chance of ending beyond it (the reflection principle for a driftless walk). Ending beyond it is what loses money; touching it is when you have to decide whether to adjust." })}<span class="cap">the move from spot, and the odds of touching it before expiry</span></td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     rows.push(`<tr><td>Break-even vol${KNOBS.html({ id: "cmp-edge", title: "Break-even vol", body: "The period vol at which the position's EV at expiry is zero, at its fill. Above the vol you assume, the trade has an edge of that many vol points; below it, it gives one away. It moves with the fill: a typed fill below mid lowers it." })}<span class="cap">the period vol at which EV is 0</span></td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "A")}>${fP(ea, 1)}</td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "B")}>${fP(eb, 1)}</td><td>${Number.isFinite(ea) && Number.isFinite(eb) ? formatSigned({ value: (ea - eb) * 100, digits: 1, suffix: " pts" }) : ""}</td><td></td></tr>`);
     rows.push(`<tr><td>Profit odds${rowKnob("odds")}<span class="cap">P&amp;L above 0 at expiry</span></td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "A")}>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "B")}>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
     const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
@@ -530,8 +546,6 @@ const VIEWS = (() => {
     addRow({ label: `Vega per vol point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2) });
     addRow({ label: `Margin${rowKnob("margin")}<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a: a(A.margin / A.S, nA), b: a(sB(B.margin / B.S), nB), format: v => fU(v).replace("+", ""), showDiff: false });
     addRow({ label: `Credit / margin${rowKnob("creditMargin")}${tvC}`, a: a(A.tv / A.margin, nA), b: a(B.tv / B.margin, nB), format: v => fP0(v, 1), showDiff: false, rowClass: "grp", better: Better.High });
-    const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(price => `${fPx2(price)} <span class="muted">touch ${fPct(touchOdds({ b, price }))}</span>`).join("<br>") : "none";
-    rows.push(`<tr><td>Breakevens${KNOBS.html({ id: "cmp-touch", title: "Touching a breakeven", body: "The chance the price trades through the breakeven at some point before expiry, at the ticker's period vol: about twice the chance of ending beyond it (the reflection principle for a driftless walk). Ending beyond it is what loses money; touching it is when you have to decide whether to adjust." })}<span class="cap">and the odds of touching each before expiry</span></td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     if (A.wingPx > 0 || B.wingPx > 0) {
       addRow({ label: "Wing cost", a: A.wingPx > 0 ? A.wingPx / A.S : NaN, b: B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, format: v => fU(v) });
       const cw = (b, s) => b.cap && s ? `${fPx2(s.capBE)} · ${fP(s.pCap, 1)}` : "–", pwg = (b, s) => b.capP && s ? `${fPx2(s.capPBE)} · ${fP(s.pCapP, 1)}` : "–";
@@ -1410,7 +1424,7 @@ const VIEWS = (() => {
     <div class="tblx" id="ovtable" hidden><table class="full" id="full"></table></div>
   </details>
   <section class="panel" id="p-pay">
-    <div class="ph"><span class="tools"><label class="chk" title="The P&amp;L if closed now and at half the time to expiry, at the model's marks (the implied smile, with the shocks below)"><input type="checkbox" id="c-pnow">now · half-way</label><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2>Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
+    <div class="ph"><span class="tools"><label class="ptime" title="Read the chart this many days before A's expiry: 0 is the payoff at expiry, the far end is today. Before expiry the P&amp;L is the model's mark (the implied smile, with the shocks under P&amp;L through time); the expiry payoff stays as a faint line">Days left <input type="range" id="c-payleft" min="0" max="1" step="1" aria-label="Days left before A's expiry"> <output id="c-paylefto"></output></label><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2 id="pay-h">Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
     <div class="chart" id="pay"></div>
     <table class="cmp" id="cmp"></table>
   </section>
@@ -1485,7 +1499,7 @@ const VIEWS = (() => {
     seg({ el: q("#c-ovv"), options: [["chart", "Charts"], ["table", "Table"]], read: state => state.prefs.ovv, command: pref("ovv") });
     q("#p-over").addEventListener("toggle", () => { if (C) safe(renderOverview, "overview"); });
     q("#ovtable").addEventListener("click", e => { const b = e.target.closest("button[data-set]"); if (!b || b.disabled) return; const c = OV[+b.dataset.i]; if (c) setFromCell(b.dataset.set, c); });
-    bindChk({ input: "#c-pnow", read: state => state.prefs.pnow, command: pref("pnow") }); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
+    q("#c-payleft").addEventListener("input", ev => runControlCommand({ command: pref("payLeft"), value: +(/** @type {HTMLInputElement} */ (ev.target)).value, source: "c-payleft" })); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
       // "own" starts from the move range in view (the render context's bounds)

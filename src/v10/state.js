@@ -11,7 +11,7 @@ const STATE = (() => {
   const ASSUMPTIONS_DEF = Object.freeze({ unit: MoveUnit.Sigma, rlo: 2, rhi: 2, rlink: true, wl: WorstLossRange.View, wlo: 2, whi: 2, dist: Odds.Implied, ivs: 0, svs: 0, svd: true, align: Align.Fraction });
   const PREFS_DEF = Object.freeze({
     units: ReadingUnit.Percent, ovm: "cr", ovv: "chart", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
-    ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, pnow: true, cs: "comp", cr: "auto", crx: 20, shared: true,
+    ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, payLeft: 0, cs: "comp", cr: "auto", crx: 20, shared: true,
     sweep: "both", sweepSmoothing: 0, mgTp: 50, mgSl: 200, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
@@ -111,7 +111,7 @@ const STATE = (() => {
   function sanitizePrefs(o) {
     const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
     const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);
     s.exportSections = sanitizeExportSections(isObj(o) ? o.exportSections : null);
     return s;

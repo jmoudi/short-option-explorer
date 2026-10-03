@@ -194,10 +194,10 @@ test("T25 the built page: the port, the stale Random paths run, a swap in vol mo
     await page.click('#y-view button:nth-child(1)'); await settle();
     await read(() => page.executor.execute({ type: Command.SetPeriodVol, ticker: "KORU", source: VolSource.Set, pct: 0, reader: Tab.Compounding }));
     await page.click("#tb-compare"); await settle();
-    assert.match(await read(() => document.querySelector("#s9B .s9vol").textContent), /vol 1% \(set 0%, floored\)/);
-    // the comparer's box shows what was applied, also while it keeps focus (fix round 2): 400 shows 300, 0 shows 1
-    await page.click('#d9t [data-act="instx"][data-side="B"]'); await settle();
-    const box = '#d9t .d9pv.b input[data-act="pvnum"]';
+    assert.match(await read(() => [...document.querySelectorAll("#facts .fxt")].map(e => e.textContent).join(" | ")), /KORU.*vol 1% \(set 0%, floored\)/);
+    // the Market facts editor shows what was applied, also while it keeps focus (fix round 2): 400 shows 300, 0 shows 1
+    await page.click('#facts [data-act="fxedit"][data-id="KORU"]'); await settle();
+    const box = '#fx-eds .d9pv.b input[data-act="pvnum"]';
     const boxNow = () => page.evaluate(sel => [document.querySelector(sel).value, document.activeElement === document.querySelector(sel)], box);
     await page.fill(box, "400"); await page.press(box, "Enter"); await settle();
     assert.deepEqual(await boxNow(), ["300", true]);

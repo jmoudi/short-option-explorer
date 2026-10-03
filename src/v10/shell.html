@@ -458,6 +458,28 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .pfb{margin-left:4px;font-size:11px;padding:1px 6px}
 .prow[data-row=fill] .pctl{white-space:normal;line-height:26px}
 .knw{white-space:nowrap}
+.pfr{display:block;font-size:11px;color:var(--ink-3);margin:2px 0}
+/* Market facts */
+.facts{display:block;margin:0 0 14px}
+.facts>summary{cursor:pointer;display:flex;align-items:baseline;gap:12px}
+.facts>summary h2{display:inline;margin:0}
+.facts .fxs{font:12px var(--f-num);color:var(--ink-2)}
+.facts[open] .fxs{display:none}
+.fxb{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:10px 24px;margin-top:8px}
+.fxb>.cap,.fxb>.fxc{grid-column:1/-1}
+.fxt{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px;line-height:24px}
+.fxt .key{margin-right:4px;vertical-align:1px}
+.fxt .fxn{font:600 14px var(--f-cond);color:var(--ink);margin:0 8px 0 4px}
+.fxt b{color:var(--ink);font-family:var(--f-num);font-weight:600}
+.fxt .fxe{margin-left:8px;font-size:11px;padding:0 7px}
+.fxx{border-collapse:collapse;width:100%;font:12px var(--f-num)}
+.fxx th{font:500 11px var(--f-ui);color:var(--ink-3);text-align:right;padding:2px 6px;border-bottom:1px solid var(--line)}
+.fxx td{text-align:right;padding:3px 6px;border-bottom:1px solid var(--grid);color:var(--ink-2)}
+.fxx th:first-child,.fxx td:first-child{text-align:left}
+.fxx tr.on td{color:var(--ink)}
+.fxx .key{margin-right:5px;font-size:10px;padding:1px 4px}
+.fxeds{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;margin-top:10px}
+.fxeds:empty{display:none}
 .pfb.on{color:var(--ink);border-color:var(--ink-3)}
 .pfb.w{color:var(--diff-warn)}
 .pfx{display:block;padding:6px 8px;border-radius:6px;background:var(--surface-2)}
@@ -604,6 +626,7 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
     </div>
   </div>
 
+  <details class="panel facts" id="facts" open></details>
   <div id="views"></div>
   </section>
 

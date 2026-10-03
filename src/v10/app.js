@@ -135,6 +135,7 @@ function syncTabs(tab) {
 function renderCompare(context) {
   const summary = runGuarded({ where: "summary", run: () => SUM9.render(context) });
   runGuarded({ where: "dock", run: () => DOCK9.render(context) });
+  runGuarded({ where: "facts", run: () => FACTS.render(context) });
   const hasTitle = summary.ok && context.labels && context.labels.title;
   if (hasTitle) { document.title = context.labels.title; }
   VIEWS.render(context);
@@ -277,6 +278,7 @@ function reportBootFaults(boot) {
 function wireCompare() {
   SUM9.init();
   DOCK9.init();
+  FACTS.init();
   VIEWS.wire({ host: $("#views") });
   VIEWS.notes();
   EXPORT9.wire({ readState: () => page.store.read(), code: () => page.saved.code });

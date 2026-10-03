@@ -39,7 +39,7 @@ if '--out' in sys.argv:
 NO_COMPOUNDING = '--no-compounding' in sys.argv
 
 MODEL = ['dist.js', 'inst.js', 'rule.js', 'pos.js', 'cmp.js', 'state.js', 'ctx.js', 'recovery.js', 'manage.js']
-UI9 = ['ui_summary.js', 'ui_dock.js', 'ui_views.js', 'ui_export.js']
+UI9 = ['ui_summary.js', 'ui_dock.js', 'ui_facts.js', 'ui_views.js', 'ui_export.js']
 COMPOUND_PURE = ['compound_engine.js', 'compound_stress.js']
 COMPOUND_UI = ['compound_ui.js']
 STUB = 'const COMPOUND={init(options){},render(mode){},getState(){return null},setState(state){},reset(){}};\n'
@@ -162,7 +162,7 @@ ALLOWED = {
     'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'}, 'recovery.js': {'RECOVERY'}, 'manage.js': {'MANAGE'},
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',
                      'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES'},
-    'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
+    'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_facts.js': {'FACTS'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
     'compound_engine.js': {'COMPOUND_ENGINE'}, 'compound_stress.js': {'COMPOUND_STRESS'}, 'compound_ui.js': {'COMPOUND'},
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',
                'writeStoredBlob', 'writeAddressCode', 'persistFrame', 'applyTheme', 'syncTabs', 'renderCompare', 'renderCompounding',

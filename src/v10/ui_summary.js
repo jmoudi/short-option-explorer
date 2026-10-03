@@ -101,8 +101,8 @@ const SUM9 = (() => {
     const n = b.net, deb = n.isDebit;
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
-    const fillTxt = b.typedCount ? `<span class="s9fL">your fill</span><span class="s9fS">yours</span>` : b.fill === "nat" ? `<span class="s9fL">natural</span><span class="s9fS">nat</span>` : "mid";
-    h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span><span class="s9fi"> · ${tok(m.fill, fillTxt, b.fill === "nat" ? "natural fill: sell at the bid, buy at the ask" : "filled at mid")}</span>`;
+    // what it collects, not how the fill was got (that is set and shown in the box's Fill row)
+    h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span>`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
     if (side === "B" && !C.A.na) {
@@ -122,18 +122,6 @@ const SUM9 = (() => {
   // without spot; 4 the period-vol reading compact ("vs IV 124%"); 5–7 one, two, three secondary readings fewer; 8 no
   // days; 9 "N flags". The days (one short token, shown nowhere else on the summary) outlast the secondary readings
   const L3N = 10;
-  // the card's period-vol reading, "vol 117% (<listed>) vs implied 124%" (compact: "vs IV 124%"; a hand-set vol carries
-  // ✎); a click, Enter or Space opens the side's spot / IV / period vol controls in Positions. Kept on every level of
-  // line 3, right after the active basis
-  /** @param {{ b: any, C: any, side: string, isCompact: boolean }} input */
-  function volHtml({ b, C, side, isCompact }) {
-    const vol = C.volOf(b.tk), isHandSet = vol.source === VolSource.Set, implied = b.E ? fP(b.E.atm, 0) : "–";
-    const floored = Number.isFinite(vol.storedPct) && vol.storedPct < vol.pct ? ` The stored ${+vol.storedPct.toFixed(2)}% (exactly on the path, set on Compounding) reads as ${Math.round(vol.pct)}% here, the comparer's floor.` : "";
-    const tip = `${b.tk} period vol: the assumed vol of its moves over the period, one number for every expiry, used by every EV reading (and by the odds when the odds switch says period vol). Implied: ATM IV at ${fmtE(b.exp)}.${floored} Click to set it under Positions, spot / IV / period vol.`;
-    // two different vols, named as such: the period vol (odds and EV) and the expiry's ATM IV (σ and the move range)
-    const versus = "· ATM IV";
-    return `<span class="s9vol" data-vol="${side}" tabindex="0" role="button" data-tip="${tipEsc(tip)}">${isHandSet ? `<span class="s9vpen">✎ </span>` : ""}period ${esc(vol.label)} ${versus} ${implied}</span>`;
-  }
   /** @param {{ b: any, P: any, C: any, side: string }} input */
   function line3({ b, P, C, side }) {
     const fl = flagsHtml(b, b.na), flags = b.flags.filter(f => b.na || f.code !== "WING_NA");
@@ -162,21 +150,18 @@ const SUM9 = (() => {
       }
       return { head, extra };
     };
-    const away = Math.abs(b.F / b.S - 1) > 0.01;
-    const fwL = away ? ` · fwd ${fPx2(b.F)} (spot ${fPx2(b.S)})` : "", fwS = away ? ` · <span title="spot ${fPx2(b.S)}">fwd ${fPx2(b.F)}</span>` : "";
     const tail = x => x ? " · " + x : "";
     // o = {sfx, fw, volCompact, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
     const mk = o => {
       const { head, extra } = parts(o.sfx), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
-      if (o.dte) rest.push(`${b.dte} d`);
-      const vol = volHtml({ b, C, side, isCompact: o.volCompact });
-      const base = [...head.map(esc), vol, ...rest.map(esc)].join(" · ") + o.fw;
+      // the position's placement only: the market facts (vols, days, forward) are under Market facts
+      const base = [...head.map(esc), ...rest.map(esc)].join(" · ");
       return o.fl === "all" ? base + fl.map(x => " · " + x).join("") : base + tail(o.fl === "fold" ? fold : fold2);
     };
-    const levels = [], o = { sfx: sfxL, fw: fwL, volCompact: false, dte: true, drop: 0, fl: "all" };
+    const levels = [], o = { sfx: sfxL, drop: 0, fl: "all" };
     const push = ch => { Object.assign(o, ch); levels.push(mk(o)); };
-    push({}); push({ fl: "fold" }); push({ sfx: sfxS }); push({ fw: fwS }); push({ volCompact: true });
-    push({ drop: 1 }); push({ drop: 2 }); push({ drop: 3 }); push({ dte: false }); push({ fl: "fold2" });
+    push({}); push({ fl: "fold" }); push({ sfx: sfxS }); push({ sfx: sfxS }); push({ sfx: sfxS });
+    push({ drop: 1 }); push({ drop: 2 }); push({ drop: 3 }); push({ drop: 3 }); push({ fl: "fold2" });
     return levels;
   }
   function flagsHtml(b, all) {
@@ -400,24 +385,10 @@ const SUM9 = (() => {
     const p = ev.target.closest("[data-pi]");
     if (p) { const pop = q("#pop"); if (pop && pop.contains(p)) pop.hidden = true; if (typeof DOCK9 !== "undefined") DOCK9.reveal(p.dataset.row, p.dataset.side); }
   }
-  // a click (or Enter / Space) on a card's period-vol reading opens that side's spot / IV / period vol controls in
-  // Positions
-  function onCardClick(ev) {
-    const reading = ev.target.closest("[data-vol]");
-    if (!reading || typeof DOCK9 === "undefined") { return; }
-    DOCK9.reveal("inst", reading.dataset.vol);
-  }
-  function onCardKey(ev) {
-    const isPress = SUMMARY_CONFIG.pressKeys.includes(ev.key);
-    if (!isPress || !ev.target.closest("[data-vol]")) { return; }
-    ev.preventDefault();
-    onCardClick(ev);
-  }
   let ro = null;
   function init() {
     q("#s9swap").addEventListener("click", () => page.executor.execute({ type: Command.Swap, source: "summary" }));
     q("#s9pills").addEventListener("click", onPills);
-    for (const id of ["#s9A", "#s9B"]) { q(id).addEventListener("click", onCardClick); q(id).addEventListener("keydown", onCardKey); }
     wireRange(); wireToast();
     const sum = q("#sum9"), setH = () => document.documentElement.style.setProperty("--sumh", Math.ceil(sum.getBoundingClientRect().height) + "px");
     if (window.ResizeObserver) { ro = new ResizeObserver(setH); ro.observe(sum); }
