@@ -220,6 +220,25 @@
   `PANELS.decorate`). In a summary: the chip right after the name, then its value or caption.
 - Check: `tools_checks/lenses.js`.
 
+## Round 7: four more lenses, the lens bar, skew, the lens in the export
+
+- **Lens bar** (its own row under the days bar): P&L · Day change · Time decay · Decay vs move · Profit zone · EV map,
+  then the controls the lens reads (a move %, the IV band, Extrapolate); the ones a lens does not read are dimmed.
+- **Decay vs move** (`ui_lens.js`): for each trading day, the move up and down that wipes out that day's decay, over the
+  market-move shading of a normal day (1σ at the ATM IV; Mondays span the weekend) and the period vol's 1σ day dotted;
+  the readout gives the odds the day loses at the period vol. Checked against the theta–gamma identity (T29).
+- **Profit zone**: each day's break-even prices (P&L 0 at the model's mark) inside the ±1σ / ±2σ price cone under the
+  odds switch; the odds the price sits inside the zone that day; from the first day after today.
+- **EV map**: at the chosen day, P&L × odds per 1% of move (A as gain/loss areas, B as a line) and the running total
+  ending at the expected P&L if closed that day (period-vol odds); the share of the expected loss from clear falls and
+  clear rises (beyond 1.5σ).
+- **IV band** (P&L lens, `prefs.payIv` 0 / 5 / 10): the P&L at the IVs shifted ± points, shaded, with hover rows.
+- **General**: ← → step the days on the focused chart (Home / End); skew at the chosen strikes in Market facts (each
+  leg against the ATM IV, put wing against call wing); the Markdown export gets a "Payoff lens" section (on by
+  default) with the lens's title, day and readout.
+- Tests: `test/t29_lens.test.js` (edges, the theta–gamma check, the zone at expiry, the EV cells); check:
+  `tools_checks/lenses.js` covers the new lenses, the IV band, the keys and the export.
+
 ## Trader notes from this round
 
 - The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill

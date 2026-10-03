@@ -809,3 +809,12 @@ Grid odds with calendar alignment should use `cdfAt(d, x, Math.min(day, b.dte) /
   `drawMoveZones`, `moveZoneRow`. `LAST.decay` holds the series for checks.
 - ui_common.js: `MOVES = {FLAT, CLEAR, WORDS, classify(z), chip(z)}`; `ICONS.trendingUp`; `PANELS.decorate` places
   `.phx` chips after the collapse and notes chips.
+
+## Round 7 additions
+
+- `PayLens` adds `Move`, `Zone`, `Ev`; pref `payIv` (0 | 5 | 10); `ExportSection.Lens` ("lens", on by default).
+- ui_lens.js: `LENSES.render({ lens, time, kit })`; `LENSES.math = { findEdge, readDayBreakEvens({ value, price,
+  tauBefore, tauAfter }), readZone({ value, price, tau }), readEvCells({ value, cdf, span }), oddsBelow }`. The kit
+  comes from `VIEWS` (`readLensKit`): the context, formatting, the day stops and the panel's title/legend/readout slots.
+- ui_views.js: `readIvBands`, `drawIvBands`, `describeIvRows`; `VIEWS.exportLens()`.
+- ui_facts.js: `describeSkew()` under the contracts table.

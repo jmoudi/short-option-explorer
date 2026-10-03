@@ -14,7 +14,7 @@
     "types/globals.d.ts",
     "core.js", "adapters.js", "app_store.js", "eng_head.js",
     "dist.js", "inst.js", "rule.js", "pos.js", "cmp.js", "state.js", "ctx.js", "recovery.js", "manage.js", "capture.js",
-    "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_facts.js", "ui_capture.js", "ui_views.js", "ui_export.js",
+    "ui_common.js", "ui_summary.js", "ui_dock.js", "ui_facts.js", "ui_capture.js", "ui_lens.js", "ui_views.js", "ui_export.js",
     "compound_engine.js", "compound_stress.js", "compound_ui.js", "app.js"
   ]
 }

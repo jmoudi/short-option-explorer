@@ -143,7 +143,7 @@ test("T14: v9's export section choice moves from the Compounding state into pref
   const yr = { k: 1, view: { v: "year", exportYr: { runs: false, weeks: true }, dockOff: false, exportCmp: { header: true, overview: true, pins: false, bogus: true } } };
   const r = STATE.migrate(J(writeV9Blob({ tree, tab: "compare", theme: "auto", yr })));
   assert.deepEqual(Object.keys(r.state.prefs.exportSections), ["yr", "compare"], "the order of the first choice");
-  assert.deepEqual(J(r.state.prefs.exportSections.compare), { header: true, comparison: true, assumptions: true, results: true, recovery: true, capture: true, pins: false, overview: true, notes: true });
+  assert.deepEqual(J(r.state.prefs.exportSections.compare), { header: true, comparison: true, assumptions: true, results: true, recovery: true, lens: true, capture: true, pins: false, overview: true, notes: true });
   assert.deepEqual(J(r.state.prefs.exportSections.yr), { runs: false, base: true, strip: true, kept: true, weeks: true, stress: true, random: true });
   assert.deepEqual(J(r.yr), { k: 1, view: { v: "year", dockOff: false } }, "the Compounding state loses the export keys");
   assert.deepEqual(J(yr.view.exportCmp), { header: true, overview: true, pins: false, bogus: true }, "the input is untouched");

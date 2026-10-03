@@ -21,7 +21,17 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   out.decayTitleHasPrice = /Time decay at/.test(out.decay.title);
   await p.click('#pay svg rect[style*=pointer]', { position: { x: 30, y: 100 } }); await p.waitForTimeout(350);
   out.clickPicksStop = await p.evaluate(() => page.store.read().prefs.payLeft);
-  const ok = !out.pnlExpiry.badge && out.pnlExt.badge && !out.pnlExt.hint && out.pnlExtToday.hint && !out.pnlExtToday.badge &&
+  for (const lens of ['move', 'zone', 'ev']) {
+    await set({ payLens: lens, payLeft: 5 });
+    out[lens] = await p.evaluate(() => ({ svg: !!document.querySelector('#pay svg'), lines: document.querySelectorAll('#pay-read .dr').length, title: document.querySelector('#pay-h').textContent }));
+  }
+  await set({ payLens: 'ev', payLeft: 999 }); out.evToday = await p.evaluate(() => !!document.querySelector('#pay .lensempty'));
+  await set({ payLens: 'pnl', payLeft: 14, payIv: 10, payExtra: false }); out.ivBand = await p.evaluate(() => /IV ±10/.test(document.querySelector('#pay-lgd').textContent));
+  await p.focus('#pay'); await p.keyboard.press('ArrowRight'); await p.waitForTimeout(300); out.keyStep = await p.evaluate(() => page.store.read().prefs.payLeft);
+  const md = await p.evaluate(() => { page.executor.execute({ type: 'prefs.set', patch: { payLens: 'zone', payLeft: 5 } }); return new Promise(r => setTimeout(() => r(VIEWS.exportLens()), 400)); });
+  out.exportLens = !!(md && md.lines.length);
+  const more = ['move', 'zone', 'ev'].every(l => out[l].svg && out[l].lines >= 1) && out.evToday && out.ivBand && out.keyStep < 14 && out.exportLens;
+  const ok = more && !out.pnlExpiry.badge && out.pnlExt.badge && !out.pnlExt.hint && out.pnlExtToday.hint && !out.pnlExtToday.badge &&
     out.day.extDisabled && /vs the trading day before/.test(out.day.title) && out.decayTitleHasPrice && out.decay.payAt && out.pnlExpiry.zones >= 3;
   console.log(JSON.stringify(out, null, 1)); console.log('lenses ok', ok); console.log('errors', errs);
   await b.close();

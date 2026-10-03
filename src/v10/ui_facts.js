@@ -75,7 +75,21 @@ const FACTS = (() => {
           `<td>${signed(l.money, 1, "%")} · ${signed(l.sigma, 2, "σ")}</td><td>${pxOf(l.intrinsic)}</td><td>${pxOf(timeValue)}</td><td class="muted">${l.model ? "model quote" : ""}</td></tr>`;
       });
     }).join("");
-    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th>Strike vs forward</th><th>Intrinsic</th><th>Time value</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th>Strike vs forward</th><th>Intrinsic</th><th>Time value</th><th></th></tr></thead><tbody>${rows}</tbody></table>${describeSkew()}`;
+  }
+  // the skew at the chosen strikes: each leg's IV against the expiry's ATM IV, and the put wing against the call wing
+  // (positive: the puts are dearer, the usual shape; a leveraged ETF's call wing can be the dearer one)
+  const legIv = l => Number.isFinite(l.ivm) ? l.ivm : l.iv;
+  function describeSkew() {
+    const lines = ["A", "B"].map(side => {
+      const b = bOf(side);
+      if (b.na || !b.E || !(b.E.atm > 0)) { return ""; }
+      const pts = v => signed(v * 100, 1, " pts"), puts = b.legs.filter(l => l.cp === "P"), calls = b.legs.filter(l => l.cp === "C");
+      const vsAtm = b.legs.map(l => `${fK(l.K)}${l.cp} ${pts(legIv(l) - b.E.atm)}`).join(" · ");
+      const wing = puts.length && calls.length ? ` · put wing over call wing <b>${pts(Math.max(...puts.map(legIv)) - Math.max(...calls.map(legIv)))}</b>` : "";
+      return `<span class="fskew">${keyHtml(side)} vs ATM IV ${fP(b.E.atm, 1)}: ${vsAtm}${wing}</span>`;
+    }).filter(Boolean);
+    return lines.length ? `<span class="fskews"><span class="lbl">Skew at the chosen strikes</span>${lines.join("")}</span>` : "";
   }
 
   function instX(side) {

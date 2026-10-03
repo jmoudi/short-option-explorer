@@ -11,7 +11,7 @@ const EXPORT9 = (() => {
   // default is STATE.EXPORT_SECTION_DEFAULTS
   /** @type {[string, string][]} */
   const CMP_SECTIONS = [[ExportSection.Header, "Header"], [ExportSection.Comparison, "Comparison"], [ExportSection.Assumptions, "Assumptions"],
-    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Capture, "Capture"], [ExportSection.Pins, "Pinned scenarios"],
+    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Lens, "Payoff lens"], [ExportSection.Capture, "Capture"], [ExportSection.Pins, "Pinned scenarios"],
     [ExportSection.Overview, "Overview table"], [ExportSection.Notes, "Notes"]];
   /** @type {[string, string][]} */
   const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Kept, "Credit kept"], [ExportSection.Weeks, "Week by week"],
@@ -292,6 +292,9 @@ const EXPORT9 = (() => {
   // a readings table handed over by its view ({ intro, head, rows, note }), as plain text
   /** @param {string} title @param {{ intro: string, head: string[], rows: string[][], note: string }} t */
   const secReadingTable = (title, t) => para(title, t.intro, table(t.head, t.rows), t.note);
+  // the payoff lens as shown: its title, the day it is read at and its readout lines
+  /** @param {{ title: string, day: string, lines: string[] }} lens */
+  const secLens = lens => para(`## Payoff lens · ${lens.title}`, `Read at ${lens.day}.`, lens.lines.map(l => `- ${l}`).join("\n"));
   function toMarkdownCompare(C, state, opts = {}) {
     const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
@@ -303,6 +306,7 @@ const EXPORT9 = (() => {
     if (on.assumptions) out.push(secAssumptions(C));
     if (on.results) out.push(secResults(C));
     if (on.recovery) out.push(secRecovery(C));
+    if (on.lens && opts.lens) out.push(secLens(opts.lens));
     if (on.capture && opts.capture) out.push(secReadingTable("## Capture", opts.capture));
     if (on.pins) { const p = secPins(C); if (p) out.push(p); }
     if (on.overview) out.push(secOverview(C));
@@ -430,8 +434,8 @@ const EXPORT9 = (() => {
       const kept = COMPOUND.exportKept ? COMPOUND.exportKept() : null;
       return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, kept, code: H.code() }), name: "compounding" };
     }
-    const C = CTX.ctx9(state), capture = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.exportTable(C) : null;
-    return { md: EXPORT9.toMarkdownCompare(C, state, { sections: readSections(Tab.Compare), capture, code: H.code() }), name: "compare" };
+    const C = CTX.ctx9(state), capture = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.exportTable(C) : null, lens = typeof VIEWS !== "undefined" ? VIEWS.exportLens() : null;
+    return { md: EXPORT9.toMarkdownCompare(C, state, { sections: readSections(Tab.Compare), capture, lens, code: H.code() }), name: "compare" };
   }
   function syncSecs() {
     const tab = H.readState().tab, list = SECTION_LISTS[tab] || CMP_SECTIONS, on = readSections(tab), host = document.querySelector("#xsecs");

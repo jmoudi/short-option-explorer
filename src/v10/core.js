@@ -95,7 +95,7 @@ const ViewCodeVersion = Object.freeze({ V10: "10", V9: "9", V8: "8", V5: "5" });
 // their labels); prefs.exportSections stores the reader's choice
 const ExportSection = Object.freeze({
   Header: "header", Comparison: "comparison", Assumptions: "assumptions", Results: "results", Recovery: "recovery", Pins: "pins",
-  Overview: "overview", Notes: "notes", Capture: "capture",
+  Overview: "overview", Notes: "notes", Capture: "capture", Lens: "lens",
   Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random", Kept: "kept"
 });
 // the steps a toast action runs on the comparison ([step, ...args] in an ApplyAction command), see CMP.runAction
@@ -147,7 +147,7 @@ const HitSide = Object.freeze({ Worse: "worse", Down: "down", Up: "up" });
 // payoff, and the market facts the positions stand on
 const CompareView = Object.freeze({ Results: "results", Capture: "capture", Facts: "facts" });
 // the payoff chart's lens: the P&L, the change since the previous trading day, or the time decay at one price
-const PayLens = Object.freeze({ Pnl: "pnl", Day: "day", Decay: "decay" });
+const PayLens = Object.freeze({ Pnl: "pnl", Day: "day", Decay: "decay", Move: "move", Zone: "zone", Ev: "ev" });
 // the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
 const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
 // the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)

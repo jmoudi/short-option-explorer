@@ -20,7 +20,7 @@ const STATE = (() => {
     fillMatch: "off",
     // de-soup: the comparison table's extra rows, the details under Capture's numbers
     cmpMore: false, capDetails: false,
-    cmpView: CompareView.Results, payLens: PayLens.Pnl, payExtra: false, payAt: 0, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
+    cmpView: CompareView.Results, payLens: PayLens.Pnl, payExtra: false, payAt: 0, payIv: 0, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
     exportSections: Object.freeze({})
@@ -38,7 +38,7 @@ const STATE = (() => {
   const EXPORT_SECTION_DEFAULTS = Object.freeze({
     [Tab.Compare]: Object.freeze({
       [ExportSection.Header]: true, [ExportSection.Comparison]: true, [ExportSection.Assumptions]: true, [ExportSection.Results]: true,
-      [ExportSection.Recovery]: true, [ExportSection.Capture]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
+      [ExportSection.Recovery]: true, [ExportSection.Lens]: true, [ExportSection.Capture]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
     }),
     [Tab.Compounding]: Object.freeze({
       [ExportSection.Runs]: true, [ExportSection.Base]: true, [ExportSection.Strip]: true, [ExportSection.Kept]: true, [ExportSection.Weeks]: false,
@@ -119,7 +119,7 @@ const STATE = (() => {
   function sanitizePrefs(o) {
     const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
     const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.payAt = clamp(+s.payAt || 0, -90, 300); s.payExtra = !!s.payExtra; s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.payAt = clamp(+s.payAt || 0, -90, 300); s.payExtra = !!s.payExtra; s.payIv = [0, 5, 10].includes(s.payIv) ? s.payIv : 0; s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
     s.capX = clamp(s.capX, -300, 100); s.ccVol = clamp(s.ccVol, 1, 400); s.ccGapP = clamp(s.ccGapP, 0, 100); s.ccGapS = clamp(s.ccGapS, 0, 95);
     s.ccPct = clamp(s.ccPct, 1, 99); s.ccLeft = Math.round(clamp(s.ccLeft, 0, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);

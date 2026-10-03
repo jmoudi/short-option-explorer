@@ -282,8 +282,18 @@ const VIEWS = (() => {
   function renderPayoff() {
     const time = readPayoffTime();
     describeLensControls(time);
-    if (V().payLens === PayLens.Decay) { renderDecayLens(time); return; }
+    const lens = V().payLens;
+    if (lens === PayLens.Decay) { renderDecayLens(time); return; }
+    if (lens === PayLens.Move || lens === PayLens.Zone || lens === PayLens.Ev) { describePayoffTime(time); LENSES.render({ lens, time, kit: readLensKit() }); return; }
     renderPriceLens(time);
+  }
+  // what the lenses in ui_lens.js may use: the render context, formatting, the day stops and the panel's slots
+  function readLensKit() {
+    return {
+      C, V, host: q("#pay"), setPref, stopReplay, tauAfter, dayLabel, payTicks, fU, fUt, pn, hb, esc,
+      title: text => { q("#pay-h").textContent = text; }, legend: html => { q("#pay-lgd").innerHTML = html; },
+      read: html => { q("#pay-read").innerHTML = html; }, keep: readings => { Object.assign(LAST, readings); }
+    };
   }
   // the P&L and day-change lenses: values across the move axis at the chosen stop, A − B below
   function renderPriceLens(time) {
@@ -299,9 +309,10 @@ const VIEWS = (() => {
     const a = ux.map(u => [u, at.a(u)]), b = ux.map(u => [u, at.b(u)]), df = ux.map(u => [u, at.a(u) - at.b(u)]);
     const ghosts = time.isExpiry || lens === PayLens.Day ? [] : [{ side: "b", points: ux.map(u => [u, C.pB(u)]) }, { side: "a", points: ux.map(u => [u, C.pA(u)]) }];
     const ext = at.ext ? [{ side: "b", points: C.B.na ? [] : ux.map(u => [u, at.ext.b(u)]) }, { side: "a", points: C.A.na ? [] : ux.map(u => [u, at.ext.a(u)]) }] : [];
+    const ivPts = lens === PayLens.Pnl && !time.isExpiry ? V().payIv : 0, ivBands = ivPts ? readIvBands({ time, ivPts, ux }) : [];
     describePayoffTime(time);
     if (lens === PayLens.Day) { q("#pay-h").textContent = at.title; }
-    const ys = [...a, ...b, ...ghosts.flatMap(g => g.points), ...ext.flatMap(g => g.points)].map(p => p[1]).filter(Number.isFinite);
+    const ys = [...a, ...b, ...ghosts.flatMap(g => g.points), ...ext.flatMap(g => g.points), ...ivBands.flatMap(g => g.points)].map(p => p[1]).filter(Number.isFinite);
     let ylo = Math.min(...ys, 0), yhi = Math.max(...ys, 0); const pad = (yhi - ylo) * 0.08 || 0.01; ylo -= pad; yhi += pad;
     const dys = df.map(p => p[1]).filter(Number.isFinite); let dlo = Math.min(...dys, 0), dhi = Math.max(...dys, 0); const dp = (dhi - dlo) * 0.14 || 0.005; dlo -= dp; dhi += dp;
     const H1 = 270, H2 = 92, nStrip = vw.pso ? (two || diffExp() ? 2 : 1) : 0, H3 = nStrip * 22, gap = 14, m = { l: 62, r: 54, t: two && C.unit !== "sig" ? 28 : 16, b: two ? 52 : 40 };
@@ -329,6 +340,7 @@ const VIEWS = (() => {
     const horizon = (b, y) => { if (diffExp()) txt(svg, W - m.r - 4, y + 17, "to " + fmtE(b.exp), { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10, ...halo }); };
     if (nStrip && !A.na && C.d) { oddsStrip(svg, C.d, C.xA, lo, hi, A.T, X, y3, 20, nStrip > 1 ? `${tkS("A")} odds` : "odds"); horizon(A, y3); }
     if (nStrip > 1 && !B.na && C.dB) { oddsStrip(svg, C.dB, C.xB, lo, hi, B.T, X, y3 + 22, 20, `${tkS("B")} odds`); horizon(B, y3 + 22); }
+    drawIvBands({ svg, bands: ivBands, X, Y, ivPts, xEnd: W - m.r });
     for (const { side, points } of ghosts) { el("path", { d: pathOf(points, X, Y), fill: "none", stroke: `var(--${side})`, "stroke-width": 1.2, "stroke-opacity": .35, "stroke-linejoin": "round" }, svg); }
     el("path", { d: pathOf(b, X, Y), fill: "none", stroke: "var(--b)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
     el("path", { d: pathOf(a, X, Y), fill: "none", stroke: "var(--a)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-dasharray": C.diff.identical ? "6 4" : "" }, svg);
@@ -344,7 +356,7 @@ const VIEWS = (() => {
     if (C.diff.identical && !hb()) endLab(a, "A = B", "ink", a); else { endLab(a, "A", "a", b); endLab(b, "B" + hb(), "b", a); }
     const naSides = [["A", A], ["B", B]].filter(([, x]) => x.na);
     if (naSides.length) txt(svg, m.l + 10, y1 + 18, naSides.map(([t, x]) => `${t} is n/a: ${x.naReason}`).join(" · "), { fill: "var(--neg)", "font-size": 12, "font-weight": 600, ...halo });
-    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${ghosts.length ? ` <span class="muted">· faint: the same at expiry</span>` : ""}${at.ext ? ` <span class="ybadge">extrapolated (dashed): ${esc(at.extWords)}</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
+    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${ghosts.length ? ` <span class="muted">· faint: the same at expiry</span>` : ""}${at.ext ? ` <span class="ybadge">extrapolated (dashed): ${esc(at.extWords)}</span>` : ""}${ivBands.length ? ` <span class="muted">· shaded: IV ±${ivPts} points</span>` : V().payIv && lens === PayLens.Pnl ? ` <span class="muted">· IV band: none at expiry (no time value left)</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
     const cross = el("line", { y1: y1, y2: y3 + H3, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
     const dots = ["a", "b", "ink"].map(c => el("circle", { r: 4, fill: `var(--${c})`, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg));
     const hit = el("rect", { x: m.l, y: y1, width: W - m.l - m.r, height: y3 + H3 - y1, fill: "transparent" }, svg);
@@ -352,7 +364,7 @@ const VIEWS = (() => {
       const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width, u = clamp(lo + (px - m.l) / (W - m.l - m.r) * (hi - lo), lo, hi);
       cross.setAttribute("x1", X(u)); cross.setAttribute("x2", X(u)); cross.setAttribute("visibility", "visible");
       const va = at.a(u), vb = at.b(u), vd = va - vb;
-      const lensRows = (lens === PayLens.Day ? `<span class="s">${esc(at.since)}</span>` : "") + (at.ext ? `<span class="s" style="color:var(--y)">extrapolated to expiry</span>${C.A.na ? "" : trow("A", at.ext.a(u), "y")}${C.B.na ? "" : trow("B" + hb(), at.ext.b(u), "y")}` : "") + moveZoneRow({ u, elapsed: time.elapsed });
+      const lensRows = (lens === PayLens.Day ? `<span class="s">${esc(at.since)}</span>` : "") + (at.ext ? `<span class="s" style="color:var(--y)">extrapolated to expiry</span>${C.A.na ? "" : trow("A", at.ext.a(u), "y")}${C.B.na ? "" : trow("B" + hb(), at.ext.b(u), "y")}` : "") + moveZoneRow({ u, elapsed: time.elapsed }) + describeIvRows({ time, ivPts, u });
       [[va, Y], [vb, Y], [vd, Y2]].forEach(([v, f], i) => { if (Number.isFinite(v)) { dots[i].setAttribute("cx", X(u)); dots[i].setAttribute("cy", f(v)); dots[i].setAttribute("visibility", "visible"); } else dots[i].setAttribute("visibility", "hidden"); });
       showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${lensRows}${time.isExpiry || lens === PayLens.Day ? "" : describeExpiryRows(u)}`, ev.clientX, ev.clientY);
     });
@@ -516,20 +528,62 @@ const VIEWS = (() => {
     const title = prevTime ? `Day change · ${stopDay} vs the trading day before` : "Day change · today vs entry";
     return { a: values.a, b: values.b, ext, extWords, since, title, change, prevTime };
   }
+  // the IV band: the P&L at the chosen stop with every implied vol shifted ± points on top of the page's shock
+  /** @param {{ time: any, ivPts: number, ux: number[] }} input */
+  function readIvBands({ time, ivPts, ux }) {
+    const bands = [];
+    for (const [side, b, toS, scale] of [["a", C.A, C.toSA, 1], ["b", C.B, C.toSB, C.h]]) {
+      const tau = b.na ? 0 : tauAfter({ b, elapsed: time.elapsed });
+      if (!(tau > 0) || (side === "b" && C.same && C.diff.identical)) { continue; }
+      for (const sign of [1, -1]) {
+        const shock = Object.assign({}, C.shock, { ivs: (C.shock.ivs || 0) + sign * ivPts });
+        bands.push({ side, sign, points: ux.map(u => [u, scale * POS.val(b, toS(u), tau, shock) / b.S]) });
+      }
+    }
+    return bands;
+  }
+  /** @param {{ svg: SVGElement, bands: any[], X: (u: number) => number, Y: (v: number) => number, ivPts: number, xEnd: number }} input */
+  function drawIvBands({ svg, bands, X, Y, ivPts, xEnd }) {
+    for (const side of ["b", "a"]) {
+      const up = bands.find(g => g.side === side && g.sign > 0), down = bands.find(g => g.side === side && g.sign < 0);
+      if (!up || !down) { continue; }
+      el("path", { d: pathOf(up.points, X, Y) + "L" + pathOf(down.points.slice().reverse(), X, Y).slice(1) + "Z", fill: `var(--${side})`, "fill-opacity": .18 }, svg);
+      const endOf = g => g.points[g.points.length - 1][1], upIsHigher = endOf(up) >= endOf(down);
+      for (const g of [up, down]) {
+        el("path", { d: pathOf(g.points, X, Y), fill: "none", stroke: `var(--${side})`, "stroke-width": 1, "stroke-dasharray": "1 2" }, svg);
+        const end = endOf(g), isHigher = (g === up) === upIsHigher;
+        if (side === "a" && Number.isFinite(end)) { txt(svg, xEnd - 4, Y(end) + (isHigher ? -5 : 12), `IV ${g.sign > 0 ? "+" : MINUS}${ivPts}`, { "text-anchor": "end", fill: "var(--a)", "font-size": 10, ...halo }); }
+      }
+    }
+  }
+  /** @param {{ time: any, ivPts: number, u: number }} input */
+  function describeIvRows({ time, ivPts, u }) {
+    if (!ivPts) { return ""; }
+    const rows = [["A", C.A, C.toSA, 1, "a"], ["B" + hb(), C.B, C.toSB, C.h, "b"]].map(([name, b, toS, scale, cls]) => {
+      const tau = b.na ? 0 : tauAfter({ b, elapsed: time.elapsed });
+      if (!(tau > 0)) { return ""; }
+      const at = sign => scale * POS.val(b, toS(u), tau, Object.assign({}, C.shock, { ivs: (C.shock.ivs || 0) + sign * ivPts })) / b.S;
+      return trow(`${name} at IV +${ivPts} / ${MINUS}${ivPts}`, at(1), cls).replace("</span></span>", ` / ${fU(at(-1))}</span></span>`);
+    }).join("");
+    return rows ? `<span class="s">IV band</span>${rows}` : "";
+  }
   // the lens controls follow the lens and the stop: extrapolation needs a day before and days left
   function describeLensControls(time) {
     const lens = V().payLens, last = time.stops.length - 1, on = !!V().payExtra;
-    const canExtend = lens !== PayLens.Day && time.index > 0 && time.index < last;
+    const extends_ = lens === PayLens.Pnl || lens === PayLens.Decay, canExtend = extends_ && time.index > 0 && time.index < last;
     const btn = /** @type {HTMLButtonElement} */ (q("#c-extra"));
-    btn.classList.toggle("on", on); btn.setAttribute("aria-pressed", String(on)); btn.disabled = lens === PayLens.Day;
+    btn.classList.toggle("on", on); btn.setAttribute("aria-pressed", String(on)); btn.disabled = !extends_;
     btn.innerHTML = `${ICONS.trendingUp}<span>${on ? "Extrapolating" : "Extrapolate"}</span>`;
     const why = time.index === 0 ? "step at least one trading day on from today" : "at expiry no days are left";
-    btn.title = lens === PayLens.Day ? "Extrapolation reads in the P&L and Time decay lenses" : canExtend ? "Repeat the last day's change over the trading days left (dashed, in the accent colour)" : `Extrapolation repeats the last day's change: ${why}`;
-    q("#c-payatw").hidden = lens !== PayLens.Decay;
+    btn.title = !extends_ ? "Extrapolation reads in the P&L and Time decay lenses" : canExtend ? "Repeat the last day's change over the trading days left (dashed, in the accent colour)" : `Extrapolation repeats the last day's change: ${why}`;
+    q("#c-payatw").hidden = lens !== PayLens.Decay && lens !== PayLens.Move;
+    q("#c-ivw").classList.toggle("off", lens !== PayLens.Pnl);
+    q("#c-ivw").title = lens === PayLens.Pnl ? "The P&L at the implied vols shifted by ± these points (before expiry)" : "The IV band reads in the P&L lens";
     const atInput = /** @type {HTMLInputElement} */ (q("#c-payat"));
     if (document.activeElement !== atInput) { atInput.value = String(V().payAt); }
-    for (const id of ["#c-pso", "#c-pss"]) { /** @type {HTMLElement} */ (q(id).closest("label")).hidden = lens === PayLens.Decay; }
-    q("#pay-xhint").hidden = !(on && lens !== PayLens.Day && !canExtend);
+    const onPriceAxis = lens === PayLens.Pnl || lens === PayLens.Day;
+    for (const id of ["#c-pso", "#c-pss"]) { /** @type {HTMLElement} */ (q(id).closest("label")).hidden = !onPriceAxis; }
+    q("#pay-xhint").hidden = !(on && extends_ && !canExtend);
     q("#pay-xhint").textContent = `Extrapolation is on but shows nothing here: ${why}.`;
     q("#pay-read").innerHTML = lens === PayLens.Day ? describeDayReadout(time) : "";
   }
@@ -1718,7 +1772,7 @@ const VIEWS = (() => {
     <div class="tblx" id="ovtable" hidden><table class="full" id="full"></table></div>
   </details>
   <section class="panel" id="p-pay">
-    <div class="ph"><span class="tools"><span class="seg" id="c-lens" aria-label="Lens"></span><button type="button" class="ytog" id="c-extra" aria-pressed="false"></button><span class="ctl" id="c-payatw" hidden><span class="lbl">at a move of</span><input type="number" id="c-payat" min="-90" max="300" step="1" style="width:56px" aria-label="Price move for the time-decay lens, %">%</span><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2 id="pay-h">Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
+    <div class="ph"><span class="tools"><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2 id="pay-h">Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
     <div class="tline" id="tline" title="Read the chart at a trading day before A's expiry. Before expiry the P&amp;L is the model's mark (the implied smile, with the shocks under P&amp;L through time); the expiry payoff stays as a faint line">
       <span class="tl-lbl">Days to expiry</span>
       <span class="tl-track"><span class="tl-marks" id="tl-marks"></span><input type="range" id="c-payleft" min="0" max="1" step="1" aria-label="Trading day before A's expiry"></span>
@@ -1728,6 +1782,10 @@ const VIEWS = (() => {
         <button type="button" class="ibtn" id="tl-start" title="To today"></button><button type="button" class="ibtn" id="tl-back" title="Replay backwards (loops)"></button><button type="button" class="ibtn" id="tl-play" title="Replay towards expiry (loops)"></button><button type="button" class="ibtn" id="tl-end" title="To expiry"></button>
         <select id="tl-speed" aria-label="Replay speed" title="Replay speed"><option value="1">1 day/s</option><option value="2" selected>2 days/s</option><option value="4">4 days/s</option><option value="8">8 days/s</option></select>
       </span>
+    </div>
+    <div class="lensbar" id="lensbar">
+      <span class="tl-lbl">Lens</span><span class="seg" id="c-lens" aria-label="Lens"></span>
+      <span class="lb-tools"><span class="ctl" id="c-payatw" hidden><span class="lbl">at a move of</span><input type="number" id="c-payat" min="-90" max="300" step="1" style="width:56px" aria-label="Price move for the lens, %">%</span><span class="ctl" id="c-ivw"><span class="lbl">IV band</span><span class="seg" id="c-iv"></span></span><button type="button" class="ytog" id="c-extra" aria-pressed="false"></button></span>
     </div>
     <p class="ybadge wide" id="pay-xhint" hidden></p>
     <div class="chart" id="pay"></div>
@@ -1808,8 +1866,19 @@ const VIEWS = (() => {
     // the slider moves over the trading-day stops; its value is the stop's index, the pref the calendar days left
     q("#c-payleft").addEventListener("input", ev => { stopReplay({ keep: false }); const stops = listTradingStops(), i = clamp(+(/** @type {HTMLInputElement} */ (ev.target)).value, 0, stops.length - 1); setPref({ payLeft: stops[i].left }); });
     q("#tl-start").innerHTML = ICONS.skipBack; q("#tl-end").innerHTML = ICONS.skipForward;
-    seg({ el: q("#c-lens"), options: [[PayLens.Pnl, "P&amp;L", "Each position's P&L at the chosen day"], [PayLens.Day, "Day change", "What each position made since the trading day before, at every price; A − B below"], [PayLens.Decay, "Time decay", "The price to close at one price, day by day, against a straight line; the decay each day"]], read: state => state.prefs.payLens, command: pref("payLens") });
+    seg({ el: q("#c-lens"), options: [[PayLens.Pnl, "P&amp;L", "Each position's P&L at the chosen day"], [PayLens.Day, "Day change", "What each position made since the trading day before, at every price; A − B below"], [PayLens.Decay, "Time decay", "The price to close at one price, day by day, against a straight line; the decay each day"], [PayLens.Move, "Decay vs move", "How far the price may move in a day before that day's decay is gone, against a normal day's move"], [PayLens.Zone, "Profit zone", "The break-even prices from today to expiry, inside the price cone"], [PayLens.Ev, "EV map", "Where the expected P&L comes from across prices, on the chosen day"]], read: state => state.prefs.payLens, command: pref("payLens") });
     q("#c-extra").addEventListener("click", () => setPref({ payExtra: !V().payExtra }));
+    seg({ el: q("#c-iv"), options: [["0", "off"], ["5", "±5"], ["10", "±10"]], read: state => String(state.prefs.payIv), command: v => ({ type: Command.SetPref, patch: { payIv: +v } }) });
+    // the chart steps through the days with the arrow keys (Home: today, End: expiry)
+    q("#pay").tabIndex = 0;
+    q("#pay").title = "Click the chart, then ← → step the trading days (Home: today, End: expiry)";
+    q("#pay").addEventListener("keydown", ev => {
+      const keys = { ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity };
+      if (!(ev.key in keys)) { return; }
+      ev.preventDefault(); stopReplay({ keep: false });
+      const time = readPayoffTime(), last = time.stops.length - 1, index = clamp(time.index + keys[ev.key], 0, last);
+      setPref({ payLeft: time.stops[Number.isFinite(index) ? index : keys[ev.key] < 0 ? 0 : last].left });
+    });
     q("#c-payat").addEventListener("change", ev => setPref({ payAt: +(/** @type {HTMLInputElement} */ (ev.target)).value || 0 }));
     q("#tl-play").addEventListener("click", () => toggleReplay(1));
     q("#tl-back").addEventListener("click", () => toggleReplay(-1));
@@ -1888,8 +1957,15 @@ const VIEWS = (() => {
     safe(renderRecovery, "recovery"); safe(notes, "notes");
     requestAnimationFrame(setStick);
   }
+  // the payoff lens for the export, as last drawn on the page (its title, day and readout lines); null without a readout
+  function exportLens() {
+    if (!HOST) { return null; }
+    const lines = [...q("#pay-read").querySelectorAll(".dr")].map(node => node.textContent.replace(/\s+/g, " ").trim()).filter(Boolean);
+    if (!lines.length) { return null; }
+    return { title: q("#pay-h").textContent, day: q("#c-paylefto").textContent.replace(/\s+/g, " ").trim(), lines };
+  }
   return {
-    render, wire, notes, LAST, registerCommandHandlers,
+    render, wire, notes, LAST, registerCommandHandlers, exportLens,
     // pure helpers (node-testable): no DOM, they take the context explicitly
     ovVariants, ovCells, sameTrade, sweepSide, sweepData, recRun, recCycles, recTime, growthTxt, besTxt, gridRows, fN0, fP0, zeroTxt, ratioTxt, payTicks, niceIn, smileGroups, smileOptions, smilePlace, pairWorst, pairPop
   };
