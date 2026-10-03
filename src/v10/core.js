@@ -95,8 +95,8 @@ const ViewCodeVersion = Object.freeze({ V10: "10", V9: "9", V8: "8", V5: "5" });
 // their labels); prefs.exportSections stores the reader's choice
 const ExportSection = Object.freeze({
   Header: "header", Comparison: "comparison", Assumptions: "assumptions", Results: "results", Recovery: "recovery", Pins: "pins",
-  Overview: "overview", Notes: "notes",
-  Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random"
+  Overview: "overview", Notes: "notes", Capture: "capture",
+  Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random", Kept: "kept"
 });
 // the steps a toast action runs on the comparison ([step, ...args] in an ApplyAction command), see CMP.runAction
 const ActionStep = Object.freeze({ Link: "link", Unlink: "unlink", RelinkSome: "relinkSome", StartFromA: "startFromA", SetA: "setA", SetB: "setB" });
@@ -143,6 +143,9 @@ const GrowthRate = Object.freeze({ IfNoSuchHit: "nohit", Average: "avg", BestCas
 const Capital = Object.freeze({ Margin: "margin", Notional: "notional" });
 // which side of a move hurts: the worse of the two, or one side
 const HitSide = Object.freeze({ Worse: "worse", Down: "down", Up: "up" });
+// the Compare tab's junior tabs (prefs.cmpView): the readings of A against B, what A and B keep of their maximum
+// payoff, and the market facts the positions stand on
+const CompareView = Object.freeze({ Results: "results", Capture: "capture", Facts: "facts" });
 // the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
 const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
 // the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)

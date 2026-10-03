@@ -162,6 +162,45 @@
 - **Checks.** `axes.js` centres each band before hovering it, so a band partly under the fixed summary no longer
   reads as silent. T25 reads the floored vol and the editor under Market facts.
 
+## Done in round 5 (junior tabs, capture, separation)
+
+- **Two-level header.** Row 1 holds the parent tabs (Compare A vs B | Compounding). Row 2 holds the shown tab's own
+  junior tabs: Compare has Comparison | Capture | Market facts (`prefs.cmpView`); Compounding has Weeks | Stress |
+  Credit kept (`ys.view.v`). Offsets run through `--navh`. VIEWS renders only the shown junior view. Pinned info
+  cards close on any tab switch.
+- **Capture** (`capture.js`, namespace CAPTURE, pure; tests T28). Capture is the share of the maximum payoff (the
+  credit, for a short straddle or strangle) a position keeps, weighed by the odds. Scenarios: a lognormal (centred on
+  the mean, or on a path's median), with a gap mixed in, a chain's implied distribution, or past closes. Readings:
+  mean, median, any percentile, odds of keeping at least x, the curve, the keep band (open ends where they exist), the
+  time path, growth on a capital (a wipe-out chance is flagged, and the cycles without one are reported apart), and
+  a managed rule (path-centred, with a control variate and its standard error).
+- **Compare → Capture** (`ui_capture.js`). It has eight named presets, each with a one-line explanation and a
+  pinnable knob: Fixed share, Expected, Median, Odds of keeping at least x, Managed (the Manage panel's rule), Time
+  path, Growth (on the Recovery panel's capital; "ends at zero" when a wipe-out is possible) and Empirical (paste
+  closes; decimal commas understood, odd jumps flagged). It also has the curve of the odds of keeping at least x,
+  what time alone gives at an unchanged price, and a basic "Your variant": odds from period vol, ATM IV or a typed
+  vol, a gap, mean / median / percentile, and an early exit. Export section "Capture".
+- **Compounding → Credit kept.** Each cycle's own legs, IV and moves vol give the same readings per cycle. The NAV
+  column says what they compound to on the account: the engine's contracts re-sized as it does, the fill's haircut on
+  the credit, covered calls' shares under the same price spread, and fixed-size runs added up. Growth gives the
+  log-average NAV, Expected and Managed the average NAV; a median per cycle "does not compound". The table sits beside
+  the full model's typical and log-average NAV. There is a NAV chart per preset (click a row), a "Your variant", and
+  an export section "Credit kept". The cache keys on the engine run itself, so a vol, rate or path change recomputes.
+- **Separation.**
+  - Market facts is its own junior tab: quotes line, tickers, expiries, the contracts in use with strike vs forward,
+    intrinsic and time value, the spot / IV / period vol editor, and the smile.
+  - The summary cards show the definition only: legs, net credit, and the placement as set.
+  - The Positions boxes show target → landed strike, with no achieved Δ; the ATM marks are named, with their Δ in the
+    tooltip.
+  - The Compounding Runs panel shows only the strike week 1 lands on, plus the ceiling warning.
+  - "Legs in detail" is gone; its contents are in Market facts.
+- **Sweep smoothing** is on a logarithmic slider from 0 (off) through 0.02 to 2 strike steps. Its middle is about
+  0.18 steps, 11× gentler than before; its far right is the old 2.
+- **Review round.** A four-lens review workflow (maths, state, trader, browser) with verifiers confirmed 40 findings.
+  All are fixed: stale Credit kept, covered-call averages, exposure re-sizing, the swap labels, Managed centring,
+  the Growth floor, signed losses, the closes parser and the other minors. Checks: `tools_checks/junior_tabs.js` and
+  `tools_checks/capture_review.js`.
+
 ## Trader notes from this round
 
 - The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill
@@ -177,7 +216,8 @@
 3. Skew at the chosen strikes (put IV − call IV).
 4. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"
    label.
-5. "Legs in detail" (collapsed, under the boxes) still repeats forward, spot and ATM IV per side. It could move to
-   Market facts or go.
-6. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
-7. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.
+5. Credit kept is a reading: the Weeks view's engine does not take a preset as its weekly outcome. A "use this preset
+   in Weeks" switch would need an engine hook.
+6. The empirical presets wait for daily closes from the data feed (`D.u[id].closes`); paste works for now.
+7. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
+8. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.

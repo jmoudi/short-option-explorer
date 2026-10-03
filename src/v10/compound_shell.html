@@ -1,7 +1,6 @@
 <div class="wrap">
   <div class="cbar ybar" id="ybar">
     <span class="crow">
-      <span class="seg yview" id="y-view"></span><span class="sep"></span>
       <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs yb-only">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
       <button type="button" class="btn ib yb-only" id="y-swap" title="Swap A and B">⇄</button>
       <span class="sep yb-only"></span>
@@ -50,6 +49,29 @@
 
   <details class="panel ydet" id="y-tablep"><summary><h2>Week by week</h2><span class="sub" id="y-tablesub"></span></summary><span class="ytools" id="y-tabletools"></span><span class="ytab" id="y-table"></span></details>
   <details class="panel ydet" id="y-notes"><summary><h2>Method and caveats</h2></summary><span id="y-notesb"></span></details>
+  </span>
+  <span id="y-keptv" hidden>
+  <section class="panel" id="y-kp">
+    <div class="ph"><h2>Credit kept per cycle</h2><span class="sub">what each cycle keeps of its maximum payoff (the credit), weighed by the odds at the run's moves vol, and what that compounds to</span>
+      <span class="tools"><span class="ctl"><span class="lbl">Share x</span><input type="number" id="y-kx" step="5" style="width:56px" aria-label="Share x, %">%</span><span class="ctl"><span class="lbl">Managed</span>take profit <input type="number" id="y-ktp" step="5" style="width:48px" aria-label="Take profit, % of the credit">% · stop <input type="number" id="y-ksl" step="25" style="width:56px" aria-label="Stop, % of the credit">%</span></span></div>
+    <span class="capmax" id="y-khead"></span>
+    <span class="ytab"><table class="cmp cpt kpt" id="y-ktable"></table></span>
+    <span class="cap">Cycle 1's own legs priced flat at its IV; the price spread at the run's moves vol around the path. The NAV column compounds each cycle's own share: the option P&amp;L on the account plus, for covered calls, the shares along the path. No margin calls, interest or assignment here: the full model row is the Weeks view.</span>
+  </section>
+  <section class="panel" id="y-kchartp">
+    <div class="ph"><h2 id="y-kchartt">NAV if every cycle kept</h2><span class="tools"><span class="seg" id="y-kshow"></span></span></div>
+    <span class="ykc" id="y-kchart"></span>
+    <span class="cap">Solid: the chosen preset, compounded cycle by cycle. Dashed, faint: the full model's typical NAV (Weeks view). Log scale.</span>
+  </section>
+  <section class="panel" id="y-kcustom">
+    <div class="ph"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
+    <span class="ccrow">
+      <span class="ctl"><span class="lbl">Odds from</span><span class="seg" id="y-ksrc"></span> <span class="ccu" id="y-kvolw"><input type="number" id="y-kvol" step="1" style="width:52px" aria-label="Typed vol, %">%</span></span>
+      <span class="ctl"><span class="lbl">Gap</span><input type="number" id="y-kgapp" step="1" style="width:46px" aria-label="Gap chance a cycle, %">% a cycle of <input type="number" id="y-kgaps" step="5" style="width:46px" aria-label="Gap size, %">% <span class="seg" id="y-kgapside"></span></span>
+      <span class="ctl"><span class="lbl">Reading</span><span class="seg" id="y-kread"></span> <span class="ccu" id="y-kpctw"><input type="number" id="y-kpct" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
+    </span>
+    <span class="ccout" id="y-kcout"></span>
+  </section>
   </span>
   <span id="y-stressv" hidden>
   <section class="panel ystrip" id="y-sstrip"></section>

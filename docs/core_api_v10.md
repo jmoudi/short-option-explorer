@@ -7,6 +7,39 @@ This file documents what the code does. Where it says something SPEC_FINAL.md do
 
 ---
 
+## v10 round 5: CAPTURE, CAPTURE_VIEW, FACTS, junior tabs (read first)
+
+`CAPTURE` (capture.js, pure; model order … recovery, manage, capture). Positions are plain functions per share:
+`{ S0, years, days, credit, payoff(S), value(S, tau), strikes }`. `fromLegs({ S0, days, iv, rate, legs, price })`
+builds one from legs at a flat IV.
+
+- **Scenarios** (`{ S, w }`, the weights summing to 1):
+  - `lognormal({ S0, vol, years, mu? })`: mean-centred, or centred on log move `mu`.
+  - `withGap({ scenario, chance, size, side })`.
+  - `fromDistribution({ S0, d })`, keeping the edge masses.
+  - `fromCloses({ S0, closes, days })`, with `parseCloses(text)` and `checkCloses(closes)`.
+- **Readings:**
+  - `findMaxPayoff(position)` returns a Result.
+  - `measure({ pnl, scenario, maxPayoff })` returns `{ mean, median, quantile(p), oddsAtLeast(x), curve }`.
+  - `findKeepBand(...)` returns `[low|null, high|null]`.
+  - `timePath(...)`.
+  - `growth({ pnl, scenario, capitalPerShare, maxPayoff })` returns
+    `{ logMean, perCycle, ruin, isRuinous, survivorPerCycle, equivalentCapture, survivorCapture }`.
+  - `managed({ ..., mu?, takeProfit, stopLoss })` returns a Result with `{ mean, error, takeProfitShare, meanDays, ... }`.
+
+`CAPTURE_VIEW` (ui_capture.js): `init()`, `render(C)`, `closesFor(id)`, `readClosesVersion()`, `exportTable(C)`.
+
+`FACTS` (ui_facts.js): `init()`, `render(C)`. It renders only on the Market facts junior tab.
+
+App:
+
+- `prefs.cmpView` (`CompareView` enum) picks the Compare junior view.
+- `syncCompareViews` sets `body[data-cmpview]`, and CSS shows one view.
+- `VIEWS.render` skips the panels of hidden views.
+- Compounding: `ys.view.v` is weeks | stress | kept; `ys.ck` holds the Credit kept settings (sanitized in setState);
+  `COMPOUND.exportKept()`.
+- `ExportSection.Capture` and `ExportSection.Kept` are on by default.
+
 ## v10 round 3: RECOVERY, MANAGE, KNOBS, AXES (read first; the model order is now … ctx, recovery, manage)
 
 `RECOVERY` (recovery.js, pure; config `RECOVERY.CONFIG`):

@@ -11,10 +11,10 @@ const EXPORT9 = (() => {
   // default is STATE.EXPORT_SECTION_DEFAULTS
   /** @type {[string, string][]} */
   const CMP_SECTIONS = [[ExportSection.Header, "Header"], [ExportSection.Comparison, "Comparison"], [ExportSection.Assumptions, "Assumptions"],
-    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Pins, "Pinned scenarios"],
+    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Capture, "Capture"], [ExportSection.Pins, "Pinned scenarios"],
     [ExportSection.Overview, "Overview table"], [ExportSection.Notes, "Notes"]];
   /** @type {[string, string][]} */
-  const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Weeks, "Week by week"],
+  const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Kept, "Credit kept"], [ExportSection.Weeks, "Week by week"],
     [ExportSection.Stress, "Stress"], [ExportSection.Random, "Random paths"]];
   const SECTION_LISTS = Object.freeze({ [Tab.Compare]: CMP_SECTIONS, [Tab.Compounding]: YR_SECTIONS });
 
@@ -289,6 +289,9 @@ const EXPORT9 = (() => {
     return para("## Notes", bullets(xs));
   }
 
+  // a readings table handed over by its view ({ intro, head, rows, note }), as plain text
+  /** @param {string} title @param {{ intro: string, head: string[], rows: string[][], note: string }} t */
+  const secReadingTable = (title, t) => para(title, t.intro, table(t.head, t.rows), t.note);
   function toMarkdownCompare(C, state, opts = {}) {
     const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
@@ -300,6 +303,7 @@ const EXPORT9 = (() => {
     if (on.assumptions) out.push(secAssumptions(C));
     if (on.results) out.push(secResults(C));
     if (on.recovery) out.push(secRecovery(C));
+    if (on.capture && opts.capture) out.push(secReadingTable("## Capture", opts.capture));
     if (on.pins) { const p = secPins(C); if (p) out.push(p); }
     if (on.overview) out.push(secOverview(C));
     if (on.notes) out.push(secNotes(C, !on.comparison, on.results));
@@ -408,6 +412,7 @@ const EXPORT9 = (() => {
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));
     if (on.strip) out.push(ySecStrip(ys, res));
+    if (on.kept && opts.kept) out.push(secReadingTable("## Credit kept", opts.kept));
     if (on.weeks) out.push(ySecWeeks(ys, res));
     if (on.stress && stress) out.push(ySecStress(ys, opts.sres));
     if (on.random) out.push(ySecRandom(ys, opts.mc));
@@ -422,9 +427,11 @@ const EXPORT9 = (() => {
     const state = H.readState();
     if (state.tab === Tab.Compounding) {
       const y = COMPOUND._state(), r = COMPOUND._res();
-      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, code: H.code() }), name: "compounding" };
+      const kept = COMPOUND.exportKept ? COMPOUND.exportKept() : null;
+      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, kept, code: H.code() }), name: "compounding" };
     }
-    return { md: EXPORT9.toMarkdownCompare(CTX.ctx9(state), state, { sections: readSections(Tab.Compare), code: H.code() }), name: "compare" };
+    const C = CTX.ctx9(state), capture = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.exportTable(C) : null;
+    return { md: EXPORT9.toMarkdownCompare(C, state, { sections: readSections(Tab.Compare), capture, code: H.code() }), name: "compare" };
   }
   function syncSecs() {
     const tab = H.readState().tab, list = SECTION_LISTS[tab] || CMP_SECTIONS, on = readSections(tab), host = document.querySelector("#xsecs");

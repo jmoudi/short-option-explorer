@@ -51,7 +51,9 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     costs: { give: 0.25, comm: 0.65, commSh: 0.005, liq: 250, whole: true, grid: { KORU: 1, RAM: 1 }, mOvr: { KORU: 0.75, RAM: 0.5 } },
     rates: { tiered: true, bm: 4.0, loan: 5.5, cash: 3.5 },
     ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, gUnit: "span", rule: "gap" },
-    view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false }
+    view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false },
+    // Credit kept: the share x, the managed rule, the preset the NAV chart shows, the custom variant
+    ck: { x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 }
   });
   let ys = DEF();
   const FIELDS = { [RunDiff.Strategy]: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], [RunDiff.Ticker]: ["tk"], [RunDiff.Cadence]: ["cad"], [RunDiff.Strikes]: ["cd", "pd", "wcd", "wpd"], [RunDiff.Size]: ["lev", "use"], [RunDiff.Modus]: ["modus"], [RunDiff.Vol]: [] };
@@ -450,16 +452,17 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   }
   function readouts(who) {
     const r = who === "A" ? runA() : runB(); if (!r) return;
-    const res = RES && RES[who] ? RES[who].main : null, row = res ? res.rows[0] : null, id = s => q(`#y-${who}-${s}`);
+    const id = s => q(`#y-${who}-${s}`);
     const S0 = ys.sc.S0[r.tk], v = readRunVol({ run: r, slot: who }), cy = COMPOUND_ENGINE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
-    const legTxt = (cp, d) => { const K = COMPOUND_ENGINE.pickStrike(S0, T, v.iv, cp, d, g), D_ = COMPOUND_ENGINE.deltaOf(S0, K, T, v.iv, cp) * 100, p = COMPOUND_ENGINE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
-      return `${fKs(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fKs(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fKs(tv)}` : ""}`; };
+    // the run's definition only: the strike week 1 lands on; its real Δ, premium and the margin-call distances are
+    // readings, in the Weeks view's week card and the Credit kept view
+    const legTxt = (cp, d) => `${fKs(COMPOUND_ENGINE.pickStrike(S0, T, v.iv, cp, d, g))}${cp}`;
     if (id("cdr")) id("cdr").textContent = "Week 1: " + legTxt("C", r.cd);
     if (id("pdr")) id("pdr").textContent = "Week 1: " + legTxt("P", r.pd);
     const m = ys.costs.mOvr[r.tk];
-    if (id("levr")) { const lam = r.lev, d = (1 / lam - m) / (1 - m); id("levr").textContent = `margin call after a ${fPc(Math.max(0, d), 0)} drop` + (row && row.cush < 1 ? ` (${fPc(row.cush, 0)} with this week's credit)` : "") + (lam >= 1 / m - 1e-6 ? " · at the ceiling: the first tick down is a margin call" : "");
-      id("levr").classList.toggle("warn", lam > 1.25 * 0.999); }
-    if (id("user") && row) id("user").textContent = `${Math.round(r.use * 100)}% · margin call on ${Number.isFinite(row.cushUp) ? fPs(row.cushUp, 0) : "no rally"} or ${row.cush < 1 ? fPs(-row.cush, 0) : "no drop"} (week 1)`;
+    // only the limit of the input itself stays here: leverage at the broker's ceiling
+    if (id("levr")) { const isCeiling = r.lev >= 1 / m - 1e-6; id("levr").textContent = isCeiling ? "at the ceiling: the first tick down is a margin call" : ""; id("levr").classList.toggle("warn", isCeiling); }
+    if (id("user")) { id("user").textContent = ""; }
   }
   function costsEditor(host) {
     host.innerHTML = `<span class="row"><span class="lbl">Fill</span>give up <input type="number" id="y-cgive" min="0" max="1" step="0.05" style="width:50px"> of the half-spread</span>
@@ -855,6 +858,248 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     q("#y-csv").onclick = () => { const csv = [cols.map(c => c[0]).join(","), ...R.main.rows.map(r => cols.map(c => `"${String(c[1](r)).replace(/"/g, "")}"`).join(","))].join("\n"); clipboard.writeText(csv).then(r => port.showNotice(r.ok ? "Copied" : "Clipboard blocked")); };
   }
 
+  // ============================================================ Credit kept: each cycle's share of its maximum payoff
+  // Per run, every cycle's own legs (its strikes, pricing IV and days) priced flat at that IV; the price spread at the
+  // run's moves vol around the path (the median on the path, as the Weeks view reads it). The readings are CAPTURE's.
+  // What they compound to is the account: the engine's own contracts per NAV dollar (cycle 1, re-sized each cycle as
+  // the engine does: ∝ 1/price), the fill's haircut on the credit only, and for covered calls the shares under the
+  // same price spread. Runs that keep the credit as cash have fixed counts and add up instead of compounding.
+  // Options and shares only: no margin calls, interest or assignment mechanics; the full model is the Weeks view.
+  const KEPT_PRESETS = Object.freeze([
+    { id: CAPTURE.Preset.Fixed, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle", knob: "A typed assumption, not a reading: the rule of thumb ‘expect half the credit’. Under it: how often cycle 1 actually keeps that much. Its NAV is the average NAV the plan implies if it held (the shares averaged over the same price spread as Expected, so the two compare)." },
+    { id: CAPTURE.Preset.Expected, name: "Expected", line: "the average outcome of each cycle, held to expiry", knob: "Each cycle's expected option P&L over its maximum payoff, with the price spread at the run's moves vol around the path. Pricing IV above the moves vol makes it positive; below, negative. Compounded cycle by cycle (the shares averaged over the same spread) it gives the average NAV, which the few best runs pull up; the typical NAV is the Growth row." },
+    { id: CAPTURE.Preset.Median, name: "Median", line: "what a typical cycle keeps", knob: "Half the cycles keep more, half less. It sits above the average because short premium wins small and often and loses large and rarely; out of the money it is often the whole credit. A median per cycle does not compound to the median NAV (the product of medians is not a median): the Growth row is the typical NAV." },
+    { id: CAPTURE.Preset.OddsAtLeast, name: "Odds of keeping at least x", line: "how often cycle 1 keeps {x} or more", knob: "The share of outcomes of cycle 1 whose option P&L is at least x of the maximum payoff. Shown as odds, so its NAV column is empty." },
+    { id: CAPTURE.Preset.Managed, name: "Managed", line: "closed at the take profit or the stop above, else held", knob: "Seeded daily paths at the moves vol for cycle 1, centred on the path like every other row and marked at the pricing IV; the cycle closes when its P&L reaches the take profit or the stop. ± is the Monte Carlo error. The same share is assumed for every cycle; the days a take profit frees are not reinvested here." },
+    { id: CAPTURE.Preset.TimePath, name: "Time path", line: "kept half-way through cycle 1 if the price does not move", knob: "Time decay alone: the cycle's own mark at an unchanged price. For an at-the-money position about 29% half-way; half the maximum only after about three quarters of the cycle. Not a cycle outcome, so its NAV column is empty." },
+    { id: CAPTURE.Preset.Growth, name: "Growth", line: "the fixed share that compounds like the real outcomes", knob: "Compounding multiplies outcomes, so the rate that compounds is each cycle's average of ln(1 + the account's return), shares included for covered calls. Shown as the fixed share of the credit that, kept every cycle, compounds to the same; its NAV is the log-average (typical) NAV of the options and shares alone. For covered calls the growth includes the levered shares' own swings, which compounding penalises, so the equivalent share can sit well below Expected (even below zero) while the account still grows. With any chance of losing the whole account in one cycle it ends at zero; with the credit kept as cash nothing compounds." },
+    { id: CAPTURE.Preset.Empirical, name: "Empirical", line: "the ticker's own past moves over a cycle", knob: "Every overlapping window of daily closes as long as a cycle, applied to cycle 1. Needs daily price history: paste closes under Compare A vs B → Capture, or they arrive with the data feed." },
+    { id: CAPTURE.Preset.Custom, name: "Your variant", line: "the adjuster below the chart", knob: "The odds, gap and reading set in the adjuster under the NAV chart, applied to every cycle. Its NAV is shown for the average only: a median or percentile per cycle does not compound to anything." }
+  ]);
+  // the presets whose per-cycle share compounds to something: Growth to the log-average NAV, Expected and Managed to
+  // the average NAV (independent cycles), Fixed to what its assumption implies, the variant when it reads the average
+  const KEPT_SHOWN = Object.freeze([[CAPTURE.Preset.Growth, "Growth"], [CAPTURE.Preset.Expected, "Expected"], [CAPTURE.Preset.Fixed, "Fixed share"], [CAPTURE.Preset.Managed, "Managed"], [CAPTURE.Preset.Custom, "Your variant"]]);
+  const NAV_WORD = Object.freeze({ [CAPTURE.Preset.Growth]: "typical NAV (log-average)", [CAPTURE.Preset.Expected]: "average NAV", [CAPTURE.Preset.Fixed]: "average NAV, if it held", [CAPTURE.Preset.Managed]: "average NAV", [CAPTURE.Preset.Custom]: "average NAV" });
+  const KEPT_CONFIG = Object.freeze({ managedPaths: 6000 });
+  const KEPT_CK_DEF = Object.freeze({ x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 });
+  // a loaded ck: unknown choices back to their defaults, numbers clamped to the inputs' ranges
+  function sanitizeKeptSettings(ck) {
+    const d = KEPT_CK_DEF, pick = (v, list, dv) => list.includes(v) ? v : dv, num = (v, lo, hi, dv) => Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dv;
+    return { x: num(ck.x, -300, 100, d.x), tp: num(ck.tp, 0, 95, d.tp), sl: num(ck.sl, 0, 1000, d.sl), show: pick(ck.show, KEPT_SHOWN.map(k => k[0]), d.show), src: pick(ck.src, ["rv", "iv", "typed"], d.src), vol: num(ck.vol, 1, 400, d.vol), gapP: num(ck.gapP, 0, 100, d.gapP), gapS: num(ck.gapS, 0, 95, d.gapS), gapSide: pick(ck.gapSide, ["down", "either"], d.gapSide), read: pick(ck.read, ["mean", "median", "pct"], d.read), pct: num(ck.pct, 1, 99, d.pct) };
+  }
+  const ordinal = n => { const k = Math.round(n), tens = k % 100; return k + (tens >= 11 && tens <= 13 ? "th" : ["th", "st", "nd", "rd"][k % 10] || "th"); };
+  // results per engine run (a new R.main whenever any engine input changes) and per setting of this view
+  const keptMemo = new WeakMap();
+  // one cycle's option legs, per share (−1 short, +1 long): covered calls the call (and the put when on); strangles both
+  // legs and the wings
+  function cycleLegs(row, run) {
+    const legs = [{ K: row.Kc, cp: "C", qty: -1 }, { K: row.Kp, cp: "P", qty: -1 }];
+    if (run.fam !== "cc") { legs.push({ K: row.Kwc, cp: "C", qty: 1 }, { K: row.Kwp, cp: "P", qty: 1 }); }
+    return legs.filter(l => l.K > 0);
+  }
+  // how the run is sized, from the engine's first cycle: option shares per NAV dollar, the fill's haircut on the credit,
+  // the shares' leverage (covered calls), and whether counts stay fixed (the credit kept as cash)
+  function readSizing(R, first) {
+    const r0 = R.main.rows[0], cc = R.run.fam === "cc", count = cc ? r0.calls : r0.k, cap0 = ys.sc.cap0;
+    const perNav = count > 0 ? 100 * count / cap0 : 0, fillCredit = count > 0 ? r0.credit / (100 * count) : 0;
+    return { cc, perNav, haircut: first.credit > 0 ? Math.max(0, 1 - fillCredit / first.credit) : 0, leverage: cc ? r0.lam : 0, isFixed: R.run.modus.credit === "cash", S0: r0.S0 };
+  }
+  // the account's return over one cycle at price S (per NAV dollar at the cycle start, or per starting dollar when the
+  // counts are fixed): the shares' move plus the options at mid less the haircut on the credit; the option count per
+  // dollar follows the engine (∝ 1/price, except fixed covered calls whose calls stay the same)
+  function cycleAccount({ row, position, sizing }) {
+    const countScale = sizing.cc && sizing.isFixed ? 1 : sizing.S0 / row.S0, optionShare = sizing.perNav * countScale;
+    const shareWeight = sizing.isFixed ? sizing.leverage * row.S0 / sizing.S0 : sizing.leverage;
+    const cost = sizing.haircut * position.credit;
+    return { optionShare, shareWeight, cost, returnAt: S => shareWeight * (S / row.S0 - 1) + optionShare * (position.payoff(S) - cost), returnFor: (kept, max, priceRatio) => shareWeight * (priceRatio - 1) + optionShare * (kept * max - cost) };
+  }
+  const meanPriceRatio = (scenario, S0) => { let m = 0; for (let i = 0; i < scenario.S.length; i++) { m += scenario.w[i] * scenario.S[i]; } return m / S0; };
+  // a cycle the horizon cuts short is held for its share of the days and marked at the rest (as the engine does)
+  function readHolding(row) {
+    const natural = Math.max(1, Math.round(row.days / 7)), weeks = row.w1 - row.w0;
+    const heldDays = weeks < natural - 0.5 ? Math.max(1, Math.round(row.days * weeks / natural)) : row.days;
+    return { heldDays, tauLeft: (row.days - heldDays) / 365 };
+  }
+  // the custom variant's scenario for one cycle
+  function keptCustomScenario(row, heldDays) {
+    const ck = ys.ck, vol = ck.src === "iv" ? row.iv : ck.src === "typed" ? ck.vol / 100 : row.rv;
+    const base = CAPTURE.lognormal({ S0: row.S0, vol: Math.max(vol, 1e-4), years: heldDays / 365, mu: Math.log(row.S1 / row.S0) });
+    return CAPTURE.withGap({ scenario: base, chance: ck.gapP / 100, size: ck.gapS / 100, side: ck.gapSide });
+  }
+  const readKeptCustom = measured => ys.ck.read === CAPTURE.Reading.Median ? measured.median : ys.ck.read === CAPTURE.Reading.Percentile ? measured.quantile(ys.ck.pct / 100) : measured.mean;
+  // every cycle of one run: its position, maximum, readings at the moves vol, the account's growth, the custom reading
+  function readCycles(R) {
+    const rows = R.main.rows, run = R.run, r0 = rows[0];
+    const first = CAPTURE.fromLegs({ S0: r0.S0, days: r0.days, iv: r0.iv, rate: 0, legs: cycleLegs(r0, run), price: COMPOUND_ENGINE.bs });
+    const sizing = readSizing(R, first);
+    return rows.map(row => {
+      const position = CAPTURE.fromLegs({ S0: row.S0, days: row.days, iv: row.iv, rate: 0, legs: cycleLegs(row, run), price: COMPOUND_ENGINE.bs });
+      const maxResult = CAPTURE.findMaxPayoff(position);
+      if (!maxResult.ok) { return { row, na: maxResult.error.message }; }
+      const max = maxResult.value, holding = readHolding(row);
+      const pnl = holding.tauLeft > 0 ? S => position.value(S, holding.tauLeft) : position.payoff;
+      const scenario = CAPTURE.lognormal({ S0: row.S0, vol: Math.max(row.rv, 1e-4), years: holding.heldDays / 365, mu: Math.log(row.S1 / row.S0) });
+      const measured = CAPTURE.measure({ pnl, scenario, maxPayoff: max });
+      const account = cycleAccount({ row, position: Object.assign({}, position, { payoff: pnl }), sizing });
+      const growth = sizing.isFixed ? null : CAPTURE.growth({ pnl: account.returnAt, scenario, capitalPerShare: 1, maxPayoff: 1 }).value;
+      const customScenario = keptCustomScenario(row, holding.heldDays), custom = CAPTURE.measure({ pnl, scenario: customScenario, maxPayoff: max });
+      return { row, position, max, measured, account, growth, priceRatio: meanPriceRatio(scenario, row.S0), custom: readKeptCustom(custom), customMeasured: custom, customPriceRatio: meanPriceRatio(customScenario, row.S0) };
+    });
+  }
+  // cycle 1's slower readings: the time path, the managed rule (centred on the path), the past moves
+  function readFirstCycle(c1, run) {
+    if (!c1 || c1.na) { return null; }
+    const p = c1.position, x = ys.ck.x / 100, mu = Math.log(c1.row.S1 / c1.row.S0);
+    const time = CAPTURE.timePath({ value: p.value, S0: p.S0, years: p.years, days: p.days, maxPayoff: c1.max, x });
+    const managed = CAPTURE.managed({ value: p.value, payoff: p.payoff, S0: p.S0, years: p.years, days: p.days, vol: Math.max(c1.row.rv, 1e-4), maxPayoff: c1.max, takeProfit: ys.ck.tp / 100, stopLoss: ys.ck.sl / 100, mu, paths: KEPT_CONFIG.managedPaths });
+    const closes = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.closesFor(run.tk) : [];
+    const past = CAPTURE.fromCloses({ S0: p.S0, closes, days: p.days });
+    const empirical = past.ok ? Result.ok(CAPTURE.measure({ pnl: p.payoff, scenario: past.value, maxPayoff: c1.max })) : past;
+    return { time, managed, empirical };
+  }
+  // the growth-equivalent share of one cycle: the fixed share whose return (on the same footing as Expected: the
+  // shares at their scenario mean, the haircut on the credit) equals e^(log growth) − 1
+  const growthShare = c => c.growth && !c.growth.isRuinous && c.account.optionShare > 0 ? (Math.exp(c.growth.logMean) - 1 - c.account.shareWeight * (c.priceRatio - 1) + c.account.optionShare * c.account.cost) / (c.account.optionShare * c.max) : NaN;
+  // the share each preset keeps in a cycle (NaN where a preset has no per-cycle share)
+  function keptShare(id, cycle, first) {
+    if (id === CAPTURE.Preset.Fixed) { return ys.ck.x / 100; }
+    if (id === CAPTURE.Preset.Expected) { return cycle.measured.mean; }
+    if (id === CAPTURE.Preset.Median) { return cycle.measured.median; }
+    if (id === CAPTURE.Preset.Managed) { return first && first.managed.ok ? first.managed.value.mean : NaN; }
+    if (id === CAPTURE.Preset.Empirical) { return first && first.empirical.ok ? first.empirical.value.mean : NaN; }
+    if (id === CAPTURE.Preset.Custom) { return cycle.custom; }
+    if (id === CAPTURE.Preset.Growth) { return growthShare(cycle); }
+    return NaN;
+  }
+  // the price ratio each preset's shares move by: the scenario mean (Fixed, Expected, Managed: the same spread; the
+  // variant: its own spread, the gap included), so the presets' NAVs compare on one footing
+  const priceRatioFor = (id, c) => id === CAPTURE.Preset.Custom ? c.customPriceRatio : c.priceRatio;
+  // NAV by week if every cycle kept its preset share; null where the preset does not compound to anything
+  function projectNav(id, cycles, first, isFixed) {
+    const doesNotCompound = (id === CAPTURE.Preset.Custom && ys.ck.read !== CAPTURE.Reading.Mean) || (id === CAPTURE.Preset.Growth && isFixed);
+    if (doesNotCompound) { return null; }
+    const cap0 = ys.sc.cap0;
+    let nav = cap0;
+    const pts = [[0, nav]];
+    for (const c of cycles) {
+      if (c.na) { return null; }
+      if (id === CAPTURE.Preset.Growth) {
+        if (!c.growth || c.growth.isRuinous) { return null; }
+        nav *= Math.exp(c.growth.logMean);
+      } else {
+        const kept = keptShare(id, c, first);
+        if (!Number.isFinite(kept)) { return null; }
+        const r = c.account.returnFor(kept, c.max, priceRatioFor(id, c));
+        nav = isFixed ? Math.max(0, nav + cap0 * r) : nav * Math.max(0, 1 + r);
+      }
+      pts.push([Math.min(c.row.w1, ys.sc.W), nav]);
+    }
+    return pts;
+  }
+  function readKept(R) {
+    const key = JSON.stringify([ys.ck, ys.sc.cap0, typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.readClosesVersion() : 0]);
+    let byKey = keptMemo.get(R.main);
+    if (!byKey) { byKey = new Map(); keptMemo.set(R.main, byKey); }
+    const cached = byKey.get(key);
+    if (cached) { return Object.assign({}, cached, { R }); }
+    const cycles = readCycles(R), first = readFirstCycle(cycles[0], R.run), isFixed = R.run.modus.credit === "cash";
+    const result = { R, cycles, first, isFixed, nav: Object.fromEntries(KEPT_SHOWN.map(([id]) => [id, projectNav(id, cycles, first, isFixed)])) };
+    byKey.clear(); byKey.set(key, result);
+    return result;
+  }
+  // one preset's cell for one run: cycle 1's reading, and the NAV at the last week
+  function describeKeptCell(preset, K) {
+    const c1 = K.cycles[0], first = K.first, x = ys.ck.x / 100;
+    if (!c1 || c1.na) { return { text: "–", sub: c1 ? c1.na : "", nav: "" }; }
+    const end = K.nav[preset.id], navWord = preset.id === CAPTURE.Preset.Growth && K.isFixed ? "" : NAV_WORD[preset.id];
+    const nav = end ? `${f$(end[end.length - 1][1])}${navWord ? `<span class="cps">${navWord}${K.isFixed ? ", added up (fixed size)" : ""}</span>` : ""}` : "";
+    const share = keptShare(preset.id, c1, first);
+    if (preset.id === CAPTURE.Preset.Fixed) { return { text: fPs(x, 0), sub: `cycle 1 keeps that often: ${fPc(c1.measured.oddsAtLeast(x), 0)}`, nav }; }
+    if (preset.id === CAPTURE.Preset.OddsAtLeast) { return { text: fPc(c1.measured.oddsAtLeast(x), 1), sub: `profit ${fPc(c1.measured.oddsAtLeast(0), 0)}`, nav: "" }; }
+    if (preset.id === CAPTURE.Preset.TimePath) { return first ? { text: `${fPs(first.time.atHalf)} half-way`, sub: Number.isFinite(first.time.dayToX) ? `x kept on day ${first.time.dayToX.toFixed(1)} of ${first.time.days}` : "x not kept before expiry", nav: "" } : { text: "–", nav: "" }; }
+    if (preset.id === CAPTURE.Preset.Managed && first && first.managed.ok) { const m = first.managed.value; return { text: `${fPs(share)} <small>±${(m.error * 100).toFixed(1)}</small>`, sub: `take profit ${fPc(m.takeProfitShare, 0)} · ${m.meanDays.toFixed(1)} of ${m.days} days`, nav }; }
+    if (preset.id === CAPTURE.Preset.Empirical && first && !first.empirical.ok) { return { text: "needs closes", sub: esc(first.empirical.error.message), nav: "" }; }
+    if (preset.id === CAPTURE.Preset.Growth) {
+      if (K.isFixed) { return { text: "–", sub: "the credit is kept as cash: the size stays fixed and nothing compounds", nav: "" }; }
+      if (!c1.growth) { return { text: "–", nav: "" }; }
+      if (c1.growth.isRuinous) { return { text: "ends at zero", tone: "neg", sub: `the account is wiped out in ${fPc(c1.growth.ruin, 2)} of cycles`, nav: "" }; }
+      return { text: fPs(share), sub: `${fPs(Math.exp(c1.growth.logMean) - 1, 2)} a cycle on the account`, nav };
+    }
+    if (preset.id === CAPTURE.Preset.Median) { return { text: fPs(share), sub: `average ${fPs(c1.measured.mean)}`, nav: `<span class="cps">does not compound: see Growth</span>` }; }
+    if (preset.id === CAPTURE.Preset.Custom && !end) { return { text: fPs(share), sub: "", nav: `<span class="cps">a ${ys.ck.read === "median" ? "median" : "percentile"} does not compound</span>` }; }
+    return { text: fPs(share), sub: "", nav };
+  }
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+  const keptTone = v => !Number.isFinite(v) ? "" : v > 0.0005 ? "pos" : v < -0.0005 ? "neg" : "";
+  function renderKeptTable(kepts) {
+    const runs = kepts.map(([who, K]) => ({ who, K, c1: K.cycles[0] }));
+    q("#y-khead").innerHTML = runs.map(({ who, K, c1 }) => !c1 || c1.na ? `<span class="key ${who.toLowerCase()}">${who}</span> n/a` :
+      `<span class="key ${who.toLowerCase()}">${who}</span><b>${esc(runName(K.R.run))}</b> · cycle 1: ${c1.position.strikes.map((K_, i) => fKs(K_) + cycleLegs(c1.row, K.R.run)[i].cp).join(" / ")}, ${c1.row.days} days, maximum ${fKs(c1.max)} a share (${fPc(c1.max / c1.row.S0, 2)} of the price) · pricing IV ${fPc(c1.row.iv, 0)}, moves ${fPc(c1.row.rv, 0)} · credit ${fPc(c1.account.optionShare * c1.max, 2)} of NAV a cycle${c1.account.cost > 0 ? ` (${fPc(c1.account.cost / c1.position.credit, 1)} of it lost to the fill)` : ""}`).join("<br>");
+    const head = `<tr><th>Preset</th>${runs.map(({ who }) => `<th><span class="key ${who.toLowerCase()}">${who}</span> kept a cycle</th><th>NAV week ${ys.sc.W}</th>`).join("")}</tr>`;
+    const shownIds = KEPT_SHOWN.map(k => k[0]);
+    const rows = KEPT_PRESETS.map(p => {
+      const name = `<b>${esc(p.name)}</b>${KNOBS.html({ id: `kept-${p.id}`, title: p.name, body: p.knob })}<span class="cap">${esc(p.line.replace(/\{x\}/g, `${ys.ck.x}%`))}</span>`;
+      const cells = runs.map(({ K }) => { const c = describeKeptCell(p, K), share = K.cycles[0] && !K.cycles[0].na ? keptShare(p.id, K.cycles[0], K.first) : NaN; return `<td><span class="cv ${c.tone || (p.id === CAPTURE.Preset.OddsAtLeast || p.id === CAPTURE.Preset.TimePath ? "" : keptTone(share))}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td><td class="knav">${c.nav}</td>`; }).join("");
+      const isShown = shownIds.includes(p.id);
+      return `<tr data-preset="${p.id}" class="${p.id === ys.ck.show ? "kon" : ""}${isShown ? " kpick" : ""}"${isShown ? ` title="Show this preset on the NAV chart"` : ""}><td>${name}</td>${cells}</tr>`;
+    }).join("");
+    const reference = (label, pick) => `<tr class="kref"><td>${label}</td>${runs.map(({ K }) => `<td></td><td class="knav">${pick(K.R)}</td>`).join("")}</tr>`;
+    q("#y-ktable").innerHTML = `<thead>${head}</thead><tbody>${rows}${reference("<b>Full model</b><span class=\"cap\">the Weeks view: moves, margin calls, assignment, interest and costs</span>", R => `${f$(R.main.end.med)}<span class="cps">typical · log-average ${f$(R.main.end.geo)}</span>`)}${reference("<b>Exactly on the path</b><span class=\"cap\">no moves around the path: every credit kept</span>", R => f$(R.exact.end.med))}</tbody>`;
+  }
+  // NAV by week for the shown preset (A and B), with the full model's typical NAV faint behind
+  function renderKeptChart(kepts) {
+    const host = q("#y-kchart"); host.innerHTML = "";
+    const id = ys.ck.show, word = (KEPT_SHOWN.find(k => k[0] === id) || KEPT_SHOWN[0])[1].toLowerCase(), W = ys.sc.W, Wd = Math.max(480, host.clientWidth), H = 240, l = 64, r = 96, pw = Wd - l - r, X = w => l + w / W * pw;
+    const lines = kepts.map(([who, K]) => ({ cls: who.toLowerCase(), who, pts: K.nav[id], model: [[0, ys.sc.cap0], ...K.R.main.rows.map(row => [Math.min(row.w1, W), row.med])] }));
+    const values = lines.flatMap(L => [...(L.pts || []), ...L.model].map(p => p[1])).filter(v => v > 0);
+    if (!values.length) { host.innerHTML = `<span class="cap">This preset has no share per cycle to compound.</span>`; return; }
+    const lo = Math.log(Math.min(...values) * 0.95), hi = Math.log(Math.max(...values) * 1.05), Y = v => 8 + (hi - Math.log(Math.max(v, 1e-9))) / (hi - lo) * (H - 30);
+    const s = sv("svg", { width: Wd, height: H, viewBox: `0 0 ${Wd} ${H}` }, host), ax = sv("g", { class: "yax" }, s);
+    for (const t of niceTicks(Math.exp(lo), Math.exp(hi), 4)) { if (t <= 0) { continue; } sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
+    for (const w of weekTicks(W, pw)) { st_(ax, X(w), H - 6, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" }); }
+    const path = pts => pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+    for (const L of lines) { sv("path", { d: path(L.model), fill: "none", stroke: `var(--${L.cls})`, "stroke-width": 1.2, "stroke-opacity": .35, "stroke-dasharray": "4 3" }, s); }
+    for (const L of lines) {
+      if (!L.pts) { continue; }
+      sv("path", { d: path(L.pts), fill: "none", stroke: `var(--${L.cls})`, "stroke-width": 2 }, s);
+      const last = L.pts[L.pts.length - 1]; st_(s, X(last[0]) + 4, Y(last[1]) + 4, `${L.who} ${f$(last[1])}`, { class: "yhalo", fill: `var(--${L.cls})`, "font-size": 11, "font-weight": 600 });
+    }
+    const weeks = [...new Set(lines.flatMap(L => [...(L.pts || []), ...L.model].map(p => p[0])))].sort((a, b) => a - b);
+    const valueAt = (pts, w) => { let v = NaN; for (const p of pts || []) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 22, xs: weeks, toPx: X,
+      tipAt: w => `<span class="h">Week ${Math.round(w)} · ${fD(COMPOUND_ENGINE.weekDate(Math.round(w)))}</span>` + lines.map(L => tipRow(L.cls, `${L.who} ${word} · full model`, `${L.pts ? f$(valueAt(L.pts, w)) : "–"} · ${f$(valueAt(L.model, w))}`)).join("") });
+    AXES.attach({ svg: s, orient: "x", band: { x: l, y: H - 22, width: pw, height: 22 }, guide: { from: 8, to: H - 22 }, toValue: px => Math.round(Math.min(W, Math.max(0, (px - l) / pw * W))), toPx: X, describe: describeWeekOnAxis });
+  }
+  function describeKeptCustom(kepts) {
+    const ck = ys.ck, vol = ck.src === "iv" ? "each cycle's pricing IV" : ck.src === "typed" ? `${ck.vol}% vol` : "the run's moves vol";
+    const gap = ck.gapP > 0 && ck.gapS > 0 ? `, plus a ${ck.gapP}% chance a cycle of a ${ck.gapS}% gap ${ck.gapSide === CAPTURE.GapSide.Either ? "either way" : "down"}` : "";
+    const reading = ck.read === CAPTURE.Reading.Median ? "the median" : ck.read === CAPTURE.Reading.Percentile ? `the ${ordinal(ck.pct)} percentile` : "the average";
+    const out = kepts.map(([who, K]) => { const c1 = K.cycles[0], end = K.nav[CAPTURE.Preset.Custom]; return !c1 || c1.na ? "" : `<span class="ccv"><span class="key ${who.toLowerCase()}">${who}</span><b class="${keptTone(c1.custom)}">${fPs(c1.custom)}</b><span class="muted"> cycle 1 · NAV week ${ys.sc.W} ${end ? f$(end[end.length - 1][1]) : "– (does not compound)"}</span></span>`; }).join("");
+    return `${out}<span class="cap">${esc(`${reading} of a lognormal around the path at ${vol}${gap}, every cycle held to expiry`)}.</span>`;
+  }
+  function renderKept() {
+    const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
+    renderKeptTable(kepts); renderKeptChart(kepts);
+    q("#y-kcout").innerHTML = describeKeptCustom(kepts);
+    q("#y-kchartt").textContent = `NAV if every cycle kept: ${(KEPT_SHOWN.find(k => k[0] === ys.ck.show) || KEPT_SHOWN[0])[1].toLowerCase()}`;
+  }
+  function buildKeptControls() {
+    numY(q("#y-kx"), () => ys.ck.x, v => { ys.ck.x = v; }, { min: -300, max: 100 });
+    numY(q("#y-ktp"), () => ys.ck.tp, v => { ys.ck.tp = v; }, { min: 0, max: 95 });
+    numY(q("#y-ksl"), () => ys.ck.sl, v => { ys.ck.sl = v; }, { min: 0, max: 1000 });
+    segY(q("#y-kshow"), KEPT_SHOWN.map(([v, l]) => [v, l]), () => ys.ck.show, v => { ys.ck.show = v; });
+    segY(q("#y-ksrc"), [["rv", "moves vol"], ["iv", "pricing IV"], ["typed", "typed"]], () => ys.ck.src, v => { ys.ck.src = v; });
+    numY(q("#y-kvol"), () => ys.ck.vol, v => { ys.ck.vol = v; }, { min: 1, max: 400 });
+    numY(q("#y-kgapp"), () => ys.ck.gapP, v => { ys.ck.gapP = v; }, { min: 0, max: 100 });
+    numY(q("#y-kgaps"), () => ys.ck.gapS, v => { ys.ck.gapS = v; }, { min: 0, max: 95 });
+    segY(q("#y-kgapside"), [["down", "down"], ["either", "either way"]], () => ys.ck.gapSide, v => { ys.ck.gapSide = v; });
+    segY(q("#y-kread"), [["mean", "average"], ["median", "median"], ["pct", "percentile"]], () => ys.ck.read, v => { ys.ck.read = v; });
+    numY(q("#y-kpct"), () => ys.ck.pct, v => { ys.ck.pct = v; }, { min: 1, max: 99 });
+    SY.push(() => { q("#y-kvolw").hidden = ys.ck.src !== "typed"; q("#y-kpctw").hidden = ys.ck.read !== "pct"; });
+    // a row of a compounding preset picks what the NAV chart shows
+    q("#y-ktable").onclick = ev => { const tr = ev.target.closest("tr.kpick[data-preset]"); if (!tr) { return; } ys.ck.show = tr.dataset.preset; schedule(10); };
+  }
+
   // ---------------------------------------------------------- notes
   function renderNotes() {
     q("#y-notesb").innerHTML = `<h3>The reading of your path</h3><p>The path is ${"KORU"}'s typical (median) price each week; it never falls. In each cycle the end price is spread lognormally around the path's next price at the realized-moves number. Premium is priced with Black-Scholes at the IV input (4% rate). The gap between IV and realized moves is the edge; with realized moves at 0 every result collapses to the literal toy ("exactly on the path").</p>
@@ -1128,7 +1373,7 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     out.volOverride = override;
     return out;
   }
-  function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) } };
+  function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) }, ck: { ...d.ck, ...(s.ck || {}) } }; if (!["weeks", "stress", "kept"].includes(ys.view.v)) { ys.view.v = "weeks"; } ys.ck = sanitizeKeptSettings(ys.ck);
     ys.sc = sanitizeVolFields(ys.sc);
     ys = migrateWeeksVocabulary(ys);
     for (const r of [ys.A, ys.B]) { r.modus = { ...MODUS0, ...(r.modus || {}) }; if (r.tk === "RAM" && r.cad === "wk") { r.cad = "mo"; setTimeout(() => port.showNotice("RAM lists monthly options only: the run was set to monthly"), 0); } } dockSig = ""; }
@@ -1162,7 +1407,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     q("#y-dockshow").onclick = () => { ys.view.dockOff = false; document.body.classList.remove("ydock-off"); setTimeout(() => render("full"), 30); };
     buildMenus(); renderNotes(); buildStressBar();
     q("#y-sbase").onclick = () => { ys.view.v = "weeks"; schedule(10); };
-    segY(q("#y-view"), [["weeks", "Weeks"], ["stress", "Stress"]], () => ys.view.v || "weeks", v => { ys.view.v = v; });
+    // the junior tabs in the header's second row: the weeks, the stress and what each cycle keeps of its credit
+    segY(q("#sub-yr"), [["weeks", "Weeks"], ["stress", "Stress"], ["kept", "Credit kept"]], () => ys.view.v || "weeks", v => { if (v !== ys.view.v) { KNOBS.closeAll(); } ys.view.v = v; scrollTo(0, 0); });
+    buildKeptControls();
     let rz = 0; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (document.body.dataset.tab === "yr") render("full"); }, 150); });
   }
   function render(mode = "full") {
@@ -1171,15 +1418,26 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     document.body.classList.toggle("ydock-off", !!ys.view.dockOff);
     compute();
     renderBar(); renderPathCtl(); renderDock(); syncAll();
-    const stress = ys.view.v === "stress";
-    q("#y-yearv").hidden = stress; q("#y-stressv").hidden = !stress; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
+    const stress = ys.view.v === "stress", kept = ys.view.v === "kept";
+    q("#y-yearv").hidden = stress || kept; q("#y-stressv").hidden = !stress; q("#y-keptv").hidden = !kept; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
     q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}`).join(" · ");
 
     if (stress) { renderStress(); renderMCTools(); saveSoon(); return; }
+    if (kept) { renderKept(); saveSoon(); return; }
     renderStrip(mode === "live");
     renderStack(); renderGrowth(); renderCreditMargin(); renderTable();
     if (mode !== "live") renderSweep();
     saveSoon();
   }
-  return { init, render, getState, setState, reset, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
+  // the Credit kept table for the export, as plain text (null before the first run)
+  function exportKept() {
+    if (!RES || !RES.A) { return null; }
+    const plain = html => String(html || "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
+    const head = ["Preset", ...kepts.flatMap(([who]) => [`${who} kept a cycle`, `${who} NAV week ${ys.sc.W}`])];
+    const rows = KEPT_PRESETS.map(p => [p.name, ...kepts.flatMap(([, K]) => { const c = describeKeptCell(p, K); return [plain(c.sub ? `${c.text} (${c.sub})` : c.text), plain(c.nav)]; })]);
+    rows.push(["Full model (Weeks view)", ...kepts.flatMap(([, K]) => ["", f$(K.R.main.end.med)])]);
+    return { intro: kepts.map(([who, K]) => `${who}: ${runName(K.R.run)}`).join(" · ") + `. Share x = ${ys.ck.x}%; managed: take profit ${ys.ck.tp}%, stop ${ys.ck.sl}%.`, head, rows, note: "Cycle 1's own legs at its pricing IV; the price spread at the run's moves vol around the path. NAV: the options and shares alone (no margin calls, interest or assignment)." };
+  }
+  return { init, render, getState, setState, reset, exportKept, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
 })(COMPOUND_ENGINE, COMPOUND_STRESS);

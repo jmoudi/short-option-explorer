@@ -72,7 +72,8 @@ const VIEWS = (() => {
       for (let s = n.previousElementSibling; s; s = s.previousElementSibling) { look(s); for (const c of s.children) { look(c); for (const g of c.children) look(g); } }
     return top;
   }
-  const setStick = () => { if (HOST) HOST.style.setProperty("--v9-stick", Math.round(stickTop()) + "px"); };
+  // every views host (#views and the Capture host) puts its sticky table heads just below the fixed summary
+  const setStick = () => { if (!HOST) { return; } const top = Math.round(stickTop()) + "px"; document.querySelectorAll(".v9views").forEach(host => /** @type {HTMLElement} */ (host).style.setProperty("--v9-stick", top)); };
 
   // ============================================================ overview: every instrument × expiry, with and without wings
   // the second series shows A's wings when A has any, else A's position with a protective call at A's call-wing value
@@ -953,7 +954,12 @@ const VIEWS = (() => {
     if (!measured.length) { return Result.err({ code: "no_steps", message: "the strikes do not step here" }); }
     return Result.ok(strength * Math.max(...measured.map(r => r.value)));
   }
-  const describeSmoothingStrength = strength => !(strength > 0) ? "off" : `${+strength.toFixed(2)} strike step${strength === 1 ? "" : "s"}`;
+  // the Smoothing slider is logarithmic: position 0 is off, then the strength runs from a hair (minSteps strike steps)
+  // to maxSteps, about the most smoothing that still shows the shape; the middle is a tenth of a step or so
+  const SMOOTHING = Object.freeze({ positions: 20, minSteps: 0.02, maxSteps: 2 });
+  const smoothingAt = position => position <= 0 ? 0 : SMOOTHING.minSteps * Math.pow(SMOOTHING.maxSteps / SMOOTHING.minSteps, (Math.min(position, SMOOTHING.positions) - 1) / (SMOOTHING.positions - 1));
+  const smoothingPositionOf = strength => !(strength > 0) ? 0 : clamp(Math.round(1 + (SMOOTHING.positions - 1) * Math.log(strength / SMOOTHING.minSteps) / Math.log(SMOOTHING.maxSteps / SMOOTHING.minSteps)), 1, SMOOTHING.positions);
+  const describeSmoothingStrength = strength => !(strength > 0) ? "off" : `${strength < 0.1 ? strength.toFixed(3) : strength.toFixed(2)} strike steps`;
   /** @param {{ windowResult: LabResult, basis: string }} input */
   function describeSmoothing({ windowResult, basis }) {
     if (!windowResult.ok) { return " Smoothing is on, but the strikes do not step here, so nothing is averaged."; }
@@ -1405,7 +1411,7 @@ const VIEWS = (() => {
       "Smile: refitted on the forward from the out-of-the-money mids (weighted cubic in log-moneyness, one pass dropping outliers); beyond the quoted strikes, total variance continues linearly with its edge slope, capped at Lee's bound.",
       "Marks before expiry: Black-76 on the moved forward with the smile sticky in moneyness. An out-of-the-money leg carries a vol offset that pins it to its traded mid at entry. An in-the-money leg is priced from its out-of-the-money twin through parity, plus the quote premium of its mid over parity, which decays to zero at expiry. So a position filled at mid marks to exactly 0 today with no move, and at natural fill to minus its full spread, whatever the target that chose its strikes.",
       "Fills: mid, or natural (sell at the bid, buy at the ask). With natural fills, marks before expiry also pay half the quoted spread on each leg to close.",
-      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). Period vol is a zero-drift lognormal at the ticker's period vol: one number per ticker for every expiry, annualized like IV, by default IBKR's listed 30-day historical vol (${nameVolSource({ source: VolSource.Hv30 })}), set under Positions, spot / IV / period vol. Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; every other EV reading (the sweep, the overview's EV, recovery, the export) uses the period vol whatever the odds switch says. σ stays implied everywhere: the move axis, the worst-loss range, sizing and placement.`,
+      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). Period vol is a zero-drift lognormal at the ticker's period vol: one number per ticker for every expiry, annualized like IV, by default IBKR's listed 30-day historical vol (${nameVolSource({ source: VolSource.Hv30 })}), set under Market facts (Edit beside the ticker). Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; every other EV reading (the sweep, the overview's EV, recovery, the export) uses the period vol whatever the odds switch says. σ stays implied everywhere: the move axis, the worst-loss range, sizing and placement.`,
       "σ: the move axis uses each instrument's ATM vol at A's horizon (interpolated in total variance when B does not list A's date), so every panel sees the same scenarios. Strike placement on the σ basis, credit/σ and the recovery hit use the position's own σ to its own expiry; the grid's cones and odds strips use each position's own clock. Labels say which applies when the expiries differ.",
       "Credit and time value: an in-the-money leg's cash credit includes its intrinsic value against spot, paid back at expiry. Time value = credit − intrinsic. Credit/σ, credit per day, credit/margin, the overview, the sweep, × credit units and the equal-credit sizing rule use time value; × credit units fall back to % of notional, and say so, when A's time value is not positive.",
       `Margin (approximate): Reg-T style, 20% × leverage (${levTxt()}) on the naked side, at least 10% × leverage; a side with a wing is charged the smaller of the spread width and the naked charge. IBKR's real leveraged-ETF requirement may differ.`,
@@ -1436,7 +1442,7 @@ const VIEWS = (() => {
         <span class="mrow"><span class="lbl">IV shock</span><input type="range" id="c-ivs" min="-30" max="60" step="1" aria-label="IV shock in vol points"> <output id="o-ivs"></output></span>
         <span class="mrow"><span class="lbl">Vol rises as spot falls</span><input type="range" id="c-svs" min="0" max="20" step="0.5" aria-label="Vol points added per 10% spot drop"> <output id="o-svs"></output></span>
         <span class="mrow"><label class="chk"><input type="checkbox" id="c-svd">Only on the way down</label></span>
-        <span class="mrow cap">Moves marks before expiry: this grid, the joint map and the pins. Entry prices and at-expiry views stay. To re-price the entry itself, give the instrument an IV shift in Positions.</span>
+        <span class="mrow cap">Moves marks before expiry: this grid, the joint map and the pins. Entry prices and at-expiry views stay. To re-price the entry itself, give the instrument an IV shift under Market facts.</span>
         <span class="mrow"><button class="btn" type="button" id="shockReset">Clear shocks</button></span>
       </span></details>
       <details class="menu" id="m-gdisp"><summary aria-label="Grid display settings">⚙</summary><span class="mb">
@@ -1467,7 +1473,7 @@ const VIEWS = (() => {
   </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes). 0 = the raw stepped lines. The raw lines stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="4" step="0.25" style="width:96px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes), on a logarithmic slider: the left half only rounds the corners, the right end averages over about two strikes. Far left = the raw stepped lines, which stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="20" step="1" style="width:110px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
     <span class="cap swcap" id="sw-cap"></span>
@@ -1534,7 +1540,7 @@ const VIEWS = (() => {
     });
     q("#p-joint").addEventListener("click", e => { if (/** @type {HTMLElement} */ (e.target).id !== "jgo") return; const other = INST.list().find(x => x.id !== C.A.tk); if (other) run({ type: Command.SetB, path: "inst", value: { id: other.id } }); });
     q("#p-joint").addEventListener("input", e => { const t = /** @type {HTMLInputElement} */ (e.target); if (t.id === "c-jday") setPref({ jday: +t.value }); });
-    bindRange({ input: q("#c-swsmooth"), output: q("#c-swsmootho"), read: state => state.prefs.sweepSmoothing, command: pref("sweepSmoothing"), format: describeSmoothingStrength });
+    bindRange({ input: q("#c-swsmooth"), output: q("#c-swsmootho"), read: state => smoothingPositionOf(state.prefs.sweepSmoothing), command: position => ({ type: Command.SetPref, patch: { sweepSmoothing: +smoothingAt(+position).toFixed(4) } }), format: position => describeSmoothingStrength(smoothingAt(position)) });
     seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
     seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
@@ -1559,9 +1565,13 @@ const VIEWS = (() => {
     if (!HOST) return;
     C = c || CTX.ctx9(S());
     setStick();
+    // only the shown junior view: Comparison draws every panel but the smile, Market facts only the smile
+    const view = V().cmpView;
+    if (view === CompareView.Capture) { return; }
+    if (view === CompareView.Facts) { safe(renderSmile, "smile"); return; }
     safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "comparison table");
     safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderManage, "manage"); safe(renderSweep, "sweep");
-    safe(renderRecovery, "recovery"); safe(renderSmile, "smile"); safe(notes, "notes");
+    safe(renderRecovery, "recovery"); safe(notes, "notes");
     requestAnimationFrame(setStick);
   }
   return {

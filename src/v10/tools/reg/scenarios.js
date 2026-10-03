@@ -332,7 +332,7 @@ add('yr-hover', 'yr', 'Compounding chart hover and pin click', async d => {
 }, YR);
 add('yr-stress', 'yr', 'Stress view: shapes, size, week slider, worst, rules', async d => {
   await yrTab(d);
-  await d.click('#y-view button', { nth: 1 }); await d.snap('stress');
+  await d.click('#sub-yr button', { nth: 1 }); await d.snap('stress');
   await d.click('#y-sshape button[data-v="run"]'); await d.snap('run');
   await d.fill('#y-sX', '-25'); await d.snap('X');
   await d.drag('#y-sw', 0.4, { midSnap: 'week-mid' }); await d.snap('week');
@@ -341,7 +341,7 @@ add('yr-stress', 'yr', 'Stress view: shapes, size, week slider, worst, rules', a
   await d.press('Escape'); await d.click('#y-sshape button[data-v="spike"]'); await d.snap('spike');
 }, YR);
 add('yr-random-years', 'yr', 'Random years (Monte Carlo) run to completion, new seed, rerun', async d => {
-  await yrTab(d); await d.click('#y-view button', { nth: 1 });
+  await yrTab(d); await d.click('#sub-yr button', { nth: 1 });
   await d.open('#y-mc'); await d.snap('opened');
   await d.click('#y-mcn button[data-v="1000"]'); await d.click('#y-mcrun');
   await d.waitText('#y-mcp', /paths per run/, { timeout: 90000 }); await d.snap('done');
@@ -540,7 +540,7 @@ add('yr-pv-override-edges', 'yr-periodvol', 'B\'s own moves clamp with a toast; 
   await expectStored(d, 'the shared vol never moved', {});
 }, Object.assign({}, YR, BONLY));
 add('yr-pv-mc-stale', 'yr-periodvol', 'a vol changed on the comparer marks the Random years run stale', async d => {
-  await yrTab(d); await d.click('#y-view button', { nth: 1 });
+  await yrTab(d); await d.click('#sub-yr button', { nth: 1 });
   await d.open('#y-mc'); await d.click('#y-mcn button[data-v="1000"]'); await d.click('#y-mcrun');
   await d.waitText('#y-mcp', /paths per run/, { timeout: 90000 }); await d.snap('done');
   await d.click('#tb-compare'); await d.click('#d9t [data-act="instx"][data-side="B"]'); await d.fill(pvBox('B'), '150');

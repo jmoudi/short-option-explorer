@@ -1,0 +1,32 @@
+// the review round's bugs stay fixed: Capture follows a swap; Credit kept follows the moves vol and the rates;
+// covered calls' average NAV is not below the typical NAV; a median variant does not compound; losses carry a sign;
+// hidden variant inputs take their units with them
+const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+(async () => {
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/CERT/.test(m.text()) && errs.push(m.text()));
+  await p.goto('file://' + (process.env.PAGE || require('path').resolve(__dirname, '../../../dist/ram_koru_lab_v10.html'))); await p.waitForTimeout(900);
+  const out = {};
+  await p.click('#sub-cmp [data-sub=capture]'); await p.waitForTimeout(2500);
+  const heads = () => p.evaluate(() => document.querySelector('#cap-max').innerText.split('\n').map(l => l.slice(0, 12)));
+  out.beforeSwap = await heads();
+  await p.click('#s9swap'); await p.waitForTimeout(2500);
+  out.afterSwap = await heads();
+  out.swapKeysInOrder = await p.evaluate(() => [...document.querySelectorAll('#cap-table thead th .key')].map(k => k.textContent).join(''));
+  out.unitsHidden = await p.evaluate(() => ['#cc-volw', '#cc-pctw', '#cc-leftw'].every(s => document.querySelector(s).getClientRects().length === 0));
+  await p.evaluate(() => page.executor.execute({ type: Command.SetPref, patch: { ccSrc: 'typed', ccVol: 400 } })); await p.waitForTimeout(1500);
+  out.lossSigned = await p.evaluate(() => /−\$/.test(document.querySelector('#cc-out').innerText));
+  await p.click('#tabs [data-tab=yr]'); await p.waitForTimeout(2500);
+  await p.click('#sub-yr button[data-v=kept]'); await p.waitForTimeout(3000);
+  const navOf = id => p.evaluate(i => [...document.querySelectorAll(`#y-ktable tr[data-preset=${i}] td.knav`)].map(td => td.innerText.split('\n')[0]), id);
+  out.ccAverageVsTypical = { expected: await navOf('expected'), growth: await navOf('growth') };
+  const head0 = await p.evaluate(() => document.querySelector('#y-khead').innerText);
+  await p.evaluate(() => page.executor.execute({ type: Command.SetPeriodVol, ticker: 'KORU', source: VolSource.Set, pct: 60, reader: Tab.Compounding })); await p.waitForTimeout(400);
+  await p.evaluate(() => COMPOUND.render('full')); await p.waitForTimeout(1500);
+  const head1 = await p.evaluate(() => document.querySelector('#y-khead').innerText);
+  out.followsMovesVol = /moves 117%/.test(head0) && /moves 60%/.test(head1);
+  await p.click('#y-kread button[data-v=median]'); await p.waitForTimeout(2500);
+  out.medianVariantNav = await navOf('custom');
+  console.log(JSON.stringify(out, null, 1));
+  console.log('errors', errs); await b.close();
+})();

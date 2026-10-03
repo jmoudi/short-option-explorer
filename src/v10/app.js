@@ -132,13 +132,38 @@ function syncTabs(tab) {
 // summary → dock → title → views. DOCK9.render sets body.dock-off, which changes the main column's width before the
 // charts measure it. The title names A vs B once the summary rendered (v9's summary set it at its end, so a summary
 // that threw kept the previous name) and before the views, so a views failure does not keep the previous name
+// the summary and the dock define A and B on every junior tab; below them only the shown junior view renders
 function renderCompare(context) {
   const summary = runGuarded({ where: "summary", run: () => SUM9.render(context) });
   runGuarded({ where: "dock", run: () => DOCK9.render(context) });
-  runGuarded({ where: "facts", run: () => FACTS.render(context) });
   const hasTitle = summary.ok && context.labels && context.labels.title;
   if (hasTitle) { document.title = context.labels.title; }
+  const view = context.prefs.cmpView;
+  if (view === CompareView.Facts) { runGuarded({ where: "facts", run: () => FACTS.render(context) }); }
+  if (view === CompareView.Capture) { runGuarded({ where: "capture", run: () => CAPTURE_VIEW.render(context) }); }
   VIEWS.render(context);
+}
+// the Compare tab's junior tabs, in the header's second row
+const COMPARE_VIEWS = Object.freeze([[CompareView.Results, "Comparison"], [CompareView.Capture, "Capture"], [CompareView.Facts, "Market facts"]]);
+function syncCompareViews(view) {
+  // a card pinned on one junior view would float over the next one's content
+  if (document.body.dataset.cmpview !== view) { KNOBS.closeAll(); }
+  document.body.dataset.cmpview = view;
+  document.querySelectorAll("#sub-cmp [data-sub]").forEach(node => {
+    const button = /** @type {HTMLElement} */ (node), isOn = button.dataset.sub === view;
+    button.classList.toggle("on", isOn);
+    button.setAttribute("aria-selected", String(isOn));
+  });
+}
+function wireCompareViews() {
+  const host = $("#sub-cmp");
+  host.innerHTML = COMPARE_VIEWS.map(([view, label]) => `<button type="button" class="stab" role="tab" data-sub="${view}">${label}</button>`).join("");
+  host.addEventListener("click", e => {
+    const button = /** @type {HTMLElement} */ (/** @type {Element} */ (e.target).closest("[data-sub]"));
+    if (!button || button.dataset.sub === page.store.read().prefs.cmpView) { return; }
+    page.executor.execute({ type: Command.SetPref, patch: { cmpView: button.dataset.sub }, source: "tabs" });
+    window.scrollTo(0, 0);
+  });
 }
 function renderCompounding() {
   runGuarded({ where: "COMPOUND.render", run: () => COMPOUND.render("full") });
@@ -157,6 +182,7 @@ function renderActiveTab(frame) {
   if (isRenderedByTab) { return; }
   applyTheme(state.prefs.theme);
   syncTabs(state.tab);
+  syncCompareViews(state.prefs.cmpView);
   document.body.classList.toggle("dock-off", !state.prefs.dock);
   if (state.tab === Tab.Compounding) {
     renderCompounding();
@@ -201,6 +227,7 @@ function showTab(tab) {
   const isSwitch = TABS.includes(tab) && tab !== current;
   if (!isSwitch) { return; }
   page.scroll[current] = scrollY;
+  KNOBS.closeAll();
   const shown = page.executor.execute({ type: Command.ShowTab, tab, source: "tabs" });
   if (!shown.ok) { return; }
   const restoreScroll = () => window.scrollTo(0, page.scroll[tab] || 0);
@@ -279,6 +306,7 @@ function wireCompare() {
   SUM9.init();
   DOCK9.init();
   FACTS.init();
+  CAPTURE_VIEW.init();
   VIEWS.wire({ host: $("#views") });
   VIEWS.notes();
   EXPORT9.wire({ readState: () => page.store.read(), code: () => page.saved.code });
@@ -378,6 +406,7 @@ function main() {
   page.bus.subscribe(EnvelopeType.Fault, logFault);
   reportBootFaults(boot);
   wireCompare();
+  wireCompareViews();
   wireTabStrip();
   wirePageMenu();
   wireWindow();

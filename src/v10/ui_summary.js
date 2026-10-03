@@ -102,7 +102,7 @@ const SUM9 = (() => {
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
     // what it collects, not how the fill was got (that is set and shown in the box's Fill row)
-    h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span>`;
+    h += `<span class="s9t">`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
     if (side === "B" && !C.A.na) {
@@ -132,28 +132,21 @@ const SUM9 = (() => {
     const fold2 = flags.length > 1 ? `<span class="s9fl${nw ? " s9wn" : ""}" data-tip="${allTip}">${nw ? "! " : ""}${flags.length} flags</span>` : fold;
     const bas = P.basis, sfxL = C.sigOwnSuffix(b), sfxS = sfxL.replace(/ ’\d\d$/, "");
     const lp = b.legs.find(l => l.role === "short put"), lc = b.legs.find(l => l.role === "short call");
-    // head: the active basis (always kept); extra: the other readings, dropped from the end when space runs out
-    const parts = sfx => {
-      const head = [], extra = [];
+    // the placement as set (the basis and its targets): where the strikes landed is line 1, and the readings of the
+    // landed strikes (achieved Δ, % and σ from the forward) are under Market facts
+    const parts = () => {
       if (P.structure === "straddle" && b.center) {
-        const c = b.center, ach = c.achieved, atm = c.target === "atm";
-        head.push(atm ? "ATM" : `center ${fT(c.target, bas)}${RULE.UNIT[bas]} → ${bas === "delta" ? fD(ach.delta) : bas === "money" ? fMs(ach.money) + " vs fwd" : fSgs(ach.sigma) + sfx}`);
-        if (atm || bas !== "money") extra.push(`strike ${fMs(ach.money)} vs fwd`);
-        if (atm || bas !== "sigma") extra.push(fSgs(ach.sigma) + sfx);
-        if (lp && lc) extra.push(`put ${fD(lp.achieved.delta)} / call ${fD(lc.achieved.delta)}`);
-      } else if (lp && lc) {
-        const a = (l, k) => k === "delta" ? fD(l.achieved.delta) : k === "money" ? fM(l.achieved.money) : fSg(l.achieved.sigma);
-        const pair = k => `${a(lp, k)} / ${a(lc, k)}${k === "money" ? " OTM" : k === "sigma" ? sfx : ""}`;
-        const tg = `${fT(P.values.put, bas)} / ${fT(P.values.call, bas)}`;
-        head.push(bas === "delta" ? `Δ ${tg} → ${pair("delta")}` : bas === "money" ? `${tg}% OTM → ${a(lp, "money")} / ${a(lc, "money")}` : `${tg}σ → ${pair("sigma")}`);
-        for (const k of ["delta", "money", "sigma"]) if (k !== bas) extra.push(pair(k));
+        const c = b.center;
+        return { head: [c.target === "atm" ? "placed ATM" : `center by ${RULE.UNIT[bas] === "Δ" ? "Δ " + fT(c.target, bas) : fT(c.target, bas) + RULE.UNIT[bas]}`], extra: [] };
       }
-      return { head, extra };
+      if (!(lp && lc)) { return { head: [], extra: [] }; }
+      const tg = `${fT(P.values.put, bas)} / ${fT(P.values.call, bas)}`;
+      return { head: [bas === "delta" ? `placed by Δ ${tg}` : bas === "money" ? `placed ${tg}% OTM` : `placed ${tg}σ out`], extra: [] };
     };
     const tail = x => x ? " · " + x : "";
     // o = {sfx, fw, volCompact, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
     const mk = o => {
-      const { head, extra } = parts(o.sfx), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
+      const { head, extra } = parts(), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
       // the position's placement only: the market facts (vols, days, forward) are under Market facts
       const base = [...head.map(esc), ...rest.map(esc)].join(" · ");
       return o.fl === "all" ? base + fl.map(x => " · " + x).join("") : base + tail(o.fl === "fold" ? fold : fold2);
@@ -309,7 +302,7 @@ const SUM9 = (() => {
       : (C.unit === "pct" ? `Simple % change of the underlying.${C.same ? "" : " Both instruments move the same %."}` : `Change of ${nm(C.A)}'s price in $. Offered only when A and B are on one instrument.`) +
         (C.sameExp ? "" : ` The payoff's ±σ marks use each instrument's ${C.sigAxisLabel} (B's vol interpolated to A's horizon), not its own expiry.`);
     const vols = [...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ");
-    q("#s9-oddsinfo").textContent = `The odds set profit odds, the odds strips, the grid's column odds and the comparison table's EV row (under implied odds that row is fill vs mid). EV readings elsewhere (overview, sweep, recovery, export) always use the period vol: ${vols}. Set it under Positions, spot / IV / period vol.`;
+    q("#s9-oddsinfo").textContent = `The odds set profit odds, the odds strips, the grid's column odds and the comparison table's EV row (under implied odds that row is fill vs mid). EV readings elsewhere (overview, sweep, recovery, export) always use the period vol: ${vols}. Set it under Market facts (Compare A vs B → Market facts → Edit).`;
   }
   // where σ meets odds: the move is in implied σ, its odds at the ticker's period vol over A's horizon, beyond 1σ and
   // beyond the recovery panel's kσ hit (2σ when the hit is a fixed %): "at 117% vol, beyond 1σ: 15.2% up, 17.9% down;

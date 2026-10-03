@@ -170,3 +170,34 @@
 .ptime{font-size:12px;color:var(--ink-2);white-space:nowrap}
 .ptime input[type=range]{width:120px;vertical-align:middle;margin:0 4px;accent-color:var(--ink)}
 .ptime output{display:inline-block;min-width:62px;font:12px var(--f-num);color:var(--ink)}
+/* Capture (ui_capture.js) */
+.capmax{display:block;font-size:12.5px;color:var(--ink-2);line-height:22px}
+.capmax b{color:var(--ink);font-family:var(--f-num);font-weight:600}
+.capmax .key{margin-right:6px}
+.cpt td:first-child{width:46%}
+.cpt td:first-child b{font:600 13px var(--f-ui)}
+.cpt td:first-child .cap{display:block;margin:1px 0 0}
+.cpt td{vertical-align:top;padding-top:6px;padding-bottom:6px}
+.cpt .cv{display:block;font:600 14px var(--f-num)}
+.cpt .cv.pos{color:var(--pos)}.cpt .cv.neg{color:var(--neg)}
+.cpt .cps{display:block;font:11px var(--f-ui);color:var(--ink-3);white-space:normal;margin-top:1px}
+.cpt .cd{font:12px var(--f-num);color:var(--ink-2)}
+.cpt th .key{font-size:10px}
+.capem{display:block;margin-top:10px;font-size:12px}
+.capem>summary{cursor:pointer;color:var(--ink-2)}
+.capem .ceed{display:grid;grid-template-columns:60px minmax(0,1fr) 90px;gap:8px;align-items:center;margin-top:6px}
+.capem textarea{width:100%;font:11.5px var(--f-num)}
+.captwo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px}
+.capc{display:block;min-width:0}
+.capct{display:block;font:600 12px var(--f-ui);color:var(--ink-2);margin-bottom:2px}
+.ccrow{display:block;line-height:32px}
+.ccrow .ctl{margin-right:18px}
+.ccrow .seg button{padding:1px 7px}
+.ccrow input[type=number]{margin:0 3px}
+.ccu[hidden]{display:none}
+.ccout{display:block;margin-top:6px}
+.ccout .ccv{display:inline-block;margin-right:24px;font-size:12.5px}
+.ccout .ccv b{font:600 15px var(--f-num);margin:0 4px 0 6px}
+.ccout .ccv b.pos{color:var(--pos)}.ccout .ccv b.neg{color:var(--neg)}
+.ccout .cap{display:block;margin-top:4px}
+#cap-curve,#cap-time{display:block;width:100%}

@@ -88,3 +88,14 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 /* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */
 .ybar.single .yb-only{display:none}
 .ybar.single #y-chipB{border-style:dashed;background:none}
+/* Credit kept */
+.kpt td:first-child{width:30%}
+.kpt td.knav{font:600 13px var(--f-num);color:var(--ink)}
+.kpt tr.kon td:first-child{box-shadow:inset 3px 0 0 var(--ink-3)}
+.kpt tr.kref td{color:var(--ink-2)}
+.kpt tr.kref td:first-child .cap{display:block}
+.ykc{display:block;width:100%}
+#y-kcustom .ccrow{display:block;line-height:32px}
+.kpt tr.kpick{cursor:pointer}
+.kpt tr:not(.kpick):hover td{cursor:default}
+.kpt .cv small{font:500 11px var(--f-num);color:var(--ink-3)}

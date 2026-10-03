@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout (desktop, ≥1200px): a 30px tab strip (sticky, top 0) over two tabs. Compare A vs B: a fixed comparison summary under the tab strip across the full window (#sum9, height --sumh); the Positions dock (#dock) on the right below it; panels below, move always on the horizontal axis. Compounding: its own bar, panels and dock (#ydock). */
+/* Layout (desktop, ≥1200px): a two-row header (sticky, top 0, height --navh): the parent tabs, then the shown tab's own junior tabs. Compare A vs B: a fixed comparison summary under the tab strip across the full window (#sum9, height --sumh); the Positions dock (#dock) on the right below it; panels below, move always on the horizontal axis. Compounding: its own bar, panels and dock (#ydock). */
 :root{
   --bg:#eef0f2; --surface:#fafbfc; --surface-2:#e9ecef; --line:#d4d9df; --grid:#e2e6ea;
   --ink:#111418; --ink-2:#47505a; --ink-3:#737c87;
@@ -66,7 +66,7 @@ main{padding:0 18px 60px;margin-right:var(--dockw)}
 body[data-tab="compare"].dock-off main,body[data-tab="yr"].ydock-off main{margin-right:56px}
 .wrap{max-width:1280px;margin:0 auto}
 /* tab strip: title · tabs · page menu, sticky at the top of the page */
-.tabstrip{display:block;position:sticky;top:0;z-index:32;height:30px;line-height:30px;margin:0 -18px;padding:0 18px;background:var(--bg);border-bottom:1px solid var(--line);white-space:nowrap}
+.tabstrip{display:block;position:sticky;top:0;z-index:32;height:var(--navh);line-height:30px;margin:0 -18px;padding:0 18px;background:var(--bg);border-bottom:1px solid var(--line);white-space:nowrap}
 .tabstrip .apptitle{font:600 15px/30px var(--f-cond);margin-right:26px;vertical-align:top}
 .tabstrip .tabs{display:inline-block;vertical-align:top;height:30px}
 .tabstrip .tab{border:0;background:none;height:30px;padding:0 2px;margin-right:20px;font:500 13px/30px var(--f-ui);color:var(--ink-2);box-shadow:inset 0 -2px 0 transparent;vertical-align:top}
@@ -74,6 +74,15 @@ body[data-tab="compare"].dock-off main,body[data-tab="yr"].ydock-off main{margin
 .tabstrip .tab.on{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink)}
 .tabstrip #pmenu{float:right;margin-top:3px}
 .tabstrip #pmenu>summary{line-height:1.3;padding:2px 9px}
+/* the junior tabs: the second header row, only the shown tab's strip */
+:root{--navh:57px}
+.tabstrip .subrow{display:block;clear:both;height:26px;line-height:26px;border-top:1px solid var(--grid)}
+.subtabs{display:none;height:26px;vertical-align:top}
+body[data-tab="compare"] #sub-cmp,body[data-tab="yr"] #sub-yr{display:inline-block}
+.subtabs button{border:0;background:none;height:25px;padding:0 9px;margin:0 4px 0 0;font:500 12.5px/25px var(--f-ui);color:var(--ink-2);box-shadow:inset 0 -2px 0 transparent;vertical-align:top;cursor:pointer}
+.subtabs button:hover{color:var(--ink)}
+.subtabs button.on{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink-3);background:var(--surface)}
+.subtabs button:first-child{margin-left:-9px}
 .asof{display:block;font-size:12px;line-height:17.7px;color:var(--ink-2);margin:12px 0 10px}   /* 30 + 12 + 17.7 + 10: the control bar starts at 69.7px exactly as in v7, so the comparer renders pixel-identical */
 .yrnone{color:var(--ink-3);font-size:13px;margin:40px 0}
 .key{display:inline-block;font:600 11px/1 var(--f-cond);padding:3px 6px;border-radius:4px;white-space:nowrap;vertical-align:1px}
@@ -126,7 +135,7 @@ details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .mb input[type=range]{width:150px}
 
 /* sticky header: comparison + view */
-.cbar{position:sticky;top:30px;z-index:31;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(17,20,24,.07);padding:7px 12px}
+.cbar{position:sticky;top:var(--navh);z-index:31;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(17,20,24,.07);padding:7px 12px}
 .crow{display:block;line-height:30px}
 .crow .ctl,.crow .pchip{white-space:nowrap}
 .btn.ib{padding:3px 8px;margin-left:6px;font-size:13px;line-height:1.3}
@@ -357,9 +366,15 @@ details.notes li{margin:4px 0}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--diff-warn:#e3b341;--debit:#ff7b72}}
 :root[data-theme="dark"]{--diff-warn:#e3b341;--debit:#ff7b72}
 body[data-tab="compare"]{--dockw:368px}
-body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
-#tab-cmp .panel{scroll-margin-top:calc(40px + var(--sumh))}
-.sum9{position:fixed;top:29px;left:0;right:0;z-index:31;min-width:1200px;background:var(--bg);border-top:1px solid var(--line);border-bottom:1px solid var(--line);box-shadow:0 3px 10px rgba(17,20,24,.06);padding:6px 16px 5px}
+/* the quotes line belongs to Market facts on this tab; the junior views start below the fixed summary */
+body[data-tab="compare"] .asof{display:none}
+body[data-tab="compare"] #tab-cmp{padding-top:var(--sumh)}
+#tab-cmp .panel{scroll-margin-top:calc(var(--navh) + 10px + var(--sumh))}
+/* one junior view at a time: Comparison (#views without the smile), Capture (#capture), Market facts (#facts + the smile) */
+body[data-cmpview="results"] #facts,body[data-cmpview="results"] #capture,body[data-cmpview="results"] #p-smile{display:none}
+body[data-cmpview="capture"] #facts,body[data-cmpview="capture"] #views{display:none}
+body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not(#p-smile){display:none}
+.sum9{position:fixed;top:calc(var(--navh) - 1px);left:0;right:0;z-index:31;min-width:1200px;background:var(--bg);border-top:1px solid var(--line);border-bottom:1px solid var(--line);box-shadow:0 3px 10px rgba(17,20,24,.06);padding:6px 16px 5px}
 .s9pair{display:grid;grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr);align-items:stretch}
 .s9card{display:block;min-width:0;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--a);border-radius:7px;padding:3px 10px 4px 11px}
 .s9card.b{border-left-color:var(--b)}
@@ -424,7 +439,7 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .toast .t9a{border:1px solid currentColor;background:none;color:inherit;border-radius:5px;padding:0 7px;margin-left:8px;font:500 12px/18px var(--f-ui);opacity:.9}
 .toast .t9a:hover{opacity:1}
 /* Positions dock (Compare tab only; #ydock keeps the v8 dock rules) */
-#dock{top:calc(29px + var(--sumh))}
+#dock{top:calc(var(--navh) - 1px + var(--sumh))}
 #dock .dh{padding:8px 12px 7px}
 #dock .dh .dtitle{font:600 14px var(--f-cond)}
 #dock .dh .btn{padding:1px 8px}
@@ -465,11 +480,7 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .knw{white-space:nowrap}
 .pfr{display:block;font-size:11px;color:var(--ink-3);margin:2px 0}
 /* Market facts */
-.facts{display:block;margin:0 0 14px}
-.facts>summary{cursor:pointer;display:flex;align-items:baseline;gap:12px}
-.facts>summary h2{display:inline;margin:0}
-.facts .fxs{font:12px var(--f-num);color:var(--ink-2)}
-.facts[open] .fxs{display:none}
+.facts{display:block}
 .fxb{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:10px 24px;margin-top:8px}
 .fxb>.cap,.fxb>.fxc{grid-column:1/-1}
 .fxt{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px;line-height:24px}
@@ -755,6 +766,37 @@ body[data-tab="compare"] .asof{margin-top:calc(var(--sumh) + 10px)}
 .ptime{font-size:12px;color:var(--ink-2);white-space:nowrap}
 .ptime input[type=range]{width:120px;vertical-align:middle;margin:0 4px;accent-color:var(--ink)}
 .ptime output{display:inline-block;min-width:62px;font:12px var(--f-num);color:var(--ink)}
+/* Capture (ui_capture.js) */
+.capmax{display:block;font-size:12.5px;color:var(--ink-2);line-height:22px}
+.capmax b{color:var(--ink);font-family:var(--f-num);font-weight:600}
+.capmax .key{margin-right:6px}
+.cpt td:first-child{width:46%}
+.cpt td:first-child b{font:600 13px var(--f-ui)}
+.cpt td:first-child .cap{display:block;margin:1px 0 0}
+.cpt td{vertical-align:top;padding-top:6px;padding-bottom:6px}
+.cpt .cv{display:block;font:600 14px var(--f-num)}
+.cpt .cv.pos{color:var(--pos)}.cpt .cv.neg{color:var(--neg)}
+.cpt .cps{display:block;font:11px var(--f-ui);color:var(--ink-3);white-space:normal;margin-top:1px}
+.cpt .cd{font:12px var(--f-num);color:var(--ink-2)}
+.cpt th .key{font-size:10px}
+.capem{display:block;margin-top:10px;font-size:12px}
+.capem>summary{cursor:pointer;color:var(--ink-2)}
+.capem .ceed{display:grid;grid-template-columns:60px minmax(0,1fr) 90px;gap:8px;align-items:center;margin-top:6px}
+.capem textarea{width:100%;font:11.5px var(--f-num)}
+.captwo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px}
+.capc{display:block;min-width:0}
+.capct{display:block;font:600 12px var(--f-ui);color:var(--ink-2);margin-bottom:2px}
+.ccrow{display:block;line-height:32px}
+.ccrow .ctl{margin-right:18px}
+.ccrow .seg button{padding:1px 7px}
+.ccrow input[type=number]{margin:0 3px}
+.ccu[hidden]{display:none}
+.ccout{display:block;margin-top:6px}
+.ccout .ccv{display:inline-block;margin-right:24px;font-size:12.5px}
+.ccout .ccv b{font:600 15px var(--f-num);margin:0 4px 0 6px}
+.ccout .ccv b.pos{color:var(--pos)}.ccout .ccv b.neg{color:var(--neg)}
+.ccout .cap{display:block;margin-top:4px}
+#cap-curve,#cap-time{display:block;width:100%}
 
 /* ===== Compounding tab ===== */
 #tab-yr .panel{display:block}
@@ -846,6 +888,17 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 /* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */
 .ybar.single .yb-only{display:none}
 .ybar.single #y-chipB{border-style:dashed;background:none}
+/* Credit kept */
+.kpt td:first-child{width:30%}
+.kpt td.knav{font:600 13px var(--f-num);color:var(--ink)}
+.kpt tr.kon td:first-child{box-shadow:inset 3px 0 0 var(--ink-3)}
+.kpt tr.kref td{color:var(--ink-2)}
+.kpt tr.kref td:first-child .cap{display:block}
+.ykc{display:block;width:100%}
+#y-kcustom .ccrow{display:block;line-height:32px}
+.kpt tr.kpick{cursor:pointer}
+.kpt tr:not(.kpick):hover td{cursor:default}
+.kpt .cv small{font:500 11px var(--f-num);color:var(--ink-3)}
 
 </style>
 </head>
@@ -869,6 +922,7 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
         <button class="btn" id="vreset" type="button">Reset this tab</button> <button class="btn" id="vresetAll" type="button">Reset both tabs</button>
       </span>
     </details>
+    <span class="subrow"><span class="subtabs" id="sub-cmp" role="tablist" aria-label="Compare views"></span><span class="subtabs" id="sub-yr" role="tablist" aria-label="Compounding views"></span></span>
   </nav>
   <span class="asof" id="asof"></span>
 
@@ -895,14 +949,14 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
     </div>
   </div>
 
-  <details class="panel facts" id="facts" open></details>
+  <section class="panel facts" id="facts"></section>
+  <div class="capture v9views" id="capture"></div>
   <div id="views"></div>
   </section>
 
   <section id="tab-yr" role="tabpanel" aria-labelledby="tb-yr" hidden><div class="wrap">
   <div class="cbar ybar" id="ybar">
     <span class="crow">
-      <span class="seg yview" id="y-view"></span><span class="sep"></span>
       <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs yb-only">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
       <button type="button" class="btn ib yb-only" id="y-swap" title="Swap A and B">⇄</button>
       <span class="sep yb-only"></span>
@@ -952,6 +1006,29 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
   <details class="panel ydet" id="y-tablep"><summary><h2>Week by week</h2><span class="sub" id="y-tablesub"></span></summary><span class="ytools" id="y-tabletools"></span><span class="ytab" id="y-table"></span></details>
   <details class="panel ydet" id="y-notes"><summary><h2>Method and caveats</h2></summary><span id="y-notesb"></span></details>
   </span>
+  <span id="y-keptv" hidden>
+  <section class="panel" id="y-kp">
+    <div class="ph"><h2>Credit kept per cycle</h2><span class="sub">what each cycle keeps of its maximum payoff (the credit), weighed by the odds at the run's moves vol, and what that compounds to</span>
+      <span class="tools"><span class="ctl"><span class="lbl">Share x</span><input type="number" id="y-kx" step="5" style="width:56px" aria-label="Share x, %">%</span><span class="ctl"><span class="lbl">Managed</span>take profit <input type="number" id="y-ktp" step="5" style="width:48px" aria-label="Take profit, % of the credit">% · stop <input type="number" id="y-ksl" step="25" style="width:56px" aria-label="Stop, % of the credit">%</span></span></div>
+    <span class="capmax" id="y-khead"></span>
+    <span class="ytab"><table class="cmp cpt kpt" id="y-ktable"></table></span>
+    <span class="cap">Cycle 1's own legs priced flat at its IV; the price spread at the run's moves vol around the path. The NAV column compounds each cycle's own share: the option P&amp;L on the account plus, for covered calls, the shares along the path. No margin calls, interest or assignment here: the full model row is the Weeks view.</span>
+  </section>
+  <section class="panel" id="y-kchartp">
+    <div class="ph"><h2 id="y-kchartt">NAV if every cycle kept</h2><span class="tools"><span class="seg" id="y-kshow"></span></span></div>
+    <span class="ykc" id="y-kchart"></span>
+    <span class="cap">Solid: the chosen preset, compounded cycle by cycle. Dashed, faint: the full model's typical NAV (Weeks view). Log scale.</span>
+  </section>
+  <section class="panel" id="y-kcustom">
+    <div class="ph"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
+    <span class="ccrow">
+      <span class="ctl"><span class="lbl">Odds from</span><span class="seg" id="y-ksrc"></span> <span class="ccu" id="y-kvolw"><input type="number" id="y-kvol" step="1" style="width:52px" aria-label="Typed vol, %">%</span></span>
+      <span class="ctl"><span class="lbl">Gap</span><input type="number" id="y-kgapp" step="1" style="width:46px" aria-label="Gap chance a cycle, %">% a cycle of <input type="number" id="y-kgaps" step="5" style="width:46px" aria-label="Gap size, %">% <span class="seg" id="y-kgapside"></span></span>
+      <span class="ctl"><span class="lbl">Reading</span><span class="seg" id="y-kread"></span> <span class="ccu" id="y-kpctw"><input type="number" id="y-kpct" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
+    </span>
+    <span class="ccout" id="y-kcout"></span>
+  </section>
+  </span>
   <span id="y-stressv" hidden>
   <section class="panel ystrip" id="y-sstrip"></section>
   <section class="panel"><div class="ph"><h2>Loss by the week the move hits</h2><span class="sub" id="y-sbwsub"></span></div><span id="y-sbw"></span></section>
@@ -979,7 +1056,6 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
   <div class="dh"><span class="dtitle">Positions</span><button class="btn" id="dockBtn" type="button">Hide</button></div>
   <div class="db" id="db">
     <div class="d9t" id="d9t"></div>
-    <details class="d9sec" id="d9legs"><summary>Legs in detail <span class="sv" id="d9-legsv"></span></summary><span class="d9sb" id="d9-legb"></span></details>
     <details class="d9sec d9sz" id="d9size"><summary>Pair sizing <span class="sv" id="d9-sizesv"></span></summary><span class="d9sb">
       <span class="row"><span class="lbl">Size B</span><select id="d9-size" aria-label="Sizing rule for B"></select></span>
       <span class="row" id="d9-rhc"><span class="lbl">h</span><input type="number" id="d9-hc" step="0.05" min="0.05" max="20" style="width:80px"> <span class="cap" style="display:inline">× A's notional</span></span>
@@ -1095,8 +1171,8 @@ const ViewCodeVersion = Object.freeze({ V10: "10", V9: "9", V8: "8", V5: "5" });
 // their labels); prefs.exportSections stores the reader's choice
 const ExportSection = Object.freeze({
   Header: "header", Comparison: "comparison", Assumptions: "assumptions", Results: "results", Recovery: "recovery", Pins: "pins",
-  Overview: "overview", Notes: "notes",
-  Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random"
+  Overview: "overview", Notes: "notes", Capture: "capture",
+  Runs: "runs", Base: "base", Strip: "strip", Weeks: "weeks", Stress: "stress", Random: "random", Kept: "kept"
 });
 // the steps a toast action runs on the comparison ([step, ...args] in an ApplyAction command), see CMP.runAction
 const ActionStep = Object.freeze({ Link: "link", Unlink: "unlink", RelinkSome: "relinkSome", StartFromA: "startFromA", SetA: "setA", SetB: "setB" });
@@ -1143,6 +1219,9 @@ const GrowthRate = Object.freeze({ IfNoSuchHit: "nohit", Average: "avg", BestCas
 const Capital = Object.freeze({ Margin: "margin", Notional: "notional" });
 // which side of a move hurts: the worse of the two, or one side
 const HitSide = Object.freeze({ Worse: "worse", Down: "down", Up: "up" });
+// the Compare tab's junior tabs (prefs.cmpView): the readings of A against B, what A and B keep of their maximum
+// payoff, and the market facts the positions stand on
+const CompareView = Object.freeze({ Results: "results", Capture: "capture", Facts: "facts" });
 // the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
 const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
 // the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)
@@ -3459,6 +3538,9 @@ const STATE = (() => {
     ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, payLeft: 0, cs: "comp", cr: "auto", crx: 20, shared: true,
     sweep: "both", sweepSmoothing: 0, mgTp: 50, mgSl: 200, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,
+    // the Compare tab's junior tab; the Capture view: the share x for the fixed preset and the odds of keeping at least
+    // x, and the custom variant (vol source and typed vol, a gap's chance / size / side, the reading, the exit)
+    cmpView: CompareView.Results, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
     exportSections: Object.freeze({})
@@ -3469,16 +3551,17 @@ const STATE = (() => {
     gview: ["heat", "num"], gval: ["pnl", "contrib"], gtab: ["A", "B", "D"], ct: ["zero", "lev"], cs: ["comp", "lin"], cr: ["auto", "fix"],
     sweep: ["both", "put", "call", "wingCall"], theme: THEMES,
     rdHit: Object.values(HitBasis), rdDir: Object.values(HitSide), rdBase: ["nav", "start"], rdCap: Object.values(Capital), rdG: Object.values(GrowthRate),
-    nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20]
+    nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20],
+    cmpView: Object.values(CompareView), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
   });
   // which export sections are on until the reader chooses, per tab in document order (the export holds the labels)
   const EXPORT_SECTION_DEFAULTS = Object.freeze({
     [Tab.Compare]: Object.freeze({
       [ExportSection.Header]: true, [ExportSection.Comparison]: true, [ExportSection.Assumptions]: true, [ExportSection.Results]: true,
-      [ExportSection.Recovery]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
+      [ExportSection.Recovery]: true, [ExportSection.Capture]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
     }),
     [Tab.Compounding]: Object.freeze({
-      [ExportSection.Runs]: true, [ExportSection.Base]: true, [ExportSection.Strip]: true, [ExportSection.Weeks]: false,
+      [ExportSection.Runs]: true, [ExportSection.Base]: true, [ExportSection.Strip]: true, [ExportSection.Kept]: true, [ExportSection.Weeks]: false,
       [ExportSection.Stress]: true, [ExportSection.Random]: true
     })
   });
@@ -3556,7 +3639,9 @@ const STATE = (() => {
   function sanitizePrefs(o) {
     const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
     const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.capX = clamp(s.capX, -300, 100); s.ccVol = clamp(s.ccVol, 1, 400); s.ccGapP = clamp(s.ccGapP, 0, 100); s.ccGapS = clamp(s.ccGapS, 0, 95);
+    s.ccPct = clamp(s.ccPct, 1, 99); s.ccLeft = Math.round(clamp(s.ccLeft, 0, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);
     s.exportSections = sanitizeExportSections(isObj(o) ? o.exportSections : null);
     return s;
@@ -4722,7 +4807,270 @@ const MANAGE = (() => {
     if (!built || built.na) { return null; }
     return memo.get(`${built.key}|${vol}|${takeProfit}|${stopLoss}|${JSON.stringify(shock || {})}|${MANAGE_CONFIG.paths}|${MANAGE_CONFIG.seed}`) || null;
   }
-  return Object.freeze({ simulate, peek, ExitKind, CONFIG: MANAGE_CONFIG });
+  return Object.freeze({ simulate, peek, createNormals, correctWithExactHold, ExitKind, CONFIG: MANAGE_CONFIG });
+})();
+// ---------------------------------------------------------------- capture.js
+// ============================================================ capture: the share of its maximum payoff a position keeps (pure)
+// Capture = P&L / the maximum payoff at expiry. For a short straddle or strangle the maximum is the credit (the
+// price pins the strike, or ends between the strikes), so 100% is everything kept, 0% a break-even and below 0% a
+// loss. The readings weigh every outcome by its odds:
+//   - a scenario is a list of prices with weights that sum to 1: a zero-drift lognormal at a vol (with an optional
+//     gap mixed in), the implied distribution of a chain, or the past moves of a ticker (empirical);
+//   - measure() turns a scenario and a P&L function into the mean, the median, any percentile, the odds of keeping
+//     at least x, and the whole curve of those odds;
+//   - timePath() is what is kept so far when the price does not move; growth() the average log growth a cycle on a
+//     capital, and the fixed capture that compounds to the same; managed() a take-profit / stop rule on seeded daily
+//     paths, for positions the comparer's MANAGE does not cover (the Compounding tab's cycles).
+// A position is described by plain functions, per share: { S0, years, days, payoff(S), value(S, tau), strikes }.
+// payoff(S) is the P&L at expiry (credit included); value(S, tau) the P&L if closed with tau years left. One
+// namespace: CAPTURE.
+const CAPTURE = (() => {
+  const CAPTURE_CONFIG = Object.freeze({
+    cells: 1601,            // cells of a lognormal scenario
+    span: 8,                // a lognormal scenario spans ±span σ√T
+    curveLow: -3,           // the capture curve runs from −300% ...
+    curveHigh: 1,           // ... to +100%
+    curvePoints: 201,
+    minEmpiricalWindows: 30,
+    tradingDaysPerYear: 252,
+    managedPaths: 6000,
+    managedGrid: 201,
+    managedGridSpan: 7,
+    seed: 20261003,
+    ruinFloor: 1e-9,        // a capital that would go to or below 0 counts as this share of itself (as the engine does)
+    ruinShown: 0.00005,     // a wipe-out chance a cycle above this makes the growth "ends at zero" (the floor would set it)
+    timePathSteps: 400
+  });
+  const Preset = Object.freeze({
+    Fixed: "fixed", Expected: "expected", Median: "median", OddsAtLeast: "odds", Managed: "managed",
+    TimePath: "time", Growth: "growth", Empirical: "empirical", Custom: "custom"
+  });
+  // the custom variant's choices
+  const VolSourceChoice = Object.freeze({ PeriodVol: "pv", AtmIv: "atm", Typed: "typed" });
+  const GapSide = Object.freeze({ Down: "down", Either: "either" });
+  const Reading = Object.freeze({ Mean: "mean", Median: "median", Percentile: "pct" });
+  const Exit = Object.freeze({ Expiry: "expiry", DaysLeft: "days" });
+
+  // ---------------------------------------------------------- the maximum payoff
+  // a piecewise-linear payoff peaks at a strike or at an end: the largest of those, per share
+  /** @param {{ payoff: (S: number) => number, strikes: number[], S0: number }} position @returns {LabResult} */
+  function findMaxPayoff({ payoff, strikes, S0 }) {
+    const candidates = [...strikes, S0, S0 * 1e-4, S0 * 100].filter(S => S > 0);
+    const best = Math.max(...candidates.map(payoff).filter(Number.isFinite));
+    if (!(best > 0)) { return Result.err({ code: "no_profit", message: "this position cannot make money at expiry" }); }
+    return Result.ok(best);
+  }
+
+  // ---------------------------------------------------------- scenarios: prices with weights summing to 1
+  /** @typedef {{ S: Float64Array, w: Float64Array }} Scenario */
+  // a lognormal over `years` at `vol`: centred on the mean (zero drift, ln S_T ~ N(ln S0 − σ²T/2, σ²T)) or on a
+  // log move `mu` (the Compounding tab's paths are medians); each cell carries its exact probability mass
+  /** @param {{ S0: number, vol: number, years: number, mu?: number }} input @returns {Scenario} */
+  function lognormal({ S0, vol, years, mu }) {
+    const n = CAPTURE_CONFIG.cells, v = vol * Math.sqrt(Math.max(years, 1e-9)), center = mu === undefined ? -v * v / 2 : mu;
+    const lo = center - CAPTURE_CONFIG.span * v, step = 2 * CAPTURE_CONFIG.span * v / n;
+    const S = new Float64Array(n), w = new Float64Array(n);
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const a = lo + i * step, b = a + step;
+      w[i] = N((b - center) / v) - N((a - center) / v);
+      S[i] = S0 * Math.exp((a + b) / 2);
+      total += w[i];
+    }
+    for (let i = 0; i < n; i++) { w[i] /= total; }
+    return { S, w };
+  }
+  // a gap mixed into a scenario: with `chance` the price also moves by `size` (down, or half down and half up)
+  /** @param {{ scenario: Scenario, chance: number, size: number, side: string }} input @returns {Scenario} */
+  function withGap({ scenario, chance, size, side }) {
+    const p = Math.min(1, Math.max(0, chance)), gap = Math.min(0.99, Math.max(0, size));
+    if (!(p > 0) || !(gap > 0)) { return scenario; }
+    const shifts = side === GapSide.Either ? [[1 - gap, p / 2], [1 + gap, p / 2]] : [[1 - gap, p]];
+    const n = scenario.S.length, parts = [[1, 1 - p], ...shifts];
+    const S = new Float64Array(n * parts.length), w = new Float64Array(n * parts.length);
+    parts.forEach(([factor, share], k) => {
+      for (let i = 0; i < n; i++) { S[k * n + i] = scenario.S[i] * factor; w[k * n + i] = scenario.w[i] * share; }
+    });
+    return { S, w };
+  }
+  // a chain's own distribution (DIST: log-moneyness cells u with a cumulative cdf), as the comparer's odds read it
+  /** @param {{ S0: number, d: any }} input @returns {LabResult} */
+  function fromDistribution({ S0, d }) {
+    if (!d || !d.cdf || !d.u) { return Result.err({ code: "no_distribution", message: "no distribution for this expiry" }); }
+    const S = [], w = [];
+    let total = 0;
+    const add = (u, mass) => { if (mass > 0) { S.push(S0 * Math.exp(u)); w.push(mass); total += mass; } };
+    // the mass below the grid sits at its first point, the mass above at its last (none of it is dropped)
+    add(d.u[0], d.cdf[0]);
+    for (let i = 1; i <= d.n; i++) { add((d.u[i] + d.u[i - 1]) / 2, d.cdf[i] - d.cdf[i - 1]); }
+    add(d.u[d.n], 1 - d.cdf[d.n]);
+    if (!(total > 0)) { return Result.err({ code: "no_distribution", message: "the distribution is empty" }); }
+    return Result.ok({ S: Float64Array.from(S), w: Float64Array.from(w.map(x => x / total)) });
+  }
+  // a ticker's past moves over the position's horizon, applied to today's price: every overlapping window of daily
+  // closes (oldest first) as long as the horizon in trading days, each weighed the same
+  /** @param {{ S0: number, closes: number[], days: number }} input @returns {LabResult} */
+  function fromCloses({ S0, closes, days }) {
+    const clean = (closes || []).filter(x => Number.isFinite(x) && x > 0);
+    const steps = Math.max(1, Math.round(days * CAPTURE_CONFIG.tradingDaysPerYear / 365)), windows = clean.length - steps;
+    if (windows < CAPTURE_CONFIG.minEmpiricalWindows) {
+      return Result.err({ code: "too_few_closes", message: `needs at least ${CAPTURE_CONFIG.minEmpiricalWindows + steps} daily closes (${steps}-day windows); has ${clean.length}` });
+    }
+    const S = new Float64Array(windows), w = new Float64Array(windows).fill(1 / windows);
+    for (let i = 0; i < windows; i++) { S[i] = S0 * clean[i + steps] / clean[i]; }
+    return Result.ok({ S, w });
+  }
+  // closes typed or pasted as text, line by line: a line that is one number with a decimal comma ("21,42") is that
+  // number; otherwise every number on the line (separated by commas, semicolons or spaces) counts, and anything else
+  // (dates, headers) is skipped
+  const DECIMAL_COMMA = /^\s*\d+,\d+\s*$/;
+  function parseCloses(text) {
+    return String(text || "").split(/\r?\n/).flatMap(line => DECIMAL_COMMA.test(line) ? [Number(line.trim().replace(",", "."))] : line.split(/[\s,;]+/).map(Number))
+      .filter(x => Number.isFinite(x) && x > 0);
+  }
+  // what was understood from pasted closes: the count, the first and last, and the day-to-day jumps beyond ×1.5 or
+  // ÷1.5 (a misread format shows up there)
+  /** @param {number[]} closes */
+  function checkCloses(closes) {
+    let jumps = 0;
+    for (let i = 1; i < closes.length; i++) { const r = closes[i] / closes[i - 1]; if (r > 1.5 || r < 1 / 1.5) { jumps++; } }
+    return { count: closes.length, first: closes[0], last: closes[closes.length - 1], jumps };
+  }
+
+  // ---------------------------------------------------------- the readings of one scenario
+  /** @typedef {{ mean: number, median: number, quantile: (p: number) => number, oddsAtLeast: (x: number) => number, curve: {x: number, odds: number}[] }} Measured */
+  // capture of every outcome, sorted, with its weight; then the mean, any quantile and the odds of at least x
+  /** @param {{ pnl: (S: number) => number, scenario: Scenario, maxPayoff: number }} input @returns {Measured} */
+  function measure({ pnl, scenario, maxPayoff }) {
+    const n = scenario.S.length, order = new Array(n), c = new Float64Array(n);
+    let mean = 0;
+    for (let i = 0; i < n; i++) { c[i] = pnl(scenario.S[i]) / maxPayoff; order[i] = i; mean += scenario.w[i] * c[i]; }
+    order.sort((a, b) => c[a] - c[b]);
+    const sorted = Float64Array.from(order, i => c[i]), cum = new Float64Array(n);
+    let run = 0;
+    order.forEach((i, k) => { run += scenario.w[i]; cum[k] = run; });
+    const quantile = p => { const target = Math.min(1, Math.max(0, p)) * run; let k = 0; while (k < n - 1 && cum[k] < target) { k++; } return sorted[k]; };
+    // the share of the weight at or above x (a capture equal to x counts: 100% is reachable)
+    const oddsAtLeast = x => {
+      let lo = 0, hi = n;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < x - 1e-12) { lo = mid + 1; } else { hi = mid; } }
+      return lo === 0 ? 1 : 1 - cum[lo - 1] / run;
+    };
+    const curve = [];
+    for (let k = 0; k < CAPTURE_CONFIG.curvePoints; k++) {
+      const x = CAPTURE_CONFIG.curveLow + (CAPTURE_CONFIG.curveHigh - CAPTURE_CONFIG.curveLow) * k / (CAPTURE_CONFIG.curvePoints - 1);
+      curve.push({ x, odds: oddsAtLeast(x) });
+    }
+    return { mean, median: quantile(0.5), quantile, oddsAtLeast, curve };
+  }
+  // the price band that keeps at least x of the maximum (where the expiry P&L is ≥ x · max), as [low, high] or null
+  /** @param {{ payoff: (S: number) => number, maxPayoff: number, x: number, S0: number }} input */
+  function findKeepBand({ payoff, maxPayoff, x, S0 }) {
+    const target = x * maxPayoff, n = 4000, lo = Math.log(S0) - 3, hi = Math.log(S0) + 3;
+    const priceAt = i => Math.exp(lo + (hi - lo) * i / n), keeps = S => payoff(S) >= target - 1e-12;
+    let first = -1, last = -1;
+    for (let i = 0; i <= n; i++) { if (keeps(priceAt(i))) { if (first < 0) { first = i; } last = i; } }
+    if (first < 0) { return null; }
+    // each edge to a hair by bisection between the last price outside and the first inside; an edge at the scan's end
+    // is open (null): every lower (higher) price keeps x too
+    const refine = (outside, inside) => { let a = outside, b = inside; for (let k = 0; k < 60; k++) { const m = Math.sqrt(a * b); if (keeps(m)) { b = m; } else { a = m; } } return b; };
+    return [first > 0 ? refine(priceAt(first - 1), priceAt(first)) : null, last < n ? refine(priceAt(last + 1), priceAt(last)) : null];
+  }
+
+  // ---------------------------------------------------------- the time path: kept so far if the price stays put
+  /** @param {{ value: (S: number, tau: number) => number, S0: number, years: number, days: number, maxPayoff: number, x: number }} input */
+  function timePath({ value, S0, years, days, maxPayoff, x }) {
+    const steps = CAPTURE_CONFIG.timePathSteps, curve = [];
+    let dayToX = NaN;
+    for (let k = 0; k <= steps; k++) {
+      const share = k / steps, tau = years * (1 - share), kept = (k === steps ? value(S0, 0) : value(S0, tau)) / maxPayoff;
+      curve.push({ day: share * days, kept });
+      if (!Number.isFinite(dayToX) && kept >= x - 1e-9) { dayToX = share * days; }
+    }
+    const atHalf = value(S0, years / 2) / maxPayoff;
+    return { curve, atHalf, dayToX, days };
+  }
+
+  // ---------------------------------------------------------- growth on a capital: the rate that compounds
+  // the average log growth a cycle of a capital that carries the position (capitalPerShare of capital per share),
+  // and the fixed capture that compounds to the same: (e^g − 1) · capital / max
+  /** @param {{ pnl: (S: number) => number, scenario: Scenario, capitalPerShare: number, maxPayoff: number }} input */
+  function growth({ pnl, scenario, capitalPerShare, maxPayoff }) {
+    if (!(capitalPerShare > 0)) { return Result.err({ code: "no_capital", message: "no capital to grow" }); }
+    let logMean = 0, ruin = 0, survivorLog = 0;
+    for (let i = 0; i < scenario.S.length; i++) {
+      const after = 1 + pnl(scenario.S[i]) / capitalPerShare;
+      if (after <= CAPTURE_CONFIG.ruinFloor) { ruin += scenario.w[i]; } else { survivorLog += scenario.w[i] * Math.log(after); }
+      logMean += scenario.w[i] * Math.log(Math.max(CAPTURE_CONFIG.ruinFloor, after));
+    }
+    // with any chance of a wipe-out the compounded result ends at zero sooner or later, and the log mean is set by the
+    // floor: the growth of the cycles without one is reported apart (survivorPerCycle), the headline is not finite
+    const perCycle = Math.exp(logMean) - 1, survivorPerCycle = ruin < 1 ? Math.exp(survivorLog / (1 - ruin)) - 1 : NaN;
+    const isRuinous = ruin > CAPTURE_CONFIG.ruinShown;
+    return Result.ok({ logMean, perCycle, ruin, isRuinous, survivorPerCycle, equivalentCapture: perCycle * capitalPerShare / maxPayoff, survivorCapture: survivorPerCycle * capitalPerShare / maxPayoff });
+  }
+
+  // ---------------------------------------------------------- a take-profit / stop rule on seeded daily paths
+  // marks once per day on a log-price grid, read by interpolation; lognormal steps at `vol`, centred like lognormal():
+  // on the mean (zero drift) or, with `mu`, on that log move over the life (the median on a path); closes at
+  // +takeProfit · max or at −stopLoss · max, else settles at expiry. Antithetic pairs, and a control variate: held to
+  // expiry has an exact mean on the same scenario, and the managed mean is corrected by the held sample's error
+  /** @param {{ value: (S: number, tau: number) => number, payoff: (S: number) => number, S0: number, years: number, days: number, vol: number, maxPayoff: number, takeProfit: number, stopLoss: number, mu?: number, paths?: number, seed?: number }} input */
+  function managed({ value, payoff, S0, years, days, vol, maxPayoff, takeProfit, stopLoss, mu, paths = CAPTURE_CONFIG.managedPaths, seed = CAPTURE_CONFIG.seed }) {
+    const nDays = Math.max(1, Math.round(days));
+    if (!(vol > 0) || !(maxPayoff > 0)) { return Result.err({ code: "not_available", message: "no vol or no maximum payoff" }); }
+    const totalDrift = mu === undefined ? -0.5 * vol * vol * years : mu;
+    const g = CAPTURE_CONFIG.managedGrid, half = CAPTURE_CONFIG.managedGridSpan * vol * Math.sqrt(years) + Math.abs(totalDrift), step = 2 * half / (g - 1);
+    const rows = [];
+    for (let d = 1; d <= nDays; d++) {
+      const tau = years * (nDays - d) / nDays, row = new Float64Array(g);
+      for (let i = 0; i < g; i++) { const S = S0 * Math.exp(-half + i * step); row[i] = d === nDays ? payoff(S) : value(S, tau); }
+      rows.push(row);
+    }
+    const markAt = (d, x) => { const row = rows[d - 1], f = (x + half) / step; if (f <= 0) { return row[0]; } if (f >= g - 1) { return row[g - 1]; } const i = Math.floor(f), t = f - i; return row[i] * (1 - t) + row[i + 1] * t; };
+    const normal = MANAGE.createNormals(seed), dt = years / nDays, drift = totalDrift / nDays, diffusion = vol * Math.sqrt(dt);
+    const target = takeProfit > 0 ? takeProfit * maxPayoff : Infinity, floor = stopLoss > 0 ? -stopLoss * maxPayoff : -Infinity;
+    const outcomes = new Float64Array(paths), held = new Float64Array(paths), shocks = new Float64Array(nDays);
+    let tp = 0, stops = 0, daysHeld = 0;
+    for (let p = 0; p < paths; p++) {
+      const isMirror = p % 2 === 1;
+      if (!isMirror) { for (let d = 0; d < nDays; d++) { shocks[d] = normal(); } }
+      let x = 0, done = false;
+      for (let d = 1; d <= nDays; d++) {
+        x += drift + diffusion * (isMirror ? -shocks[d - 1] : shocks[d - 1]);
+        if (done) { continue; }
+        const pnl = markAt(d, x), isLast = d === nDays;
+        if (!isLast && pnl >= target) { outcomes[p] = pnl; tp++; daysHeld += d; done = true; }
+        else if (!isLast && pnl <= floor) { outcomes[p] = pnl; stops++; daysHeld += d; done = true; }
+        else if (isLast) { outcomes[p] = pnl; daysHeld += d; done = true; }
+      }
+      held[p] = markAt(nDays, x);
+    }
+    const exactHeld = measure({ pnl: payoff, scenario: lognormal({ S0, vol, years, mu: mu === undefined ? undefined : mu }), maxPayoff }).mean * maxPayoff;
+    const corrected = MANAGE.correctWithExactHold({ managed: Array.from(outcomes), held: Array.from(held), exactHeld });
+    const scenario = { S: Float64Array.from(outcomes), w: new Float64Array(paths).fill(1 / paths) };
+    const measured = measure({ pnl: v => v, scenario, maxPayoff });
+    const meanDays = daysHeld / paths, mean = corrected.managedMean / maxPayoff;
+    return Result.ok({ ...measured, mean, error: corrected.managedError / maxPayoff, takeProfitShare: tp / paths, stopShare: stops / paths, meanDays, perDay: mean / meanDays, days: nDays });
+  }
+
+  // ---------------------------------------------------------- a position from plain legs at one flat IV (Black–Scholes)
+  // the Compounding tab's cycles: legs [{K, cp, qty}] per share (−1 short, +1 long), priced at `iv`; the credit is
+  // what the short legs bring in less what the long legs cost
+  /** @param {{ S0: number, days: number, iv: number, rate: number, legs: {K: number, cp: string, qty: number}[], price: (S: number, K: number, T: number, s: number, cp: string) => number }} input */
+  function fromLegs({ S0, days, iv, rate, legs, price }) {
+    const years = days / 365, live = legs.filter(l => l.K > 0 && l.qty !== 0);
+    const intrinsic = (S, l) => l.cp === "C" ? Math.max(0, S - l.K) : Math.max(0, l.K - S);
+    const credit = -live.reduce((t, l) => t + l.qty * price(S0, l.K, years, iv, l.cp), 0);
+    const payoff = S => credit + live.reduce((t, l) => t + l.qty * intrinsic(S, l), 0);
+    const value = (S, tau) => tau > 0 ? credit + live.reduce((t, l) => t + l.qty * price(S, l.K, tau, iv, l.cp), 0) : payoff(S);
+    return { S0, years, days, credit, payoff, value, strikes: live.map(l => l.K), rate };
+  }
+
+  return Object.freeze({
+    findMaxPayoff, lognormal, withGap, fromDistribution, fromCloses, parseCloses, checkCloses, measure, findKeepBand, timePath, growth, managed, fromLegs,
+    Preset, VolSourceChoice, GapSide, Reading, Exit, CONFIG: CAPTURE_CONFIG
+  });
 })();
 // ---------------------------------------------------------------- ui_common.js
 // ============================================================ UI plumbing shared by both tabs
@@ -5097,7 +5445,7 @@ const SUM9 = (() => {
     const netTxt = `<span class="s9nw">net </span>${deb ? "debit" : "credit"} ${usd(n.perContract)}`;
     h += `<span class="s9dv"></span>${tok("s9net" + (deb ? " debit" : "") + " " + (m.net || ""), netTxt)}`;
     // what it collects, not how the fill was got (that is set and shown in the box's Fill row)
-    h += `<span class="s9t"><span class="s9pct" title="net as % of spot"> · ${Math.abs(n.pctOfSpot).toFixed(1)}%</span>`;
+    h += `<span class="s9t">`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
     if (side === "B" && !C.A.na) {
@@ -5127,28 +5475,21 @@ const SUM9 = (() => {
     const fold2 = flags.length > 1 ? `<span class="s9fl${nw ? " s9wn" : ""}" data-tip="${allTip}">${nw ? "! " : ""}${flags.length} flags</span>` : fold;
     const bas = P.basis, sfxL = C.sigOwnSuffix(b), sfxS = sfxL.replace(/ ’\d\d$/, "");
     const lp = b.legs.find(l => l.role === "short put"), lc = b.legs.find(l => l.role === "short call");
-    // head: the active basis (always kept); extra: the other readings, dropped from the end when space runs out
-    const parts = sfx => {
-      const head = [], extra = [];
+    // the placement as set (the basis and its targets): where the strikes landed is line 1, and the readings of the
+    // landed strikes (achieved Δ, % and σ from the forward) are under Market facts
+    const parts = () => {
       if (P.structure === "straddle" && b.center) {
-        const c = b.center, ach = c.achieved, atm = c.target === "atm";
-        head.push(atm ? "ATM" : `center ${fT(c.target, bas)}${RULE.UNIT[bas]} → ${bas === "delta" ? fD(ach.delta) : bas === "money" ? fMs(ach.money) + " vs fwd" : fSgs(ach.sigma) + sfx}`);
-        if (atm || bas !== "money") extra.push(`strike ${fMs(ach.money)} vs fwd`);
-        if (atm || bas !== "sigma") extra.push(fSgs(ach.sigma) + sfx);
-        if (lp && lc) extra.push(`put ${fD(lp.achieved.delta)} / call ${fD(lc.achieved.delta)}`);
-      } else if (lp && lc) {
-        const a = (l, k) => k === "delta" ? fD(l.achieved.delta) : k === "money" ? fM(l.achieved.money) : fSg(l.achieved.sigma);
-        const pair = k => `${a(lp, k)} / ${a(lc, k)}${k === "money" ? " OTM" : k === "sigma" ? sfx : ""}`;
-        const tg = `${fT(P.values.put, bas)} / ${fT(P.values.call, bas)}`;
-        head.push(bas === "delta" ? `Δ ${tg} → ${pair("delta")}` : bas === "money" ? `${tg}% OTM → ${a(lp, "money")} / ${a(lc, "money")}` : `${tg}σ → ${pair("sigma")}`);
-        for (const k of ["delta", "money", "sigma"]) if (k !== bas) extra.push(pair(k));
+        const c = b.center;
+        return { head: [c.target === "atm" ? "placed ATM" : `center by ${RULE.UNIT[bas] === "Δ" ? "Δ " + fT(c.target, bas) : fT(c.target, bas) + RULE.UNIT[bas]}`], extra: [] };
       }
-      return { head, extra };
+      if (!(lp && lc)) { return { head: [], extra: [] }; }
+      const tg = `${fT(P.values.put, bas)} / ${fT(P.values.call, bas)}`;
+      return { head: [bas === "delta" ? `placed by Δ ${tg}` : bas === "money" ? `placed ${tg}% OTM` : `placed ${tg}σ out`], extra: [] };
     };
     const tail = x => x ? " · " + x : "";
     // o = {sfx, fw, volCompact, dte, drop (secondary readings dropped from the end), fl ("all" | "fold" | "fold2")}
     const mk = o => {
-      const { head, extra } = parts(o.sfx), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
+      const { head, extra } = parts(), rest = extra.slice(0, Math.max(0, extra.length - o.drop));
       // the position's placement only: the market facts (vols, days, forward) are under Market facts
       const base = [...head.map(esc), ...rest.map(esc)].join(" · ");
       return o.fl === "all" ? base + fl.map(x => " · " + x).join("") : base + tail(o.fl === "fold" ? fold : fold2);
@@ -5304,7 +5645,7 @@ const SUM9 = (() => {
       : (C.unit === "pct" ? `Simple % change of the underlying.${C.same ? "" : " Both instruments move the same %."}` : `Change of ${nm(C.A)}'s price in $. Offered only when A and B are on one instrument.`) +
         (C.sameExp ? "" : ` The payoff's ±σ marks use each instrument's ${C.sigAxisLabel} (B's vol interpolated to A's horizon), not its own expiry.`);
     const vols = [...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ");
-    q("#s9-oddsinfo").textContent = `The odds set profit odds, the odds strips, the grid's column odds and the comparison table's EV row (under implied odds that row is fill vs mid). EV readings elsewhere (overview, sweep, recovery, export) always use the period vol: ${vols}. Set it under Positions, spot / IV / period vol.`;
+    q("#s9-oddsinfo").textContent = `The odds set profit odds, the odds strips, the grid's column odds and the comparison table's EV row (under implied odds that row is fill vs mid). EV readings elsewhere (overview, sweep, recovery, export) always use the period vol: ${vols}. Set it under Market facts (Compare A vs B → Market facts → Edit).`;
   }
   // where σ meets odds: the move is in implied σ, its odds at the ticker's period vol over A's horizon, beyond 1σ and
   // beyond the recovery panel's kσ hit (2σ when the hit is a fixed %): "at 117% vol, beyond 1σ: 15.2% up, 17.9% down;
@@ -5407,7 +5748,7 @@ const SUM9 = (() => {
 // ---------------------------------------------------------------- ui_dock.js
 // ============================================================ ui_dock: the Positions dock (Compare tab)
 // Two position boxes, A on top and B below: the same kind of thing with two identities, so one box renderer called
-// twice, the same rows in the same order (instrument with its spot / IV / period vol box, expiry, structure, legs,
+// twice, the same rows in the same order (instrument, expiry, structure, legs,
 // strikes by with the placement sliders, protective call, protective put, fill with the typed fills, the legs).
 // B's relation to A is part of B's box: a chain after each of B's row labels (closed: B follows A there; editing the
 // control sets B on its own, and the toast offers the relink; open: B set on its own, click to follow A again).
@@ -5531,7 +5872,9 @@ const DOCK9 = (() => {
     return +(Math.round(raw / st) * st).toFixed(6);
   }
   const atmV = (E, basis, role) => basis !== "delta" ? 0 : role === "short put" ? 100 - E.callDelta(E.Fpar) * 100 : E.callDelta(E.Fpar) * 100;
-  const atmT = (E, basis, role, word) => basis === "delta" ? `${word || "ATM"} ${Math.round(atmV(E, basis, role))}Δ` : (word || "ATM");
+  // the ATM marks name the place only; the Δ there (a fact of the chain) is in the mark's tooltip
+  const atmT = (E, basis, role, word) => word || "ATM";
+  const atmTip = (E, basis, role, text) => basis === "delta" ? `${text}: ${Math.round(atmV(E, basis, role))}Δ` : text;
   const atEnd = (v, e, basis) => { const st = (RULE.STEP[basis] || 1) / 2; return v <= e.lo.value + st ? "lo" : v >= e.hi.value - st ? "hi" : ""; };
 
   // the placement sliders of one side (A, or B with its own placement); bE = B's chain for "B end" ticks on A
@@ -5545,24 +5888,24 @@ const DOCK9 = (() => {
       const e = RULE.ends(E, bas, "center"); if (!e) return;
       const c = b.center, atm = P.values.center === "atm";
       const v = atm ? (c ? c.achieved[bas] : atmV(E, bas, "short call")) : +P.values.center;
-      const ticks = [{ v: atmV(E, bas, "short call"), t: atmT(E, bas, "short call"), pri: 0, tip: "the strike at the forward" }];
+      const ticks = [{ v: atmV(E, bas, "short call"), t: atmT(E, bas, "short call"), pri: 0, tip: atmTip(E, bas, "short call", "the strike at the forward") }];
       if (bas === "delta") ticks.push({ v: 50, t: "Δ-neutral", pri: 2, tip: "call Δ 50: the delta-neutral straddle" });
       if (bE) { const eb = RULE.ends(bE, bas, "center"); if (eb) for (const w of ["lo", "hi"]) if (eb[w].value > e.lo.value + 1e-6 && eb[w].value < e.hi.value - 1e-6) ticks.push({ v: eb[w].value, t: "B end", bx: true, pri: 1, tip: `B's chain ends at ${fK(eb[w].K)} (${fV(eb[w].value, bas)})` }); }
       const end = atEnd(v, e, bas);
       out.push(slider(`sl:${sk}:center`, {
         side, basis: bas, name: name("center"), muted, lo: e.lo.value, hi: e.hi.value, value: v, ticks,
-        readout: `${atm ? "ATM" : fC(+P.values.center, bas)} → ${c ? `${fK(c.K)} ${fC(c.achieved[bas], bas)}` : "n/a"}` + (!atm && !opt.noAtm ? ` <button type="button" class="d9i" data-act="atm" data-side="${side}" title="Back to the strike nearest the forward">ATM</button>` : ""),
+        readout: `${atm ? "ATM" : fC(+P.values.center, bas)} → ${c ? fK(c.K) : "n/a"}` + (!atm && !opt.noAtm ? ` <button type="button" class="d9i" data-act="atm" data-side="${side}" title="Back to the strike nearest the forward">ATM</button>` : ""),
         note: end ? `${opt.whose ? opt.whose + "center " : ""}stops at ${fK(e[end].K)}, the ${end === "lo" ? "lowest" : "highest"} strike with a put and a call bid (${fV(e[end].value, bas)})` : "",
         input: v2 => input("values.center", v2), step: c ? { E, role: "short call", K: c.K } : null
       }));
       return;
     }
     const vp = +P.values.put, vc = +P.values.call;
-    const ro = (l, cp) => l ? `${fK(l.K)}${cp} ${fV(l.achieved[bas], bas)}` : "n/a";
+    const ro = (l, cp) => l ? `${fK(l.K)}${cp}` : "n/a";
     if (P.legs === "together" || opt.together) {
       const rt = RULE.rangeTogether(E, bas, P.values); if (!rt) return;
       const lo = vp + rt.dlo, hi = Math.max(vp + rt.dhi, lo);
-      const ticks = [{ v: atmV(E, bas, "short put"), t: atmT(E, bas, "short put", "put ATM"), pri: 0, tip: "the put at the forward" }, { v: vp + (atmV(E, bas, "short call") - vc), t: atmT(E, bas, "short call", "call ATM"), pri: 0, tip: "the call at the forward" }];
+      const ticks = [{ v: atmV(E, bas, "short put"), t: atmT(E, bas, "short put", "put ATM"), pri: 0, tip: atmTip(E, bas, "short put", "the put at the forward") }, { v: vp + (atmV(E, bas, "short call") - vc), t: atmT(E, bas, "short call", "call ATM"), pri: 0, tip: atmTip(E, bas, "short call", "the call at the forward") }];
       if (bE) { const rb = RULE.rangeTogether(bE, bas, P.values); if (rb) for (const [d, leg] of /** @type {[number, string][]} */ ([[rb.dlo, rb.loLeg], [rb.dhi, rb.hiLeg]])) { const x = vp + d; if (x > lo + 1e-6 && x < hi - 1e-6) ticks.push({ v: x, t: "B end", bx: true, pri: 1, tip: `B's ${leg} reaches the end of its chain here` }); } }
       const st = (RULE.STEP[bas] || 1) / 2, end = vp <= lo + st ? "lo" : vp >= hi - st ? "hi" : "";
       const leg = end === "lo" ? rt.loLeg : rt.hiLeg, ex = end === "lo" ? rt.loEnd : rt.hiEnd;
@@ -5576,7 +5919,7 @@ const DOCK9 = (() => {
     }
     for (const [k, role, l, cp, v] of [["put", "short put", lp, "P", vp], ["call", "short call", lc, "C", vc]]) {
       const e = RULE.ends(E, bas, role); if (!e) continue;
-      const ticks = [{ v: atmV(E, bas, role), t: atmT(E, bas, role), pri: 0, tip: `the ${k} at the forward` }];
+      const ticks = [{ v: atmV(E, bas, role), t: atmT(E, bas, role), pri: 0, tip: atmTip(E, bas, role, `the ${k} at the forward`) }];
       if (bE) { const eb = RULE.ends(bE, bas, role); if (eb) for (const w of ["lo", "hi"]) if (eb[w].value > e.lo.value + 1e-6 && eb[w].value < e.hi.value - 1e-6) ticks.push({ v: eb[w].value, t: "B end", bx: true, pri: 1, tip: `B's ${k} chain ends at ${fK(eb[w].K)}${cp} (${fV(eb[w].value, bas)})` }); }
       const end = atEnd(v, e, bas);
       out.push(slider(`sl:${sk}:${k}`, {
@@ -5596,7 +5939,7 @@ const DOCK9 = (() => {
     const v = +P.wings[s].value, end = atEnd(v, e, wbas);
     out.push(slider(`wsl:${side}:${s}`, {
       side, basis: wbas, name: `protective ${s}`, lo: e.lo.value, hi: e.hi.value, value: v, ticks: [],
-      readout: `${fV(v, wbas)} → ${l ? `${kc(l)} ${fV(l.achieved[wbas], wbas)}` : "n/a"}`, warnRo: !!b.flags.find(f => f.leg === key && f.severity === "warn"),
+      readout: `${fV(v, wbas)} → ${l ? kc(l) : "n/a"}`, warnRo: !!b.flags.find(f => f.leg === key && f.severity === "warn"),
       note: end ? `stops at ${fK(e[end].K)}${s === "call" ? "C" : "P"}, the ${end === "lo" ? (wbas === "delta" ? "farthest" : "nearest") : (wbas === "delta" ? "nearest" : "farthest")} ${s} with an ask beyond the short ${kc(sh)} (${fV(e[end].value, wbas)})` : "",
       input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 }), step: l ? { E, role, K: l.K, Kshort: sh.K } : null
     }));
@@ -5723,40 +6066,7 @@ const DOCK9 = (() => {
     });
   }
 
-  // ---------------------------------------------------------- Legs in detail and Pair sizing
-  // a leg's distance from the forward, in the summary's line 3 convention: a straddle's strike signed vs the forward
-  // ("strike +0.3% / +0.01σ vs fwd"); any other leg as % and σ out of the money ("25.2% / 0.26σ OTM vs fwd",
-  // negative = in the money)
-  function place(b, l) {
-    const pc = (v, d) => { const t = Math.abs(v).toFixed(d); return { s: sgs(v, t), m: sgn(v, t), t }; };
-    if (b.center && b.kind === "straddle" && l.qty < 0) { const m = pc(l.money, 1), g = pc(l.sigma, 2); return `strike ${m.s}${m.t}% / ${g.s}${g.t}σ vs fwd`; }
-    const o = l.cp === "P" ? -1 : 1, m = pc(o * l.money, 1), g = pc(o * l.sigma, 2);
-    return `${m.m}${m.t}% / ${g.m}${g.t}σ OTM vs fwd`;
-  }
-  function legsDetail() {
-    return ["A", "B"].map(side => {
-      const b = bOf(side), sideFlags = b.flags.filter(f => !f.leg);
-      let h = `<span class="d9lg"><span class="h"><span class="key ${side.toLowerCase()}">${side}</span>${esc(b.label.full)}</span>`;
-      h += sideFlags.map(f => `<span class="lf${f.severity === "warn" ? " w" : ""}">${f.severity === "warn" ? "! " : ""}${esc(f.text)}</span>`).join("");
-      if (b.na) return h + `<span class="lf w">n/a: ${esc(b.naReason)}</span></span>`;
-      h += `<span class="lf">fwd ${fPx2(b.F)} · spot ${fPx2(b.S)} · ATM IV ${fP(b.E.atm, 1)} · σ√T ${b.sig.toFixed(3)} · ${b.dte} d · ${b.fill === "nat" ? "natural fill" : "mid fill"}</span>`;
-      for (const l of b.legs) {
-        const w = l.qty > 0, fills = b.fill === "nat" ? (w ? "ask" : "bid") : "mid";
-        const lf = b.flags.filter(f => f.leg === l.key || (f.leg === "center" && (l.key === "put" || l.key === "call")));
-        let itm;
-        if (l.itm && l.intrinsic > 0) itm = `ITM vs fwd · intrinsic ${f2(l.intrinsic)} vs spot · time value ${f2(l.timeValue)}`;
-        else if (l.itm) itm = `ITM vs fwd ${fPx2(b.F)}, no intrinsic vs spot ${fPx2(b.S)} · time value ${f2(l.timeValue)}`;
-        else if (l.intrinsic > 0) itm = `OTM vs fwd ${fPx2(b.F)}, but ${f2(l.intrinsic)} intrinsic vs spot ${fPx2(b.S)} · time value ${f2(l.timeValue)}`;
-        else itm = `OTM · all time value`;
-        if (Number.isFinite(l.quotePremium)) itm += ` · quote premium over parity ${f2(l.quotePremium)}`;
-        h += `<span class="d9leg"><span class="t"><b>${fK(l.K)}${l.cp}</b> ${w ? "long" : "short"} ${l.cp === "P" ? "put" : "call"}${w ? " (protective)" : ""}<span class="px">${l.perContract < 0 ? "debit " + usd(l.perContract) : "credit " + usd(l.perContract)}</span></span>` +
-          `<span class="q">bid ${f2(l.bid)} · mid ${f2(l.mid)} · ask ${f2(l.ask)} · fill ${f2(l.fillPx)} at ${fills}${l.model ? " · model quote" : ""}</span>` +
-          `<span class="q">IV ${fP(l.iv, 1)} · ${(Math.abs(l.delta) * 100).toFixed(1)}Δ · ${place(b, l)}</span>` +
-          `<span class="q">${esc(itm)}</span>` + lf.map(f => `<span class="q${f.severity === "warn" ? " w" : ""}">${f.severity === "warn" ? "! " : ""}${esc(f.text)}</span>`).join("") + `</span>`;
-      }
-      return h + `</span>`;
-    }).join("") + `<span class="cap">$ per contract (100 shares). Δ is the forward delta with the smile at the strike. % and σ OTM are measured from the forward, as on the summary's third line (negative = in the money); ITM is measured against the forward, intrinsic against spot.</span>`;
-  }
+  // ---------------------------------------------------------- Pair sizing
   function syncSizing() {
     for (const sync of SIZING_SYNCS) { sync(C.state); }
     const sz = C.comparison.sizing, rn = r => (CTX.SIZES.find(s => s[0] === r) || ["", r])[1].toLowerCase();
@@ -5900,8 +6210,6 @@ const DOCK9 = (() => {
     if (!C.prefs.dock) { return; }
     SL = {};
     renderBox("A"); renderBox("B");
-    q("#d9-legb").innerHTML = legsDetail();
-    q("#d9-legsv").textContent = `· ITM, intrinsic, deltas, flags`;
     syncSizing();
   }
   // open the dock and bring one row of one box into view (from a summary pill)
@@ -5983,20 +6291,21 @@ const FACTS = (() => {
     }).join("");
     return `<table class="fxx"><thead><tr><th>Expiry</th><th>Days</th><th>Forward</th><th>ATM IV</th><th colspan="2">1σ move to expiry</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
-  // the contracts A and B hold: quote, own IV (from the mid; * = the smile fit), forward delta
+  // the contracts A and B hold: quote, own IV (from the mid; * = the smile fit), forward delta, where the strike sits
+  // against the forward (% and the expiry's σ), and the mid's intrinsic value (against spot) and time value
+  const signed = (v, digits, suffix) => { const t = Math.abs(v).toFixed(digits); return (+t === 0 ? "" : v < 0 ? MINUS : "+") + t + suffix; };
   function describeContracts() {
     const rows = ["A", "B"].flatMap(side => {
       const b = bOf(side);
       if (b.na) { return []; }
       return b.legs.map(l => {
         const iv = Number.isFinite(l.ivm) ? fP(l.ivm, 1) : fP(l.iv, 1) + "*";
-        return `<tr><td>${keyHtml(side)}${esc(b.tk)} ${esc(fmtE(b.exp))} ${fK(l.K)}${l.cp}</td><td>${pxOf(l.bid)}</td><td>${pxOf(l.ask)}</td><td>${pxOf(l.mid)}</td><td>${pxOf(l.ask - l.bid)}</td><td>${iv}</td><td>${(Math.abs(l.delta) * 100).toFixed(0)}Δ</td><td class="muted">${l.model ? "model quote" : ""}</td></tr>`;
+        const timeValue = Number.isFinite(l.tvMid) ? l.tvMid : l.mid - l.intrinsic;
+        return `<tr><td>${keyHtml(side)}${esc(b.tk)} ${esc(fmtE(b.exp))} ${fK(l.K)}${l.cp}</td><td>${pxOf(l.bid)}</td><td>${pxOf(l.ask)}</td><td>${pxOf(l.mid)}</td><td>${pxOf(l.ask - l.bid)}</td><td>${iv}</td><td>${(Math.abs(l.delta) * 100).toFixed(0)}Δ</td>` +
+          `<td>${signed(l.money, 1, "%")} · ${signed(l.sigma, 2, "σ")}</td><td>${pxOf(l.intrinsic)}</td><td>${pxOf(timeValue)}</td><td class="muted">${l.model ? "model quote" : ""}</td></tr>`;
       });
     }).join("");
-    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-  }
-  function describeSummary(tickers) {
-    return tickers.map(t => { const I = instOf(t.sides[0]); return `${esc(I.name || I.id)} ${pxOf(I.spot)} · period vol ${esc(C.volOf(t.id).label.replace(/^vol /, ""))}`; }).join(" &nbsp;|&nbsp; ");
+    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th>Strike vs forward</th><th>Intrinsic</th><th>Time value</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   function instX(side) {
@@ -6129,7 +6438,7 @@ const FACTS = (() => {
   // ---------------------------------------------------------- init, render, reveal
   function init() {
     const host = q("#facts");
-    host.innerHTML = `<summary><h2>Market facts</h2><span class="fxs" id="fx-sum"></span></summary><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
+    host.innerHTML = `<div class="ph"><h2>Market facts</h2><span class="sub" id="fx-sum"></span></div><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
     host.addEventListener("click", onClick);
     host.addEventListener("change", onChange);
     host.addEventListener("input", onInput);
@@ -6145,20 +6454,376 @@ const FACTS = (() => {
     C = c;
     const tickers = listTickers();
     for (const id of [...open]) { if (!tickers.some(t => t.id === id)) { open.delete(id); } }
-    q("#fx-sum").innerHTML = describeSummary(tickers);
+    // the quotes line (written by the views from the data's as-of) is a fact of the data: shown here on this tab
+    const asof = q("#asof");
+    q("#fx-sum").textContent = asof ? asof.textContent : "";
     q("#fx-body").innerHTML = tickers.map(t => `<div class="fxtk">${describeTickerLine(t)}${describeExpiries(t)}</div>`).join("") + describeContracts() +
       `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the move range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
     renderEditors(tickers);
   }
-  // open the panel and one ticker's editor (from a card or a pill)
-  function reveal(side) {
-    const I = C && instOf(side === "B" ? "B" : "A");
-    if (!I) { return; }
-    const host = /** @type {HTMLDetailsElement} */ (q("#facts"));
-    host.open = true; open.add(I.id); page.frames.mark({ cause: FrameCause.Ui });
-    requestAnimationFrame(() => host.scrollIntoView({ block: "start", behavior: "smooth" }));
+  return { init, render };
+})();
+// ---------------------------------------------------------------- ui_capture.js
+// ============================================================ ui_capture: Capture, the Compare tab's second junior tab
+// What A and B keep of their maximum payoff (the credit, for a short straddle or strangle), weighed by the odds:
+// named presets with their explanations, the curve of the odds of keeping at least x, what time alone gives when the
+// price does not move, and one basic custom variant. The maths is CAPTURE (capture.js); the managed preset reads the
+// comparer's MANAGE simulator with the Manage panel's rule. Reads only C and the store; changes state only through
+// commands. Top-level name: CAPTURE_VIEW.
+const CAPTURE_VIEW = (() => {
+  let C = null, HOST = null;
+  const q = s => HOST.querySelector(s);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const V = () => page.store.read().prefs;
+  const run = command => page.executor.execute(Object.assign({ source: "capture" }, command));
+  const setPref = patch => run({ type: Command.SetPref, patch });
+  const askFrame = () => page.frames.mark({ cause: FrameCause.Ui });
+  const SIDES = Object.freeze(["A", "B"]);
+  const keyHtml = side => `<span class="key ${side.toLowerCase()}">${side}</span>`;
+  // daily closes typed or pasted for the empirical preset, per ticker, for this session (the data feed may bring them)
+  const pastedCloses = new Map(), pastedText = new Map();
+  let closesVersion = 0;
+  const memo = new Map();
+  const VIEW_CONFIG = Object.freeze({ memoSize: 40, chartHeight: 230, lowestShown: -3, managedDelayMs: 30 });
+  const MANAGE_JOB = { id: 0 };
+
+  // ---------------------------------------------------------- formatting
+  const signedPct = (v, digits = 1) => { if (!Number.isFinite(v)) { return "–"; } const t = Math.abs(v * 100).toFixed(digits); return (+t === 0 ? "" : v < 0 ? MINUS : "+") + t + "%"; };
+  const plainPct = (v, digits = 0) => Number.isFinite(v) ? (v * 100).toFixed(digits) + "%" : "–";
+  const pts = v => { if (!Number.isFinite(v)) { return ""; } const t = Math.abs(v * 100).toFixed(1); return (+t === 0 ? "" : v < 0 ? MINUS : "+") + t + " pts"; };
+  // dollars with the sign of the amount: a loss prints with its minus
+  const usd = v => (v < 0 && Math.round(Math.abs(v)) !== 0 ? MINUS : "") + "$" + Math.round(Math.abs(v)).toLocaleString("en-US");
+  const ordinal = n => { const k = Math.round(n), tens = k % 100; return k + (tens >= 11 && tens <= 13 ? "th" : ["th", "st", "nd", "rd"][k % 10] || "th"); };
+  const tone = v => !Number.isFinite(v) ? "" : v > 0.0005 ? "pos" : v < -0.0005 ? "neg" : "";
+
+  // ---------------------------------------------------------- one side's readings
+  // the position as plain functions per share, for CAPTURE: P&L at expiry, P&L if closed with tau years left
+  function adaptPosition(b) {
+    const payoff = S => POS.payoff(b, S);
+    const value = (S, tau) => tau > 0 ? POS.val(b, S, tau) : POS.payoff(b, S);
+    return { payoff, value, strikes: b.legs.map(l => l.K), S0: b.S, years: b.T, days: b.dte };
   }
-  return { init, render, reveal };
+  const closesFor = id => pastedCloses.get(id) || (INST.base(id) && INST.base(id).closes) || [];
+  // the custom variant's scenario and P&L, from the prefs
+  /** @param {{ b: any, position: any, vw: any }} input */
+  function buildCustom({ b, position, vw }) {
+    const vol = vw.ccSrc === CAPTURE.VolSourceChoice.AtmIv ? b.E.atm : vw.ccSrc === CAPTURE.VolSourceChoice.Typed ? vw.ccVol / 100 : C.volOf(b.tk).pct / 100;
+    // closing early happens at least a day before expiry: the days left are capped at the position's life − 1
+    const daysLeft = vw.ccExit === CAPTURE.Exit.DaysLeft ? clamp(Math.round(vw.ccLeft), 0, Math.max(0, b.dte - 1)) : 0;
+    const elapsedYears = b.T * (b.dte - daysLeft) / b.dte, tauLeft = b.T * daysLeft / b.dte;
+    const base = CAPTURE.lognormal({ S0: b.S, vol, years: elapsedYears });
+    const scenario = CAPTURE.withGap({ scenario: base, chance: vw.ccGapP / 100, size: vw.ccGapS / 100, side: vw.ccGapSide });
+    const pnl = daysLeft > 0 ? S => position.value(S, tauLeft) : position.payoff;
+    return { vol, daysLeft, scenario, pnl };
+  }
+  const readCustom = ({ measured, vw }) => vw.ccRead === CAPTURE.Reading.Median ? measured.median : vw.ccRead === CAPTURE.Reading.Percentile ? measured.quantile(vw.ccPct / 100) : measured.mean;
+  // every reading of one side, memoized on what it depends on
+  /** @param {{ side: string, b: any, vw: any }} input */
+  function readSide({ side, b, vw }) {
+    if (b.na) { return { side, b, na: true, reason: b.naReason }; }
+    const vol = C.volOf(b.tk).pct / 100, closes = closesFor(b.tk);
+    const capital = vw.rdCap === Capital.Notional ? b.S : b.margin;
+    const key = [b.key, b.typedKey, vol, capital, vw.capX, vw.ccSrc, vw.ccVol, vw.ccGapP, vw.ccGapS, vw.ccGapSide, vw.ccRead, vw.ccPct, vw.ccExit, vw.ccLeft, closes.length, closes[closes.length - 1]].join("|");
+    const cached = memo.get(key);
+    if (cached) { return Object.assign({}, cached, { side, b, managed: readManaged({ b, vw }) }); }
+    const position = adaptPosition(b), maxResult = CAPTURE.findMaxPayoff(position);
+    if (!maxResult.ok) { return { side, b, na: true, reason: maxResult.error.message }; }
+    const max = maxResult.value, x = vw.capX / 100;
+    const scenario = CAPTURE.lognormal({ S0: b.S, vol, years: b.T });
+    const measured = CAPTURE.measure({ pnl: position.payoff, scenario, maxPayoff: max });
+    // the market's own odds: the comparer's implied EV (the fill against mid), the same number as its EV row
+    const implied = C.stats(b, Odds.Implied), impliedMean = implied ? implied.ev / max : NaN;
+    const time = CAPTURE.timePath({ value: position.value, S0: b.S, years: b.T, days: b.dte, maxPayoff: max, x });
+    const growth = CAPTURE.growth({ pnl: position.payoff, scenario, capitalPerShare: capital, maxPayoff: max });
+    const band = CAPTURE.findKeepBand({ payoff: position.payoff, maxPayoff: max, x, S0: b.S });
+    const empiricalScenario = CAPTURE.fromCloses({ S0: b.S, closes, days: b.dte });
+    const empirical = empiricalScenario.ok ? Result.ok(CAPTURE.measure({ pnl: position.payoff, scenario: empiricalScenario.value, maxPayoff: max })) : empiricalScenario;
+    const custom = buildCustom({ b, position, vw }), customMeasured = CAPTURE.measure({ pnl: custom.pnl, scenario: custom.scenario, maxPayoff: max });
+    const reading = { side, b, na: false, max, vol, x, capitalWord: vw.rdCap === Capital.Notional ? "notional" : "margin", measured, impliedMean, time, growth, band, empirical, custom: { ...custom, measured: customMeasured, value: readCustom({ measured: customMeasured, vw }) } };
+    if (memo.size > VIEW_CONFIG.memoSize) { memo.clear(); }
+    memo.set(key, reading);
+    return Object.assign({}, reading, { managed: readManaged({ b, vw }) });
+  }
+  // the Manage panel's rule on this position: the memoized simulation, or null while it still has to run
+  const manageInputs = ({ b, vw }) => ({ built: b, vol: C.volOf(b.tk).pct / 100, takeProfit: vw.mgTp / 100, stopLoss: vw.mgSl / 100, shock: C.shock });
+  const readManaged = ({ b, vw }) => b.cr > 0 ? MANAGE.peek(manageInputs({ b, vw })) : Result.err({ code: "net_debit", message: "a net debit has no credit to manage" });
+  // the simulations still missing run after this paint, then the view draws again
+  function scheduleManaged(readings, vw) {
+    const pending = readings.filter(r => !r.na && r.managed === null);
+    if (!pending.length) { return; }
+    const job = ++MANAGE_JOB.id;
+    setTimeout(() => {
+      if (job !== MANAGE_JOB.id) { return; }
+      for (const r of pending) { MANAGE.simulate(manageInputs({ b: r.b, vw })); }
+      askFrame();
+    }, VIEW_CONFIG.managedDelayMs);
+  }
+
+  // ---------------------------------------------------------- the named presets
+  // each preset: its name, one line on what it is, the knob's detail, and per side { value, text, sub }
+  /** @typedef {{ value: number, text: string, sub?: string, unit: string, tone?: string }} PresetCell */
+  const PRESETS = Object.freeze([
+    {
+      id: CAPTURE.Preset.Fixed, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle",
+      knob: "A typed assumption, not a reading: the rule of thumb ‘expect half the credit’. It is a target for closing a trade early, not what a held trade averages. Under it: how often a cycle actually keeps that much. Use it to see what a plan built on it implies, never as the expectation.",
+      cell: r => ({ value: r.x, text: signedPct(r.x, 0), sub: `actually kept that often: ${plainPct(r.measured.oddsAtLeast(r.x))}`, unit: "capture" })
+    },
+    {
+      id: CAPTURE.Preset.Expected, name: "Expected", line: "the average outcome: every expiry price weighed by its odds, held to expiry",
+      knob: "Expected P&L at expiry over the maximum payoff, with the price spread at the ticker's period vol (a zero-drift lognormal, as every EV reading here). For an at-the-money straddle it is about 1 − period vol / implied vol: the vol edge of the fill, counted in credits. It is 0 at the break-even vol. The Comparison's Expected value row matches this only when its odds are set to period vol. Under it: the market's own odds (the implied distribution), which measure only the fill against mid; the Comparison's EV row shows the same at implied odds.",
+      cell: r => ({ value: r.measured.mean, text: signedPct(r.measured.mean), sub: `market's own odds: ${signedPct(r.impliedMean)}`, unit: "capture" })
+    },
+    {
+      id: CAPTURE.Preset.Median, name: "Median", line: "what a typical cycle keeps: half keep more, half less",
+      knob: "Short premium makes many small wins and a few large losses, so a typical cycle keeps more than the average. With no vol edge an at-the-money straddle's median keeps about 15% while its average is about 0: the gap is what the rare large losses cost.",
+      cell: r => ({ value: r.measured.median, text: signedPct(r.measured.median), sub: `average ${signedPct(r.measured.mean)}`, unit: "capture" })
+    },
+    {
+      id: CAPTURE.Preset.OddsAtLeast, name: "Odds of keeping at least x", line: "how often a cycle keeps {x} or more; at 0, the profit odds",
+      knob: "The share of outcomes whose expiry P&L is at least x of the maximum payoff, at the period vol. Under it: the price band that keeps x, and the profit odds (x = 0).",
+      cell: r => ({ value: r.measured.oddsAtLeast(r.x), text: plainPct(r.measured.oddsAtLeast(r.x), 1), sub: `${describeBand(r.band)} · profit ${plainPct(r.measured.oddsAtLeast(0))}`, unit: "odds" })
+    },
+    {
+      id: CAPTURE.Preset.Managed, name: "Managed", line: "closed at the take profit or the stop of Manage the trade, else held",
+      knob: "Seeded daily price paths at the period vol, each day marked on the implied smile; the trade closes when its P&L reaches the take profit or the stop set in Comparison → Manage the trade. The average over all paths, in % of the maximum payoff. Under it: the share closed at the take profit and the average per day held, the rate at which freed margin can be put to work again.",
+      cell: r => describeManagedCell(r)
+    },
+    {
+      id: CAPTURE.Preset.TimePath, name: "Time path", line: "kept so far if the price does not move at all",
+      knob: "The position's own mark (the implied smile) at an unchanged price as days pass: time decay alone. For an at-the-money straddle it is close to 1 − √(time left / total time): about 29% half-way, and half the maximum only after about three quarters of the time. This is where ‘half the credit’ comes from: what a quiet market gives late in a cycle.",
+      cell: r => ({ value: r.time.atHalf, text: `${signedPct(r.time.atHalf)} half-way`, sub: Number.isFinite(r.time.dayToX) ? `x kept on day ${r.time.dayToX.toFixed(1)} of ${r.time.days}` : `x not kept before expiry`, unit: "capture" })
+    },
+    {
+      id: CAPTURE.Preset.Growth, name: "Growth", line: "the fixed share that compounds like the real outcomes, on the Recovery panel's capital",
+      knob: "Compounding multiplies outcomes: losing 50% needs +100% to get back. So the rate that compounds is the average of ln(1 + P&L / capital), not the average P&L. The capital is the one the Recovery panel uses (Basis → Capital per position: margin or notional). Shown as the fixed share of the maximum that, kept every cycle, compounds to the same growth; it sits below the expected share. When one cycle can lose the whole capital, compounding ends at zero sooner or later: the cell says so, and gives the growth of the cycles without a wipe-out. Sizing the position to a smaller share of the capital (or measuring on notional) avoids it.",
+      cell: r => describeGrowthCell(r)
+    },
+    {
+      id: CAPTURE.Preset.Empirical, name: "Empirical", line: "the ticker's own past moves over the same number of days",
+      knob: "Every overlapping window of daily closes as long as the position's life, applied to today's position and weighed the same. It shows what actually happened, large moves and gaps included, but only what happened in the sample. Needs daily price history: paste closes below (oldest first), or they arrive with the data feed.",
+      cell: r => !r.empirical.ok ? { value: NaN, text: "needs closes", sub: esc(r.empirical.error.message), unit: "capture" } : ({ value: r.empirical.value.mean, text: signedPct(r.empirical.value.mean), sub: `median ${signedPct(r.empirical.value.median)} · ≥ x ${plainPct(r.empirical.value.oddsAtLeast(r.x))}`, unit: "capture" })
+    }
+  ]);
+  // the prices that keep at least x: a band, a side (one edge open) or every price
+  function describeBand(band) {
+    if (!band) { return "no price keeps that much"; }
+    const [low, high] = band;
+    if (low === null && high === null) { return "at any price"; }
+    if (low === null) { return `below ${fPx2(high)}`; }
+    if (high === null) { return `above ${fPx2(low)}`; }
+    return `inside ${fPx2(low)}–${fPx2(high)}`;
+  }
+  // Growth: not finite when a wipe-out is possible (the floor would set it); the cycles without one reported apart
+  /** @returns {PresetCell} */
+  function describeGrowthCell(r) {
+    if (!r.growth.ok) { return { value: NaN, text: "–", sub: esc(r.growth.error.message), unit: "capture" }; }
+    const g = r.growth.value;
+    if (g.isRuinous) { return { value: NaN, text: "ends at zero", sub: `on its whole ${r.capitalWord} the capital is wiped out in ${plainPct(g.ruin, 2)} of cycles; without those: ${signedPct(g.survivorCapture)}`, unit: "capture", tone: "neg" }; }
+    return { value: g.equivalentCapture, text: signedPct(g.equivalentCapture), sub: `${signedPct(g.perCycle, 2)} a cycle on ${r.capitalWord}`, unit: "capture" };
+  }
+  /** @returns {PresetCell} */
+  function describeManagedCell(r) {
+    if (r.managed === null) { return { value: NaN, text: "computing…", unit: "capture" }; }
+    if (!r.managed.ok) { return { value: NaN, text: "–", sub: esc(r.managed.error.message), unit: "capture" }; }
+    const m = r.managed.value, capture = m.managedMean / r.max;
+    return { value: capture, text: signedPct(capture), sub: `take profit ${plainPct(m.takeProfit.share)} · ${signedPct(m.managedPerDay / r.max, 2)} a day held`, unit: "capture" };
+  }
+
+  // ---------------------------------------------------------- the table
+  function describeHeader(readings) {
+    return readings.map(r => r.na ? `${keyHtml(r.side)} n/a: ${esc(r.reason)}` : `${keyHtml(r.side)}<b>${esc(r.b.label.tab)}</b> maximum <b>${usd(r.max * 100)}</b> a contract${Math.abs(r.max - r.b.cr) < 1e-9 ? " (the credit)" : ""} · odds at ${esc(C.volOf(r.b.tk).label)}`).join("<br>");
+  }
+  function describeTable(readings) {
+    const live = readings.filter(r => !r.na), vw = V();
+    const head = `<tr><th>Preset</th>${live.map(r => `<th>${keyHtml(r.side)}</th>`).join("")}${live.length === 2 ? "<th>A − B</th>" : ""}</tr>`;
+    const rows = PRESETS.map(preset => {
+      const cells = live.map(r => preset.cell(r));
+      const diff = cells.length === 2 && Number.isFinite(cells[0].value) && Number.isFinite(cells[1].value) && preset.id !== CAPTURE.Preset.Fixed ? pts(cells[0].value - cells[1].value) : "";
+      const name = `<b>${esc(preset.name)}</b>${KNOBS.html({ id: `cap-${preset.id}`, title: preset.name, body: preset.knob })}<span class="cap">${esc(preset.line.replace(/\{x\}/g, `${vw.capX}%`))}</span>`;
+      return `<tr data-preset="${preset.id}"><td>${name}</td>${cells.map(c => `<td><span class="cv ${c.tone || (c.unit === "capture" ? tone(c.value) : "")}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td>`).join("")}${live.length === 2 ? `<td class="cd">${diff}</td>` : ""}</tr>`;
+    }).join("");
+    return `<thead>${head}</thead><tbody>${rows}</tbody>`;
+  }
+
+  // ---------------------------------------------------------- the charts
+  // the odds of keeping at least x: A and B at the period vol (solid), the custom variant (dashed), x marked
+  function renderCurve(readings) {
+    const host = q("#cap-curve"); host.innerHTML = "";
+    const live = readings.filter(r => !r.na);
+    if (!live.length) { return; }
+    const W = Math.max(host.clientWidth, 420), H = VIEW_CONFIG.chartHeight, m = { l: 44, r: 14, t: 14, b: 34 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const floorAt = Math.min(-1, ...live.map(r => Math.floor(r.measured.quantile(0.01) * 2) / 2));
+    const lo = Math.max(VIEW_CONFIG.lowestShown, floorAt), hi = 1, x = V().capX / 100;
+    const X = v => m.l + (v - lo) / (hi - lo) * pw, Y = p => m.t + (1 - p) * ph, xOfPx = px => lo + (px - m.l) / pw * (hi - lo);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Odds of keeping at least each share of the maximum payoff" }, host), ax = el("g", { class: "ax" }, svg);
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 5, Y(t) + 3.5, plainPct(t), { "text-anchor": "end" }); }
+    for (const t of ticks(lo, hi, Math.max(3, Math.floor(pw / 70)))) { el("line", { x1: X(t), x2: X(t), y1: m.t, y2: H - m.b }, ax); txt(ax, X(t), H - m.b + 14, signedPct(t, 0), { "text-anchor": "middle" }); }
+    txt(svg, m.l + pw / 2, H - 4, "kept, % of the maximum payoff (at least)", { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 10 });
+    if (x >= lo && x <= hi) { el("line", { x1: X(x), x2: X(x), y1: m.t, y2: H - m.b, stroke: "var(--ink-3)", "stroke-dasharray": "4 3" }, svg); txt(svg, X(x) + 4, m.t + 10, `x ${signedPct(x, 0)}`, { fill: "var(--ink-3)", "font-size": 10, ...halo }); }
+    const curveOf = measured => measured.curve.filter(p => p.x >= lo - 1e-9).map(p => [p.x, p.odds]);
+    const showsVariant = !isVariantDefault(V());
+    for (const r of live) {
+      const col = `var(--${r.side.toLowerCase()})`;
+      if (showsVariant) { el("path", { d: pathOf(curveOf(r.custom.measured), X, Y), fill: "none", stroke: col, "stroke-width": 1.3, "stroke-dasharray": "5 4", "stroke-opacity": .8 }, svg); }
+      el("path", { d: pathOf(curveOf(r.measured), X, Y), fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+      if (x >= lo && x <= hi) { el("circle", { cx: X(x), cy: Y(r.measured.oddsAtLeast(x)), r: 3.5, fill: col, stroke: "var(--surface)", "stroke-width": 1.5 }, svg); }
+    }
+    const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
+    const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", ev => {
+      const r = svg.getBoundingClientRect(), v = clamp(xOfPx((ev.clientX - r.left) * W / r.width), lo, hi);
+      cross.setAttribute("x1", X(v)); cross.setAttribute("x2", X(v)); cross.setAttribute("visibility", "visible");
+      showTip(describeKeepAtLeast({ x: v, live }), ev.clientX, ev.clientY);
+    });
+    hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
+    AXES.attach({ svg, orient: "x", band: { x: m.l, y: H - m.b, width: pw, height: m.b }, guide: { from: m.t, to: H - m.b }, toValue: px => clamp(xOfPx(px), lo, hi), toPx: X, describe: v => describeKeepAtLeast({ x: v, live }) });
+    AXES.attach({ svg, orient: "y", band: { x: 0, y: m.t, width: m.l, height: ph }, guide: { from: m.l, to: W - m.r }, toValue: py => clamp(1 - (py - m.t) / ph, 0, 1), toPx: Y, describe: p => describeKeptWithOdds({ odds: p, live }) });
+  }
+  /** @param {{ x: number, live: any[] }} input */
+  function describeKeepAtLeast({ x, live }) {
+    const showsVariant = !isVariantDefault(V());
+    const rows = live.map(r => krow(`<i class="sw" style="background:var(--${r.side.toLowerCase()})"></i>${r.side} at period vol${showsVariant ? " · your variant" : ""}`, `${plainPct(r.measured.oddsAtLeast(x), 1)}${showsVariant ? ` · ${plainPct(r.custom.measured.oddsAtLeast(x), 1)}` : ""}`)).join("");
+    const dollars = live.map(r => krow(`${r.side}: that is`, x < 0 ? `a loss of ${usd(-x * r.max * 100)} a contract or less` : `${usd(x * r.max * 100)} a contract or more`)).join("");
+    return `<span class="h">keeps at least ${signedPct(x, 0)} of the maximum</span>${rows}${dollars}`;
+  }
+  /** @param {{ odds: number, live: any[] }} input */
+  function describeKeptWithOdds({ odds, live }) {
+    const rows = live.map(r => krow(`${r.side} keeps at least`, `${signedPct(r.measured.quantile(1 - odds))} · ${usd(r.measured.quantile(1 - odds) * r.max * 100)} a contract`)).join("");
+    return `<span class="h">with odds ${plainPct(odds)}</span>${rows}`;
+  }
+  // kept with no move, by day: A and B, the x line
+  function renderTimePath(readings) {
+    const host = q("#cap-time"); host.innerHTML = "";
+    const live = readings.filter(r => !r.na);
+    if (!live.length) { return; }
+    const W = Math.max(host.clientWidth, 300), H = VIEW_CONFIG.chartHeight, m = { l: 44, r: 14, t: 14, b: 34 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const days = Math.max(...live.map(r => r.time.days)), x = V().capX / 100;
+    const lo = Math.min(0, ...live.flatMap(r => r.time.curve.map(p => p.kept))), hi = 1;
+    const X = d => m.l + d / days * pw, Y = v => m.t + (hi - v) / (hi - lo) * ph;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Kept with no move, by day" }, host), ax = el("g", { class: "ax" }, svg);
+    for (const t of ticks(lo, hi, 4)) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 5, Y(t) + 3.5, signedPct(t, 0), { "text-anchor": "end" }); }
+    for (const t of ticks(0, days, Math.max(3, Math.floor(pw / 60)))) { txt(ax, X(t), H - m.b + 14, String(Math.round(t)), { "text-anchor": "middle" }); }
+    txt(svg, m.l + pw / 2, H - 4, "days since entry, price unchanged", { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 10 });
+    if (x > lo && x < hi) { el("line", { x1: m.l, x2: W - m.r, y1: Y(x), y2: Y(x), stroke: "var(--ink-3)", "stroke-dasharray": "4 3" }, svg); }
+    for (const r of live) { el("path", { d: pathOf(r.time.curve.map(p => [p.day, p.kept]), X, Y), fill: "none", stroke: `var(--${r.side.toLowerCase()})`, "stroke-width": 2 }, svg); }
+    const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
+    const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", ev => {
+      const rect = svg.getBoundingClientRect(), d = clamp(((ev.clientX - rect.left) * W / rect.width - m.l) / pw * days, 0, days);
+      cross.setAttribute("x1", X(d)); cross.setAttribute("x2", X(d)); cross.setAttribute("visibility", "visible");
+      const rows = live.map(r => { const p = r.time.curve.reduce((best, c) => Math.abs(c.day - d) < Math.abs(best.day - d) ? c : best); return krow(`<i class="sw" style="background:var(--${r.side.toLowerCase()})"></i>${r.side}${d > r.time.days ? " (expired)" : ""}`, `${signedPct(p.kept)} · ${usd(p.kept * r.max * 100)}`); }).join("");
+      showTip(`<span class="h">day ${d.toFixed(1)}, price unchanged</span>${rows}`, ev.clientX, ev.clientY);
+    });
+    hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
+  }
+
+  // ---------------------------------------------------------- the custom variant
+  // the variant at its defaults is the Expected preset: period vol, no gap, the average, held to expiry
+  const isVariantDefault = vw => vw.ccSrc === CAPTURE.VolSourceChoice.PeriodVol && !(vw.ccGapP > 0 && vw.ccGapS > 0) && vw.ccRead === CAPTURE.Reading.Mean && vw.ccExit === CAPTURE.Exit.Expiry;
+  function describeCustomSetup(vw) {
+    const vol = vw.ccSrc === CAPTURE.VolSourceChoice.AtmIv ? "each expiry's ATM IV" : vw.ccSrc === CAPTURE.VolSourceChoice.Typed ? `${vw.ccVol}% vol` : "each ticker's period vol";
+    const gap = vw.ccGapP > 0 && vw.ccGapS > 0 ? `, plus a ${vw.ccGapP}% chance a cycle of a ${vw.ccGapS}% gap ${vw.ccGapSide === CAPTURE.GapSide.Either ? "either way" : "down"}` : "";
+    const reading = vw.ccRead === CAPTURE.Reading.Median ? "the median" : vw.ccRead === CAPTURE.Reading.Percentile ? `the ${ordinal(vw.ccPct)} percentile` : "the average";
+    const exit = vw.ccExit === CAPTURE.Exit.DaysLeft ? ", closed early at the model's mark (days left per side below)" : ", held to expiry";
+    return `${reading} of a lognormal at ${vol}${gap}${exit}`;
+  }
+  function describeCustomOutput(readings, vw) {
+    const live = readings.filter(r => !r.na);
+    const cells = live.map(r => `<span class="ccv">${keyHtml(r.side)}<b class="${tone(r.custom.value)}">${signedPct(r.custom.value)}</b><span class="muted"> · ${usd(r.custom.value * r.max * 100)} a contract · ≥ x ${plainPct(r.custom.measured.oddsAtLeast(r.x))}${vw.ccSrc !== CAPTURE.VolSourceChoice.PeriodVol ? ` · vol ${plainPct(r.custom.vol)}` : ""}${vw.ccExit === CAPTURE.Exit.DaysLeft ? ` · closed with ${r.custom.daysLeft} of ${r.b.dte} days left` : ""}</span></span>`).join("");
+    const note = isVariantDefault(vw) ? " At these settings it is the Expected preset; change a setting to see it as a dashed curve." : " Dashed on the curve.";
+    return `${cells}<span class="cap">${esc(describeCustomSetup(vw))}.${note}</span>`;
+  }
+
+  // ---------------------------------------------------------- empirical closes
+  function describeClosesEditor(readings) {
+    const ids = [...new Set(readings.filter(r => !r.na).map(r => r.b.tk))];
+    return ids.map(id => `<span class="ceed"><span class="lbl">${esc(id)}</span><textarea data-closes="${esc(id)}" rows="2" placeholder="daily closes, oldest first: 20.1, 20.4, 19.8, … (one per line may use a decimal comma)" aria-label="${esc(id)} daily closes">${esc(pastedText.get(id) || "")}</textarea><span class="muted" data-closes-n="${esc(id)}"></span></span>`).join("");
+  }
+
+  // what was understood from the closes: the count, first and last, and a warning when day-to-day jumps look misread
+  function describeClosesCheck(closes) {
+    if (!closes.length) { return "no closes"; }
+    const c = CAPTURE.checkCloses(closes);
+    return `${c.count} closes, ${fPx2(c.first)} → ${fPx2(c.last)}${c.jumps ? `<br><span class="warnc">${c.jumps} day-to-day jump${c.jumps === 1 ? "" : "s"} over 50%: check the format</span>` : ""}`;
+  }
+  // ---------------------------------------------------------- markup, wiring, render
+  const MARKUP = `
+  <section class="panel" id="cap-head">
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
+    <span class="capmax" id="cap-max"></span>
+    <table class="cmp cpt" id="cap-table"></table>
+    <details class="capem" id="cap-emp"><summary>Price history for the empirical preset</summary><span class="cap">Paste daily closes per ticker, oldest first, for this session; the data feed can bring them later.</span><span id="cap-closes"></span></details>
+  </section>
+  <section class="panel" id="cap-charts">
+    <div class="ph"><h2>Odds of keeping at least x</h2><span class="lgd" id="cap-lgd"></span></div>
+    <div class="captwo"><span class="capc"><span class="capct">Odds of keeping at least each share of the maximum, held to expiry</span><span id="cap-curve"></span></span><span class="capc"><span class="capct">Kept with no move, by day (time decay alone)</span><span id="cap-time"></span></span></div>
+  </section>
+  <section class="panel" id="cap-custom">
+    <div class="ph"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
+    <span class="ccrow">
+      <span class="ctl"><span class="lbl">Odds from</span><span class="seg" id="cc-src"></span> <span class="ccu" id="cc-volw"><input type="number" id="cc-vol" min="1" max="400" step="1" style="width:52px" aria-label="Typed vol, %">%</span></span>
+      <span class="ctl"><span class="lbl">Gap</span><input type="number" id="cc-gapp" min="0" max="100" step="1" style="width:46px" aria-label="Gap chance a cycle, %">% a cycle of <input type="number" id="cc-gaps" min="0" max="95" step="5" style="width:46px" aria-label="Gap size, %">% <span class="seg" id="cc-gapside"></span></span>
+      <span class="ctl"><span class="lbl">Reading</span><span class="seg" id="cc-read"></span> <span class="ccu" id="cc-pctw"><input type="number" id="cc-pct" min="1" max="99" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
+      <span class="ctl"><span class="lbl">Exit</span><span class="seg" id="cc-exit"></span> <span class="ccu" id="cc-leftw"><input type="number" id="cc-left" min="0" max="400" step="1" style="width:46px" aria-label="Days left at the exit"> days left</span></span>
+    </span>
+    <span class="ccout" id="cc-out"></span>
+  </section>`;
+  // a number input on one prefs key, clamped
+  function bindNumber({ id, key, lo, hi }) {
+    const input = /** @type {HTMLInputElement} */ (q(id));
+    input.addEventListener("change", () => { const v = parseFloat(input.value); if (Number.isFinite(v)) { setPref({ [key]: clamp(v, lo, hi) }); } else { askFrame(); } });
+    subscribeSync({ sync: state => { if (document.activeElement !== input) { input.value = state.prefs[key]; } } });
+  }
+  function init() {
+    HOST = document.querySelector("#capture");
+    HOST.innerHTML = MARKUP;
+    const pref = k => v => ({ type: Command.SetPref, patch: { [k]: v } });
+    bindNumber({ id: "#cap-x", key: "capX", lo: -300, hi: 100 });
+    seg({ el: q("#cc-src"), options: [[CAPTURE.VolSourceChoice.PeriodVol, "period vol"], [CAPTURE.VolSourceChoice.AtmIv, "ATM IV"], [CAPTURE.VolSourceChoice.Typed, "typed"]], read: state => state.prefs.ccSrc, command: pref("ccSrc") });
+    seg({ el: q("#cc-gapside"), options: [[CAPTURE.GapSide.Down, "down"], [CAPTURE.GapSide.Either, "either way"]], read: state => state.prefs.ccGapSide, command: pref("ccGapSide") });
+    seg({ el: q("#cc-read"), options: [[CAPTURE.Reading.Mean, "average"], [CAPTURE.Reading.Median, "median"], [CAPTURE.Reading.Percentile, "percentile"]], read: state => state.prefs.ccRead, command: pref("ccRead") });
+    seg({ el: q("#cc-exit"), options: [[CAPTURE.Exit.Expiry, "at expiry"], [CAPTURE.Exit.DaysLeft, "early"]], read: state => state.prefs.ccExit, command: pref("ccExit") });
+    bindNumber({ id: "#cc-vol", key: "ccVol", lo: 1, hi: 400 }); bindNumber({ id: "#cc-gapp", key: "ccGapP", lo: 0, hi: 100 }); bindNumber({ id: "#cc-gaps", key: "ccGapS", lo: 0, hi: 95 });
+    bindNumber({ id: "#cc-pct", key: "ccPct", lo: 1, hi: 99 }); bindNumber({ id: "#cc-left", key: "ccLeft", lo: 0, hi: 400 });
+    subscribeSync({ sync: state => { const vw = state.prefs; q("#cc-volw").hidden = vw.ccSrc !== CAPTURE.VolSourceChoice.Typed; q("#cc-pctw").hidden = vw.ccRead !== CAPTURE.Reading.Percentile; q("#cc-leftw").hidden = vw.ccExit !== CAPTURE.Exit.DaysLeft; } });
+    q("#cap-closes").addEventListener("change", ev => {
+      const area = /** @type {HTMLTextAreaElement} */ (ev.target), id = area.dataset && area.dataset.closes;
+      if (!id) { return; }
+      pastedCloses.set(id, CAPTURE.parseCloses(area.value)); pastedText.set(id, area.value); closesVersion++;
+      memo.clear(); askFrame();
+    });
+  }
+  function render(c) {
+    if (!HOST) { return; }
+    C = c;
+    const vw = V(), readings = SIDES.map(side => readSide({ side, b: side === "A" ? C.A : C.B, vw }));
+    q("#cap-max").innerHTML = describeHeader(readings);
+    q("#cap-table").innerHTML = describeTable(readings);
+    q("#cap-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A</span> <span><i style="background:var(--b)"></i>B</span> <span class="muted">solid: period vol · dashed: your variant · x = ${vw.capX}%</span>`;
+    renderCurve(readings); renderTimePath(readings);
+    q("#cc-out").innerHTML = describeCustomOutput(readings, vw);
+    const closesHost = q("#cap-closes"), idsKey = readings.filter(r => !r.na).map(r => r.b.tk).join("|");
+    if (closesHost.dataset.ids !== idsKey) { closesHost.innerHTML = describeClosesEditor(readings); closesHost.dataset.ids = idsKey; }
+    for (const n of closesHost.querySelectorAll("[data-closes-n]")) { const id = /** @type {HTMLElement} */ (n).dataset.closesN; n.innerHTML = describeClosesCheck(closesFor(id)); }
+    scheduleManaged(readings, vw);
+  }
+  // ---------------------------------------------------------- export: the presets as a plain table
+  const plainText = html => String(html || "").replace(/<br\s*\/?>/g, "; ").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+  function exportTable(c) {
+    C = c;
+    const vw = V(), readings = SIDES.map(side => readSide({ side, b: side === "A" ? C.A : C.B, vw }));
+    // the managed rule computed now when the view has not run it yet
+    for (const r of readings) { if (!r.na && r.managed === null) { r.managed = MANAGE.simulate(manageInputs({ b: r.b, vw })); } }
+    const live = readings.filter(r => !r.na);
+    const head = ["Preset", ...live.map(r => `${r.side} ${r.b.label.tab}`), ...(live.length === 2 ? ["A − B"] : [])];
+    const rows = PRESETS.map(p => {
+      const cells = live.map(r => p.cell(r));
+      const diff = cells.length === 2 && Number.isFinite(cells[0].value) && Number.isFinite(cells[1].value) && p.id !== CAPTURE.Preset.Fixed ? pts(cells[0].value - cells[1].value) : "";
+      return [p.name, ...cells.map(c => plainText(c.sub ? `${c.text} (${c.sub})` : c.text)), ...(live.length === 2 ? [diff] : [])];
+    });
+    return { intro: plainText(describeHeader(readings)) + `. Share x = ${vw.capX}%.`, head, rows, note: `Your variant: ${describeCustomSetup(vw)}.` };
+  }
+  return { init, render, closesFor, readClosesVersion: () => closesVersion, exportTable, PRESETS };
 })();
 // ---------------------------------------------------------------- ui_views.js
 // ============================================================ ui9_views: the comparer's view panels (v9)
@@ -6235,7 +6900,8 @@ const VIEWS = (() => {
       for (let s = n.previousElementSibling; s; s = s.previousElementSibling) { look(s); for (const c of s.children) { look(c); for (const g of c.children) look(g); } }
     return top;
   }
-  const setStick = () => { if (HOST) HOST.style.setProperty("--v9-stick", Math.round(stickTop()) + "px"); };
+  // every views host (#views and the Capture host) puts its sticky table heads just below the fixed summary
+  const setStick = () => { if (!HOST) { return; } const top = Math.round(stickTop()) + "px"; document.querySelectorAll(".v9views").forEach(host => /** @type {HTMLElement} */ (host).style.setProperty("--v9-stick", top)); };
 
   // ============================================================ overview: every instrument × expiry, with and without wings
   // the second series shows A's wings when A has any, else A's position with a protective call at A's call-wing value
@@ -7116,7 +7782,12 @@ const VIEWS = (() => {
     if (!measured.length) { return Result.err({ code: "no_steps", message: "the strikes do not step here" }); }
     return Result.ok(strength * Math.max(...measured.map(r => r.value)));
   }
-  const describeSmoothingStrength = strength => !(strength > 0) ? "off" : `${+strength.toFixed(2)} strike step${strength === 1 ? "" : "s"}`;
+  // the Smoothing slider is logarithmic: position 0 is off, then the strength runs from a hair (minSteps strike steps)
+  // to maxSteps, about the most smoothing that still shows the shape; the middle is a tenth of a step or so
+  const SMOOTHING = Object.freeze({ positions: 20, minSteps: 0.02, maxSteps: 2 });
+  const smoothingAt = position => position <= 0 ? 0 : SMOOTHING.minSteps * Math.pow(SMOOTHING.maxSteps / SMOOTHING.minSteps, (Math.min(position, SMOOTHING.positions) - 1) / (SMOOTHING.positions - 1));
+  const smoothingPositionOf = strength => !(strength > 0) ? 0 : clamp(Math.round(1 + (SMOOTHING.positions - 1) * Math.log(strength / SMOOTHING.minSteps) / Math.log(SMOOTHING.maxSteps / SMOOTHING.minSteps)), 1, SMOOTHING.positions);
+  const describeSmoothingStrength = strength => !(strength > 0) ? "off" : `${strength < 0.1 ? strength.toFixed(3) : strength.toFixed(2)} strike steps`;
   /** @param {{ windowResult: LabResult, basis: string }} input */
   function describeSmoothing({ windowResult, basis }) {
     if (!windowResult.ok) { return " Smoothing is on, but the strikes do not step here, so nothing is averaged."; }
@@ -7568,7 +8239,7 @@ const VIEWS = (() => {
       "Smile: refitted on the forward from the out-of-the-money mids (weighted cubic in log-moneyness, one pass dropping outliers); beyond the quoted strikes, total variance continues linearly with its edge slope, capped at Lee's bound.",
       "Marks before expiry: Black-76 on the moved forward with the smile sticky in moneyness. An out-of-the-money leg carries a vol offset that pins it to its traded mid at entry. An in-the-money leg is priced from its out-of-the-money twin through parity, plus the quote premium of its mid over parity, which decays to zero at expiry. So a position filled at mid marks to exactly 0 today with no move, and at natural fill to minus its full spread, whatever the target that chose its strikes.",
       "Fills: mid, or natural (sell at the bid, buy at the ask). With natural fills, marks before expiry also pay half the quoted spread on each leg to close.",
-      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). Period vol is a zero-drift lognormal at the ticker's period vol: one number per ticker for every expiry, annualized like IV, by default IBKR's listed 30-day historical vol (${nameVolSource({ source: VolSource.Hv30 })}), set under Positions, spot / IV / period vol. Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; every other EV reading (the sweep, the overview's EV, recovery, the export) uses the period vol whatever the odds switch says. σ stays implied everywhere: the move axis, the worst-loss range, sizing and placement.`,
+      `Odds: implied is the risk-neutral distribution from the smile (Breeden–Litzenberger on the forward); before expiry it is shrunk by √(t/T). Period vol is a zero-drift lognormal at the ticker's period vol: one number per ticker for every expiry, annualized like IV, by default IBKR's listed 30-day historical vol (${nameVolSource({ source: VolSource.Hv30 })}), set under Market facts (Edit beside the ticker). Profit means a P&L above 0 at expiry; the breakevens are every price where the payoff crosses 0, so a net debit that cannot profit shows 0% and no breakeven. Under implied odds EV is fill vs mid; every other EV reading (the sweep, the overview's EV, recovery, the export) uses the period vol whatever the odds switch says. σ stays implied everywhere: the move axis, the worst-loss range, sizing and placement.`,
       "σ: the move axis uses each instrument's ATM vol at A's horizon (interpolated in total variance when B does not list A's date), so every panel sees the same scenarios. Strike placement on the σ basis, credit/σ and the recovery hit use the position's own σ to its own expiry; the grid's cones and odds strips use each position's own clock. Labels say which applies when the expiries differ.",
       "Credit and time value: an in-the-money leg's cash credit includes its intrinsic value against spot, paid back at expiry. Time value = credit − intrinsic. Credit/σ, credit per day, credit/margin, the overview, the sweep, × credit units and the equal-credit sizing rule use time value; × credit units fall back to % of notional, and say so, when A's time value is not positive.",
       `Margin (approximate): Reg-T style, 20% × leverage (${levTxt()}) on the naked side, at least 10% × leverage; a side with a wing is charged the smaller of the spread width and the naked charge. IBKR's real leveraged-ETF requirement may differ.`,
@@ -7599,7 +8270,7 @@ const VIEWS = (() => {
         <span class="mrow"><span class="lbl">IV shock</span><input type="range" id="c-ivs" min="-30" max="60" step="1" aria-label="IV shock in vol points"> <output id="o-ivs"></output></span>
         <span class="mrow"><span class="lbl">Vol rises as spot falls</span><input type="range" id="c-svs" min="0" max="20" step="0.5" aria-label="Vol points added per 10% spot drop"> <output id="o-svs"></output></span>
         <span class="mrow"><label class="chk"><input type="checkbox" id="c-svd">Only on the way down</label></span>
-        <span class="mrow cap">Moves marks before expiry: this grid, the joint map and the pins. Entry prices and at-expiry views stay. To re-price the entry itself, give the instrument an IV shift in Positions.</span>
+        <span class="mrow cap">Moves marks before expiry: this grid, the joint map and the pins. Entry prices and at-expiry views stay. To re-price the entry itself, give the instrument an IV shift under Market facts.</span>
         <span class="mrow"><button class="btn" type="button" id="shockReset">Clear shocks</button></span>
       </span></details>
       <details class="menu" id="m-gdisp"><summary aria-label="Grid display settings">⚙</summary><span class="mb">
@@ -7630,7 +8301,7 @@ const VIEWS = (() => {
   </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes). 0 = the raw stepped lines. The raw lines stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="4" step="0.25" style="width:96px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
+    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes), on a logarithmic slider: the left half only rounds the corners, the right end averages over about two strikes. Far left = the raw stepped lines, which stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="20" step="1" style="width:110px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
     <span class="cap swcap" id="sw-cap"></span>
@@ -7697,7 +8368,7 @@ const VIEWS = (() => {
     });
     q("#p-joint").addEventListener("click", e => { if (/** @type {HTMLElement} */ (e.target).id !== "jgo") return; const other = INST.list().find(x => x.id !== C.A.tk); if (other) run({ type: Command.SetB, path: "inst", value: { id: other.id } }); });
     q("#p-joint").addEventListener("input", e => { const t = /** @type {HTMLInputElement} */ (e.target); if (t.id === "c-jday") setPref({ jday: +t.value }); });
-    bindRange({ input: q("#c-swsmooth"), output: q("#c-swsmootho"), read: state => state.prefs.sweepSmoothing, command: pref("sweepSmoothing"), format: describeSmoothingStrength });
+    bindRange({ input: q("#c-swsmooth"), output: q("#c-swsmootho"), read: state => smoothingPositionOf(state.prefs.sweepSmoothing), command: position => ({ type: Command.SetPref, patch: { sweepSmoothing: +smoothingAt(+position).toFixed(4) } }), format: position => describeSmoothingStrength(smoothingAt(position)) });
     seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
     seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
@@ -7722,9 +8393,13 @@ const VIEWS = (() => {
     if (!HOST) return;
     C = c || CTX.ctx9(S());
     setStick();
+    // only the shown junior view: Comparison draws every panel but the smile, Market facts only the smile
+    const view = V().cmpView;
+    if (view === CompareView.Capture) { return; }
+    if (view === CompareView.Facts) { safe(renderSmile, "smile"); return; }
     safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "comparison table");
     safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderManage, "manage"); safe(renderSweep, "sweep");
-    safe(renderRecovery, "recovery"); safe(renderSmile, "smile"); safe(notes, "notes");
+    safe(renderRecovery, "recovery"); safe(notes, "notes");
     requestAnimationFrame(setStick);
   }
   return {
@@ -7747,10 +8422,10 @@ const EXPORT9 = (() => {
   // default is STATE.EXPORT_SECTION_DEFAULTS
   /** @type {[string, string][]} */
   const CMP_SECTIONS = [[ExportSection.Header, "Header"], [ExportSection.Comparison, "Comparison"], [ExportSection.Assumptions, "Assumptions"],
-    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Pins, "Pinned scenarios"],
+    [ExportSection.Results, "Results"], [ExportSection.Recovery, "Recovery dynamics"], [ExportSection.Capture, "Capture"], [ExportSection.Pins, "Pinned scenarios"],
     [ExportSection.Overview, "Overview table"], [ExportSection.Notes, "Notes"]];
   /** @type {[string, string][]} */
-  const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Weeks, "Week by week"],
+  const YR_SECTIONS = [[ExportSection.Runs, "Runs"], [ExportSection.Base, "Base"], [ExportSection.Strip, "Result"], [ExportSection.Kept, "Credit kept"], [ExportSection.Weeks, "Week by week"],
     [ExportSection.Stress, "Stress"], [ExportSection.Random, "Random paths"]];
   const SECTION_LISTS = Object.freeze({ [Tab.Compare]: CMP_SECTIONS, [Tab.Compounding]: YR_SECTIONS });
 
@@ -8025,6 +8700,9 @@ const EXPORT9 = (() => {
     return para("## Notes", bullets(xs));
   }
 
+  // a readings table handed over by its view ({ intro, head, rows, note }), as plain text
+  /** @param {string} title @param {{ intro: string, head: string[], rows: string[][], note: string }} t */
+  const secReadingTable = (title, t) => para(title, t.intro, table(t.head, t.rows), t.note);
   function toMarkdownCompare(C, state, opts = {}) {
     const on = STATE.pickExportSections({ tab: Tab.Compare, chosen: opts.sections }), out = [];
     if (on.header) {
@@ -8036,6 +8714,7 @@ const EXPORT9 = (() => {
     if (on.assumptions) out.push(secAssumptions(C));
     if (on.results) out.push(secResults(C));
     if (on.recovery) out.push(secRecovery(C));
+    if (on.capture && opts.capture) out.push(secReadingTable("## Capture", opts.capture));
     if (on.pins) { const p = secPins(C); if (p) out.push(p); }
     if (on.overview) out.push(secOverview(C));
     if (on.notes) out.push(secNotes(C, !on.comparison, on.results));
@@ -8144,6 +8823,7 @@ const EXPORT9 = (() => {
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));
     if (on.strip) out.push(ySecStrip(ys, res));
+    if (on.kept && opts.kept) out.push(secReadingTable("## Credit kept", opts.kept));
     if (on.weeks) out.push(ySecWeeks(ys, res));
     if (on.stress && stress) out.push(ySecStress(ys, opts.sres));
     if (on.random) out.push(ySecRandom(ys, opts.mc));
@@ -8158,9 +8838,11 @@ const EXPORT9 = (() => {
     const state = H.readState();
     if (state.tab === Tab.Compounding) {
       const y = COMPOUND._state(), r = COMPOUND._res();
-      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, code: H.code() }), name: "compounding" };
+      const kept = COMPOUND.exportKept ? COMPOUND.exportKept() : null;
+      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, kept, code: H.code() }), name: "compounding" };
     }
-    return { md: EXPORT9.toMarkdownCompare(CTX.ctx9(state), state, { sections: readSections(Tab.Compare), code: H.code() }), name: "compare" };
+    const C = CTX.ctx9(state), capture = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.exportTable(C) : null;
+    return { md: EXPORT9.toMarkdownCompare(C, state, { sections: readSections(Tab.Compare), capture, code: H.code() }), name: "compare" };
   }
   function syncSecs() {
     const tab = H.readState().tab, list = SECTION_LISTS[tab] || CMP_SECTIONS, on = readSections(tab), host = document.querySelector("#xsecs");
@@ -8768,7 +9450,9 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     costs: { give: 0.25, comm: 0.65, commSh: 0.005, liq: 250, whole: true, grid: { KORU: 1, RAM: 1 }, mOvr: { KORU: 0.75, RAM: 0.5 } },
     rates: { tiered: true, bm: 4.0, loan: 5.5, cash: 3.5 },
     ivp: { mode: "flat", end: 0.85, pts: [[26, 0.92], [52, 0.85]], g: -15, gUnit: "span", rule: "gap" },
-    view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false }
+    view: { v: "weeks", reading: "typ", band: "both", exact: false, wiggle: true, pin: 1, gRun: "A", sweepRun: "A", creditView: "cum", tableRun: "A", dockOff: false },
+    // Credit kept: the share x, the managed rule, the preset the NAV chart shows, the custom variant
+    ck: { x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 }
   });
   let ys = DEF();
   const FIELDS = { [RunDiff.Strategy]: ["fam", "cd", "pd", "puts", "lev", "use", "wcd", "wpd"], [RunDiff.Ticker]: ["tk"], [RunDiff.Cadence]: ["cad"], [RunDiff.Strikes]: ["cd", "pd", "wcd", "wpd"], [RunDiff.Size]: ["lev", "use"], [RunDiff.Modus]: ["modus"], [RunDiff.Vol]: [] };
@@ -9167,16 +9851,17 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   }
   function readouts(who) {
     const r = who === "A" ? runA() : runB(); if (!r) return;
-    const res = RES && RES[who] ? RES[who].main : null, row = res ? res.rows[0] : null, id = s => q(`#y-${who}-${s}`);
+    const id = s => q(`#y-${who}-${s}`);
     const S0 = ys.sc.S0[r.tk], v = readRunVol({ run: r, slot: who }), cy = COMPOUND_ENGINE.cycles(r.cad, ys.sc.W)[0], T = Math.round((cy.exp - cy.t0) / 864e5) / 365, g = ys.costs.grid[r.tk];
-    const legTxt = (cp, d) => { const K = COMPOUND_ENGINE.pickStrike(S0, T, v.iv, cp, d, g), D_ = COMPOUND_ENGINE.deltaOf(S0, K, T, v.iv, cp) * 100, p = COMPOUND_ENGINE.bs(S0, K, T, v.iv, cp), itm = cp === "C" ? S0 > K : K > S0, tv = p - Math.max(0, cp === "C" ? S0 - K : K - S0);
-      return `${fKs(K)}${cp} · really ${D_.toFixed(0)}Δ · ${fPs(K / S0 - 1)} · ${fKs(p)} (${(p / S0 * 100).toFixed(2)}% of spot)${itm ? ` · time value ${fKs(tv)}` : ""}`; };
+    // the run's definition only: the strike week 1 lands on; its real Δ, premium and the margin-call distances are
+    // readings, in the Weeks view's week card and the Credit kept view
+    const legTxt = (cp, d) => `${fKs(COMPOUND_ENGINE.pickStrike(S0, T, v.iv, cp, d, g))}${cp}`;
     if (id("cdr")) id("cdr").textContent = "Week 1: " + legTxt("C", r.cd);
     if (id("pdr")) id("pdr").textContent = "Week 1: " + legTxt("P", r.pd);
     const m = ys.costs.mOvr[r.tk];
-    if (id("levr")) { const lam = r.lev, d = (1 / lam - m) / (1 - m); id("levr").textContent = `margin call after a ${fPc(Math.max(0, d), 0)} drop` + (row && row.cush < 1 ? ` (${fPc(row.cush, 0)} with this week's credit)` : "") + (lam >= 1 / m - 1e-6 ? " · at the ceiling: the first tick down is a margin call" : "");
-      id("levr").classList.toggle("warn", lam > 1.25 * 0.999); }
-    if (id("user") && row) id("user").textContent = `${Math.round(r.use * 100)}% · margin call on ${Number.isFinite(row.cushUp) ? fPs(row.cushUp, 0) : "no rally"} or ${row.cush < 1 ? fPs(-row.cush, 0) : "no drop"} (week 1)`;
+    // only the limit of the input itself stays here: leverage at the broker's ceiling
+    if (id("levr")) { const isCeiling = r.lev >= 1 / m - 1e-6; id("levr").textContent = isCeiling ? "at the ceiling: the first tick down is a margin call" : ""; id("levr").classList.toggle("warn", isCeiling); }
+    if (id("user")) { id("user").textContent = ""; }
   }
   function costsEditor(host) {
     host.innerHTML = `<span class="row"><span class="lbl">Fill</span>give up <input type="number" id="y-cgive" min="0" max="1" step="0.05" style="width:50px"> of the half-spread</span>
@@ -9572,6 +10257,248 @@ margin call on ${Number.isFinite(r.cushUp) ? fPs(r.cushUp, 0) : "no rally"} or $
     q("#y-csv").onclick = () => { const csv = [cols.map(c => c[0]).join(","), ...R.main.rows.map(r => cols.map(c => `"${String(c[1](r)).replace(/"/g, "")}"`).join(","))].join("\n"); clipboard.writeText(csv).then(r => port.showNotice(r.ok ? "Copied" : "Clipboard blocked")); };
   }
 
+  // ============================================================ Credit kept: each cycle's share of its maximum payoff
+  // Per run, every cycle's own legs (its strikes, pricing IV and days) priced flat at that IV; the price spread at the
+  // run's moves vol around the path (the median on the path, as the Weeks view reads it). The readings are CAPTURE's.
+  // What they compound to is the account: the engine's own contracts per NAV dollar (cycle 1, re-sized each cycle as
+  // the engine does: ∝ 1/price), the fill's haircut on the credit only, and for covered calls the shares under the
+  // same price spread. Runs that keep the credit as cash have fixed counts and add up instead of compounding.
+  // Options and shares only: no margin calls, interest or assignment mechanics; the full model is the Weeks view.
+  const KEPT_PRESETS = Object.freeze([
+    { id: CAPTURE.Preset.Fixed, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle", knob: "A typed assumption, not a reading: the rule of thumb ‘expect half the credit’. Under it: how often cycle 1 actually keeps that much. Its NAV is the average NAV the plan implies if it held (the shares averaged over the same price spread as Expected, so the two compare)." },
+    { id: CAPTURE.Preset.Expected, name: "Expected", line: "the average outcome of each cycle, held to expiry", knob: "Each cycle's expected option P&L over its maximum payoff, with the price spread at the run's moves vol around the path. Pricing IV above the moves vol makes it positive; below, negative. Compounded cycle by cycle (the shares averaged over the same spread) it gives the average NAV, which the few best runs pull up; the typical NAV is the Growth row." },
+    { id: CAPTURE.Preset.Median, name: "Median", line: "what a typical cycle keeps", knob: "Half the cycles keep more, half less. It sits above the average because short premium wins small and often and loses large and rarely; out of the money it is often the whole credit. A median per cycle does not compound to the median NAV (the product of medians is not a median): the Growth row is the typical NAV." },
+    { id: CAPTURE.Preset.OddsAtLeast, name: "Odds of keeping at least x", line: "how often cycle 1 keeps {x} or more", knob: "The share of outcomes of cycle 1 whose option P&L is at least x of the maximum payoff. Shown as odds, so its NAV column is empty." },
+    { id: CAPTURE.Preset.Managed, name: "Managed", line: "closed at the take profit or the stop above, else held", knob: "Seeded daily paths at the moves vol for cycle 1, centred on the path like every other row and marked at the pricing IV; the cycle closes when its P&L reaches the take profit or the stop. ± is the Monte Carlo error. The same share is assumed for every cycle; the days a take profit frees are not reinvested here." },
+    { id: CAPTURE.Preset.TimePath, name: "Time path", line: "kept half-way through cycle 1 if the price does not move", knob: "Time decay alone: the cycle's own mark at an unchanged price. For an at-the-money position about 29% half-way; half the maximum only after about three quarters of the cycle. Not a cycle outcome, so its NAV column is empty." },
+    { id: CAPTURE.Preset.Growth, name: "Growth", line: "the fixed share that compounds like the real outcomes", knob: "Compounding multiplies outcomes, so the rate that compounds is each cycle's average of ln(1 + the account's return), shares included for covered calls. Shown as the fixed share of the credit that, kept every cycle, compounds to the same; its NAV is the log-average (typical) NAV of the options and shares alone. For covered calls the growth includes the levered shares' own swings, which compounding penalises, so the equivalent share can sit well below Expected (even below zero) while the account still grows. With any chance of losing the whole account in one cycle it ends at zero; with the credit kept as cash nothing compounds." },
+    { id: CAPTURE.Preset.Empirical, name: "Empirical", line: "the ticker's own past moves over a cycle", knob: "Every overlapping window of daily closes as long as a cycle, applied to cycle 1. Needs daily price history: paste closes under Compare A vs B → Capture, or they arrive with the data feed." },
+    { id: CAPTURE.Preset.Custom, name: "Your variant", line: "the adjuster below the chart", knob: "The odds, gap and reading set in the adjuster under the NAV chart, applied to every cycle. Its NAV is shown for the average only: a median or percentile per cycle does not compound to anything." }
+  ]);
+  // the presets whose per-cycle share compounds to something: Growth to the log-average NAV, Expected and Managed to
+  // the average NAV (independent cycles), Fixed to what its assumption implies, the variant when it reads the average
+  const KEPT_SHOWN = Object.freeze([[CAPTURE.Preset.Growth, "Growth"], [CAPTURE.Preset.Expected, "Expected"], [CAPTURE.Preset.Fixed, "Fixed share"], [CAPTURE.Preset.Managed, "Managed"], [CAPTURE.Preset.Custom, "Your variant"]]);
+  const NAV_WORD = Object.freeze({ [CAPTURE.Preset.Growth]: "typical NAV (log-average)", [CAPTURE.Preset.Expected]: "average NAV", [CAPTURE.Preset.Fixed]: "average NAV, if it held", [CAPTURE.Preset.Managed]: "average NAV", [CAPTURE.Preset.Custom]: "average NAV" });
+  const KEPT_CONFIG = Object.freeze({ managedPaths: 6000 });
+  const KEPT_CK_DEF = Object.freeze({ x: 50, tp: 50, sl: 200, show: "growth", src: "rv", vol: 100, gapP: 0, gapS: 30, gapSide: "down", read: "mean", pct: 25 });
+  // a loaded ck: unknown choices back to their defaults, numbers clamped to the inputs' ranges
+  function sanitizeKeptSettings(ck) {
+    const d = KEPT_CK_DEF, pick = (v, list, dv) => list.includes(v) ? v : dv, num = (v, lo, hi, dv) => Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dv;
+    return { x: num(ck.x, -300, 100, d.x), tp: num(ck.tp, 0, 95, d.tp), sl: num(ck.sl, 0, 1000, d.sl), show: pick(ck.show, KEPT_SHOWN.map(k => k[0]), d.show), src: pick(ck.src, ["rv", "iv", "typed"], d.src), vol: num(ck.vol, 1, 400, d.vol), gapP: num(ck.gapP, 0, 100, d.gapP), gapS: num(ck.gapS, 0, 95, d.gapS), gapSide: pick(ck.gapSide, ["down", "either"], d.gapSide), read: pick(ck.read, ["mean", "median", "pct"], d.read), pct: num(ck.pct, 1, 99, d.pct) };
+  }
+  const ordinal = n => { const k = Math.round(n), tens = k % 100; return k + (tens >= 11 && tens <= 13 ? "th" : ["th", "st", "nd", "rd"][k % 10] || "th"); };
+  // results per engine run (a new R.main whenever any engine input changes) and per setting of this view
+  const keptMemo = new WeakMap();
+  // one cycle's option legs, per share (−1 short, +1 long): covered calls the call (and the put when on); strangles both
+  // legs and the wings
+  function cycleLegs(row, run) {
+    const legs = [{ K: row.Kc, cp: "C", qty: -1 }, { K: row.Kp, cp: "P", qty: -1 }];
+    if (run.fam !== "cc") { legs.push({ K: row.Kwc, cp: "C", qty: 1 }, { K: row.Kwp, cp: "P", qty: 1 }); }
+    return legs.filter(l => l.K > 0);
+  }
+  // how the run is sized, from the engine's first cycle: option shares per NAV dollar, the fill's haircut on the credit,
+  // the shares' leverage (covered calls), and whether counts stay fixed (the credit kept as cash)
+  function readSizing(R, first) {
+    const r0 = R.main.rows[0], cc = R.run.fam === "cc", count = cc ? r0.calls : r0.k, cap0 = ys.sc.cap0;
+    const perNav = count > 0 ? 100 * count / cap0 : 0, fillCredit = count > 0 ? r0.credit / (100 * count) : 0;
+    return { cc, perNav, haircut: first.credit > 0 ? Math.max(0, 1 - fillCredit / first.credit) : 0, leverage: cc ? r0.lam : 0, isFixed: R.run.modus.credit === "cash", S0: r0.S0 };
+  }
+  // the account's return over one cycle at price S (per NAV dollar at the cycle start, or per starting dollar when the
+  // counts are fixed): the shares' move plus the options at mid less the haircut on the credit; the option count per
+  // dollar follows the engine (∝ 1/price, except fixed covered calls whose calls stay the same)
+  function cycleAccount({ row, position, sizing }) {
+    const countScale = sizing.cc && sizing.isFixed ? 1 : sizing.S0 / row.S0, optionShare = sizing.perNav * countScale;
+    const shareWeight = sizing.isFixed ? sizing.leverage * row.S0 / sizing.S0 : sizing.leverage;
+    const cost = sizing.haircut * position.credit;
+    return { optionShare, shareWeight, cost, returnAt: S => shareWeight * (S / row.S0 - 1) + optionShare * (position.payoff(S) - cost), returnFor: (kept, max, priceRatio) => shareWeight * (priceRatio - 1) + optionShare * (kept * max - cost) };
+  }
+  const meanPriceRatio = (scenario, S0) => { let m = 0; for (let i = 0; i < scenario.S.length; i++) { m += scenario.w[i] * scenario.S[i]; } return m / S0; };
+  // a cycle the horizon cuts short is held for its share of the days and marked at the rest (as the engine does)
+  function readHolding(row) {
+    const natural = Math.max(1, Math.round(row.days / 7)), weeks = row.w1 - row.w0;
+    const heldDays = weeks < natural - 0.5 ? Math.max(1, Math.round(row.days * weeks / natural)) : row.days;
+    return { heldDays, tauLeft: (row.days - heldDays) / 365 };
+  }
+  // the custom variant's scenario for one cycle
+  function keptCustomScenario(row, heldDays) {
+    const ck = ys.ck, vol = ck.src === "iv" ? row.iv : ck.src === "typed" ? ck.vol / 100 : row.rv;
+    const base = CAPTURE.lognormal({ S0: row.S0, vol: Math.max(vol, 1e-4), years: heldDays / 365, mu: Math.log(row.S1 / row.S0) });
+    return CAPTURE.withGap({ scenario: base, chance: ck.gapP / 100, size: ck.gapS / 100, side: ck.gapSide });
+  }
+  const readKeptCustom = measured => ys.ck.read === CAPTURE.Reading.Median ? measured.median : ys.ck.read === CAPTURE.Reading.Percentile ? measured.quantile(ys.ck.pct / 100) : measured.mean;
+  // every cycle of one run: its position, maximum, readings at the moves vol, the account's growth, the custom reading
+  function readCycles(R) {
+    const rows = R.main.rows, run = R.run, r0 = rows[0];
+    const first = CAPTURE.fromLegs({ S0: r0.S0, days: r0.days, iv: r0.iv, rate: 0, legs: cycleLegs(r0, run), price: COMPOUND_ENGINE.bs });
+    const sizing = readSizing(R, first);
+    return rows.map(row => {
+      const position = CAPTURE.fromLegs({ S0: row.S0, days: row.days, iv: row.iv, rate: 0, legs: cycleLegs(row, run), price: COMPOUND_ENGINE.bs });
+      const maxResult = CAPTURE.findMaxPayoff(position);
+      if (!maxResult.ok) { return { row, na: maxResult.error.message }; }
+      const max = maxResult.value, holding = readHolding(row);
+      const pnl = holding.tauLeft > 0 ? S => position.value(S, holding.tauLeft) : position.payoff;
+      const scenario = CAPTURE.lognormal({ S0: row.S0, vol: Math.max(row.rv, 1e-4), years: holding.heldDays / 365, mu: Math.log(row.S1 / row.S0) });
+      const measured = CAPTURE.measure({ pnl, scenario, maxPayoff: max });
+      const account = cycleAccount({ row, position: Object.assign({}, position, { payoff: pnl }), sizing });
+      const growth = sizing.isFixed ? null : CAPTURE.growth({ pnl: account.returnAt, scenario, capitalPerShare: 1, maxPayoff: 1 }).value;
+      const customScenario = keptCustomScenario(row, holding.heldDays), custom = CAPTURE.measure({ pnl, scenario: customScenario, maxPayoff: max });
+      return { row, position, max, measured, account, growth, priceRatio: meanPriceRatio(scenario, row.S0), custom: readKeptCustom(custom), customMeasured: custom, customPriceRatio: meanPriceRatio(customScenario, row.S0) };
+    });
+  }
+  // cycle 1's slower readings: the time path, the managed rule (centred on the path), the past moves
+  function readFirstCycle(c1, run) {
+    if (!c1 || c1.na) { return null; }
+    const p = c1.position, x = ys.ck.x / 100, mu = Math.log(c1.row.S1 / c1.row.S0);
+    const time = CAPTURE.timePath({ value: p.value, S0: p.S0, years: p.years, days: p.days, maxPayoff: c1.max, x });
+    const managed = CAPTURE.managed({ value: p.value, payoff: p.payoff, S0: p.S0, years: p.years, days: p.days, vol: Math.max(c1.row.rv, 1e-4), maxPayoff: c1.max, takeProfit: ys.ck.tp / 100, stopLoss: ys.ck.sl / 100, mu, paths: KEPT_CONFIG.managedPaths });
+    const closes = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.closesFor(run.tk) : [];
+    const past = CAPTURE.fromCloses({ S0: p.S0, closes, days: p.days });
+    const empirical = past.ok ? Result.ok(CAPTURE.measure({ pnl: p.payoff, scenario: past.value, maxPayoff: c1.max })) : past;
+    return { time, managed, empirical };
+  }
+  // the growth-equivalent share of one cycle: the fixed share whose return (on the same footing as Expected: the
+  // shares at their scenario mean, the haircut on the credit) equals e^(log growth) − 1
+  const growthShare = c => c.growth && !c.growth.isRuinous && c.account.optionShare > 0 ? (Math.exp(c.growth.logMean) - 1 - c.account.shareWeight * (c.priceRatio - 1) + c.account.optionShare * c.account.cost) / (c.account.optionShare * c.max) : NaN;
+  // the share each preset keeps in a cycle (NaN where a preset has no per-cycle share)
+  function keptShare(id, cycle, first) {
+    if (id === CAPTURE.Preset.Fixed) { return ys.ck.x / 100; }
+    if (id === CAPTURE.Preset.Expected) { return cycle.measured.mean; }
+    if (id === CAPTURE.Preset.Median) { return cycle.measured.median; }
+    if (id === CAPTURE.Preset.Managed) { return first && first.managed.ok ? first.managed.value.mean : NaN; }
+    if (id === CAPTURE.Preset.Empirical) { return first && first.empirical.ok ? first.empirical.value.mean : NaN; }
+    if (id === CAPTURE.Preset.Custom) { return cycle.custom; }
+    if (id === CAPTURE.Preset.Growth) { return growthShare(cycle); }
+    return NaN;
+  }
+  // the price ratio each preset's shares move by: the scenario mean (Fixed, Expected, Managed: the same spread; the
+  // variant: its own spread, the gap included), so the presets' NAVs compare on one footing
+  const priceRatioFor = (id, c) => id === CAPTURE.Preset.Custom ? c.customPriceRatio : c.priceRatio;
+  // NAV by week if every cycle kept its preset share; null where the preset does not compound to anything
+  function projectNav(id, cycles, first, isFixed) {
+    const doesNotCompound = (id === CAPTURE.Preset.Custom && ys.ck.read !== CAPTURE.Reading.Mean) || (id === CAPTURE.Preset.Growth && isFixed);
+    if (doesNotCompound) { return null; }
+    const cap0 = ys.sc.cap0;
+    let nav = cap0;
+    const pts = [[0, nav]];
+    for (const c of cycles) {
+      if (c.na) { return null; }
+      if (id === CAPTURE.Preset.Growth) {
+        if (!c.growth || c.growth.isRuinous) { return null; }
+        nav *= Math.exp(c.growth.logMean);
+      } else {
+        const kept = keptShare(id, c, first);
+        if (!Number.isFinite(kept)) { return null; }
+        const r = c.account.returnFor(kept, c.max, priceRatioFor(id, c));
+        nav = isFixed ? Math.max(0, nav + cap0 * r) : nav * Math.max(0, 1 + r);
+      }
+      pts.push([Math.min(c.row.w1, ys.sc.W), nav]);
+    }
+    return pts;
+  }
+  function readKept(R) {
+    const key = JSON.stringify([ys.ck, ys.sc.cap0, typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.readClosesVersion() : 0]);
+    let byKey = keptMemo.get(R.main);
+    if (!byKey) { byKey = new Map(); keptMemo.set(R.main, byKey); }
+    const cached = byKey.get(key);
+    if (cached) { return Object.assign({}, cached, { R }); }
+    const cycles = readCycles(R), first = readFirstCycle(cycles[0], R.run), isFixed = R.run.modus.credit === "cash";
+    const result = { R, cycles, first, isFixed, nav: Object.fromEntries(KEPT_SHOWN.map(([id]) => [id, projectNav(id, cycles, first, isFixed)])) };
+    byKey.clear(); byKey.set(key, result);
+    return result;
+  }
+  // one preset's cell for one run: cycle 1's reading, and the NAV at the last week
+  function describeKeptCell(preset, K) {
+    const c1 = K.cycles[0], first = K.first, x = ys.ck.x / 100;
+    if (!c1 || c1.na) { return { text: "–", sub: c1 ? c1.na : "", nav: "" }; }
+    const end = K.nav[preset.id], navWord = preset.id === CAPTURE.Preset.Growth && K.isFixed ? "" : NAV_WORD[preset.id];
+    const nav = end ? `${f$(end[end.length - 1][1])}${navWord ? `<span class="cps">${navWord}${K.isFixed ? ", added up (fixed size)" : ""}</span>` : ""}` : "";
+    const share = keptShare(preset.id, c1, first);
+    if (preset.id === CAPTURE.Preset.Fixed) { return { text: fPs(x, 0), sub: `cycle 1 keeps that often: ${fPc(c1.measured.oddsAtLeast(x), 0)}`, nav }; }
+    if (preset.id === CAPTURE.Preset.OddsAtLeast) { return { text: fPc(c1.measured.oddsAtLeast(x), 1), sub: `profit ${fPc(c1.measured.oddsAtLeast(0), 0)}`, nav: "" }; }
+    if (preset.id === CAPTURE.Preset.TimePath) { return first ? { text: `${fPs(first.time.atHalf)} half-way`, sub: Number.isFinite(first.time.dayToX) ? `x kept on day ${first.time.dayToX.toFixed(1)} of ${first.time.days}` : "x not kept before expiry", nav: "" } : { text: "–", nav: "" }; }
+    if (preset.id === CAPTURE.Preset.Managed && first && first.managed.ok) { const m = first.managed.value; return { text: `${fPs(share)} <small>±${(m.error * 100).toFixed(1)}</small>`, sub: `take profit ${fPc(m.takeProfitShare, 0)} · ${m.meanDays.toFixed(1)} of ${m.days} days`, nav }; }
+    if (preset.id === CAPTURE.Preset.Empirical && first && !first.empirical.ok) { return { text: "needs closes", sub: esc(first.empirical.error.message), nav: "" }; }
+    if (preset.id === CAPTURE.Preset.Growth) {
+      if (K.isFixed) { return { text: "–", sub: "the credit is kept as cash: the size stays fixed and nothing compounds", nav: "" }; }
+      if (!c1.growth) { return { text: "–", nav: "" }; }
+      if (c1.growth.isRuinous) { return { text: "ends at zero", tone: "neg", sub: `the account is wiped out in ${fPc(c1.growth.ruin, 2)} of cycles`, nav: "" }; }
+      return { text: fPs(share), sub: `${fPs(Math.exp(c1.growth.logMean) - 1, 2)} a cycle on the account`, nav };
+    }
+    if (preset.id === CAPTURE.Preset.Median) { return { text: fPs(share), sub: `average ${fPs(c1.measured.mean)}`, nav: `<span class="cps">does not compound: see Growth</span>` }; }
+    if (preset.id === CAPTURE.Preset.Custom && !end) { return { text: fPs(share), sub: "", nav: `<span class="cps">a ${ys.ck.read === "median" ? "median" : "percentile"} does not compound</span>` }; }
+    return { text: fPs(share), sub: "", nav };
+  }
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+  const keptTone = v => !Number.isFinite(v) ? "" : v > 0.0005 ? "pos" : v < -0.0005 ? "neg" : "";
+  function renderKeptTable(kepts) {
+    const runs = kepts.map(([who, K]) => ({ who, K, c1: K.cycles[0] }));
+    q("#y-khead").innerHTML = runs.map(({ who, K, c1 }) => !c1 || c1.na ? `<span class="key ${who.toLowerCase()}">${who}</span> n/a` :
+      `<span class="key ${who.toLowerCase()}">${who}</span><b>${esc(runName(K.R.run))}</b> · cycle 1: ${c1.position.strikes.map((K_, i) => fKs(K_) + cycleLegs(c1.row, K.R.run)[i].cp).join(" / ")}, ${c1.row.days} days, maximum ${fKs(c1.max)} a share (${fPc(c1.max / c1.row.S0, 2)} of the price) · pricing IV ${fPc(c1.row.iv, 0)}, moves ${fPc(c1.row.rv, 0)} · credit ${fPc(c1.account.optionShare * c1.max, 2)} of NAV a cycle${c1.account.cost > 0 ? ` (${fPc(c1.account.cost / c1.position.credit, 1)} of it lost to the fill)` : ""}`).join("<br>");
+    const head = `<tr><th>Preset</th>${runs.map(({ who }) => `<th><span class="key ${who.toLowerCase()}">${who}</span> kept a cycle</th><th>NAV week ${ys.sc.W}</th>`).join("")}</tr>`;
+    const shownIds = KEPT_SHOWN.map(k => k[0]);
+    const rows = KEPT_PRESETS.map(p => {
+      const name = `<b>${esc(p.name)}</b>${KNOBS.html({ id: `kept-${p.id}`, title: p.name, body: p.knob })}<span class="cap">${esc(p.line.replace(/\{x\}/g, `${ys.ck.x}%`))}</span>`;
+      const cells = runs.map(({ K }) => { const c = describeKeptCell(p, K), share = K.cycles[0] && !K.cycles[0].na ? keptShare(p.id, K.cycles[0], K.first) : NaN; return `<td><span class="cv ${c.tone || (p.id === CAPTURE.Preset.OddsAtLeast || p.id === CAPTURE.Preset.TimePath ? "" : keptTone(share))}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td><td class="knav">${c.nav}</td>`; }).join("");
+      const isShown = shownIds.includes(p.id);
+      return `<tr data-preset="${p.id}" class="${p.id === ys.ck.show ? "kon" : ""}${isShown ? " kpick" : ""}"${isShown ? ` title="Show this preset on the NAV chart"` : ""}><td>${name}</td>${cells}</tr>`;
+    }).join("");
+    const reference = (label, pick) => `<tr class="kref"><td>${label}</td>${runs.map(({ K }) => `<td></td><td class="knav">${pick(K.R)}</td>`).join("")}</tr>`;
+    q("#y-ktable").innerHTML = `<thead>${head}</thead><tbody>${rows}${reference("<b>Full model</b><span class=\"cap\">the Weeks view: moves, margin calls, assignment, interest and costs</span>", R => `${f$(R.main.end.med)}<span class="cps">typical · log-average ${f$(R.main.end.geo)}</span>`)}${reference("<b>Exactly on the path</b><span class=\"cap\">no moves around the path: every credit kept</span>", R => f$(R.exact.end.med))}</tbody>`;
+  }
+  // NAV by week for the shown preset (A and B), with the full model's typical NAV faint behind
+  function renderKeptChart(kepts) {
+    const host = q("#y-kchart"); host.innerHTML = "";
+    const id = ys.ck.show, word = (KEPT_SHOWN.find(k => k[0] === id) || KEPT_SHOWN[0])[1].toLowerCase(), W = ys.sc.W, Wd = Math.max(480, host.clientWidth), H = 240, l = 64, r = 96, pw = Wd - l - r, X = w => l + w / W * pw;
+    const lines = kepts.map(([who, K]) => ({ cls: who.toLowerCase(), who, pts: K.nav[id], model: [[0, ys.sc.cap0], ...K.R.main.rows.map(row => [Math.min(row.w1, W), row.med])] }));
+    const values = lines.flatMap(L => [...(L.pts || []), ...L.model].map(p => p[1])).filter(v => v > 0);
+    if (!values.length) { host.innerHTML = `<span class="cap">This preset has no share per cycle to compound.</span>`; return; }
+    const lo = Math.log(Math.min(...values) * 0.95), hi = Math.log(Math.max(...values) * 1.05), Y = v => 8 + (hi - Math.log(Math.max(v, 1e-9))) / (hi - lo) * (H - 30);
+    const s = sv("svg", { width: Wd, height: H, viewBox: `0 0 ${Wd} ${H}` }, host), ax = sv("g", { class: "yax" }, s);
+    for (const t of niceTicks(Math.exp(lo), Math.exp(hi), 4)) { if (t <= 0) { continue; } sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
+    for (const w of weekTicks(W, pw)) { st_(ax, X(w), H - 6, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" }); }
+    const path = pts => pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+    for (const L of lines) { sv("path", { d: path(L.model), fill: "none", stroke: `var(--${L.cls})`, "stroke-width": 1.2, "stroke-opacity": .35, "stroke-dasharray": "4 3" }, s); }
+    for (const L of lines) {
+      if (!L.pts) { continue; }
+      sv("path", { d: path(L.pts), fill: "none", stroke: `var(--${L.cls})`, "stroke-width": 2 }, s);
+      const last = L.pts[L.pts.length - 1]; st_(s, X(last[0]) + 4, Y(last[1]) + 4, `${L.who} ${f$(last[1])}`, { class: "yhalo", fill: `var(--${L.cls})`, "font-size": 11, "font-weight": 600 });
+    }
+    const weeks = [...new Set(lines.flatMap(L => [...(L.pts || []), ...L.model].map(p => p[0])))].sort((a, b) => a - b);
+    const valueAt = (pts, w) => { let v = NaN; for (const p of pts || []) { if (p[0] <= w + 1e-9) { v = p[1]; } } return v; };
+    attachCursor({ svg: s, left: l, width: pw, top: 8, bottom: H - 22, xs: weeks, toPx: X,
+      tipAt: w => `<span class="h">Week ${Math.round(w)} · ${fD(COMPOUND_ENGINE.weekDate(Math.round(w)))}</span>` + lines.map(L => tipRow(L.cls, `${L.who} ${word} · full model`, `${L.pts ? f$(valueAt(L.pts, w)) : "–"} · ${f$(valueAt(L.model, w))}`)).join("") });
+    AXES.attach({ svg: s, orient: "x", band: { x: l, y: H - 22, width: pw, height: 22 }, guide: { from: 8, to: H - 22 }, toValue: px => Math.round(Math.min(W, Math.max(0, (px - l) / pw * W))), toPx: X, describe: describeWeekOnAxis });
+  }
+  function describeKeptCustom(kepts) {
+    const ck = ys.ck, vol = ck.src === "iv" ? "each cycle's pricing IV" : ck.src === "typed" ? `${ck.vol}% vol` : "the run's moves vol";
+    const gap = ck.gapP > 0 && ck.gapS > 0 ? `, plus a ${ck.gapP}% chance a cycle of a ${ck.gapS}% gap ${ck.gapSide === CAPTURE.GapSide.Either ? "either way" : "down"}` : "";
+    const reading = ck.read === CAPTURE.Reading.Median ? "the median" : ck.read === CAPTURE.Reading.Percentile ? `the ${ordinal(ck.pct)} percentile` : "the average";
+    const out = kepts.map(([who, K]) => { const c1 = K.cycles[0], end = K.nav[CAPTURE.Preset.Custom]; return !c1 || c1.na ? "" : `<span class="ccv"><span class="key ${who.toLowerCase()}">${who}</span><b class="${keptTone(c1.custom)}">${fPs(c1.custom)}</b><span class="muted"> cycle 1 · NAV week ${ys.sc.W} ${end ? f$(end[end.length - 1][1]) : "– (does not compound)"}</span></span>`; }).join("");
+    return `${out}<span class="cap">${esc(`${reading} of a lognormal around the path at ${vol}${gap}, every cycle held to expiry`)}.</span>`;
+  }
+  function renderKept() {
+    const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
+    renderKeptTable(kepts); renderKeptChart(kepts);
+    q("#y-kcout").innerHTML = describeKeptCustom(kepts);
+    q("#y-kchartt").textContent = `NAV if every cycle kept: ${(KEPT_SHOWN.find(k => k[0] === ys.ck.show) || KEPT_SHOWN[0])[1].toLowerCase()}`;
+  }
+  function buildKeptControls() {
+    numY(q("#y-kx"), () => ys.ck.x, v => { ys.ck.x = v; }, { min: -300, max: 100 });
+    numY(q("#y-ktp"), () => ys.ck.tp, v => { ys.ck.tp = v; }, { min: 0, max: 95 });
+    numY(q("#y-ksl"), () => ys.ck.sl, v => { ys.ck.sl = v; }, { min: 0, max: 1000 });
+    segY(q("#y-kshow"), KEPT_SHOWN.map(([v, l]) => [v, l]), () => ys.ck.show, v => { ys.ck.show = v; });
+    segY(q("#y-ksrc"), [["rv", "moves vol"], ["iv", "pricing IV"], ["typed", "typed"]], () => ys.ck.src, v => { ys.ck.src = v; });
+    numY(q("#y-kvol"), () => ys.ck.vol, v => { ys.ck.vol = v; }, { min: 1, max: 400 });
+    numY(q("#y-kgapp"), () => ys.ck.gapP, v => { ys.ck.gapP = v; }, { min: 0, max: 100 });
+    numY(q("#y-kgaps"), () => ys.ck.gapS, v => { ys.ck.gapS = v; }, { min: 0, max: 95 });
+    segY(q("#y-kgapside"), [["down", "down"], ["either", "either way"]], () => ys.ck.gapSide, v => { ys.ck.gapSide = v; });
+    segY(q("#y-kread"), [["mean", "average"], ["median", "median"], ["pct", "percentile"]], () => ys.ck.read, v => { ys.ck.read = v; });
+    numY(q("#y-kpct"), () => ys.ck.pct, v => { ys.ck.pct = v; }, { min: 1, max: 99 });
+    SY.push(() => { q("#y-kvolw").hidden = ys.ck.src !== "typed"; q("#y-kpctw").hidden = ys.ck.read !== "pct"; });
+    // a row of a compounding preset picks what the NAV chart shows
+    q("#y-ktable").onclick = ev => { const tr = ev.target.closest("tr.kpick[data-preset]"); if (!tr) { return; } ys.ck.show = tr.dataset.preset; schedule(10); };
+  }
+
   // ---------------------------------------------------------- notes
   function renderNotes() {
     q("#y-notesb").innerHTML = `<h3>The reading of your path</h3><p>The path is ${"KORU"}'s typical (median) price each week; it never falls. In each cycle the end price is spread lognormally around the path's next price at the realized-moves number. Premium is priced with Black-Scholes at the IV input (4% rate). The gap between IV and realized moves is the edge; with realized moves at 0 every result collapses to the literal toy ("exactly on the path").</p>
@@ -9845,7 +10772,7 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     out.volOverride = override;
     return out;
   }
-  function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) } };
+  function setState(s) { if (!s || typeof s !== "object") return; const d = DEF(); ys = { ...d, ...s, A: { ...d.A, ...(s.A || {}) }, B: { ...d.B, ...(s.B || {}) }, sc: { ...d.sc, ...(s.sc || {}), path: { ...d.sc.path, ...((s.sc || {}).path || {}) } }, costs: { ...d.costs, ...(s.costs || {}) }, rates: { ...d.rates, ...(s.rates || {}) }, view: { ...d.view, ...(s.view || {}) }, ck: { ...d.ck, ...(s.ck || {}) } }; if (!["weeks", "stress", "kept"].includes(ys.view.v)) { ys.view.v = "weeks"; } ys.ck = sanitizeKeptSettings(ys.ck);
     ys.sc = sanitizeVolFields(ys.sc);
     ys = migrateWeeksVocabulary(ys);
     for (const r of [ys.A, ys.B]) { r.modus = { ...MODUS0, ...(r.modus || {}) }; if (r.tk === "RAM" && r.cad === "wk") { r.cad = "mo"; setTimeout(() => port.showNotice("RAM lists monthly options only: the run was set to monthly"), 0); } } dockSig = ""; }
@@ -9879,7 +10806,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     q("#y-dockshow").onclick = () => { ys.view.dockOff = false; document.body.classList.remove("ydock-off"); setTimeout(() => render("full"), 30); };
     buildMenus(); renderNotes(); buildStressBar();
     q("#y-sbase").onclick = () => { ys.view.v = "weeks"; schedule(10); };
-    segY(q("#y-view"), [["weeks", "Weeks"], ["stress", "Stress"]], () => ys.view.v || "weeks", v => { ys.view.v = v; });
+    // the junior tabs in the header's second row: the weeks, the stress and what each cycle keeps of its credit
+    segY(q("#sub-yr"), [["weeks", "Weeks"], ["stress", "Stress"], ["kept", "Credit kept"]], () => ys.view.v || "weeks", v => { if (v !== ys.view.v) { KNOBS.closeAll(); } ys.view.v = v; scrollTo(0, 0); });
+    buildKeptControls();
     let rz = 0; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (document.body.dataset.tab === "yr") render("full"); }, 150); });
   }
   function render(mode = "full") {
@@ -9888,17 +10817,28 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     document.body.classList.toggle("ydock-off", !!ys.view.dockOff);
     compute();
     renderBar(); renderPathCtl(); renderDock(); syncAll();
-    const stress = ys.view.v === "stress";
-    q("#y-yearv").hidden = stress; q("#y-stressv").hidden = !stress; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
+    const stress = ys.view.v === "stress", kept = ys.view.v === "kept";
+    q("#y-yearv").hidden = stress || kept; q("#y-stressv").hidden = !stress; q("#y-keptv").hidden = !kept; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
     q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}`).join(" · ");
 
     if (stress) { renderStress(); renderMCTools(); saveSoon(); return; }
+    if (kept) { renderKept(); saveSoon(); return; }
     renderStrip(mode === "live");
     renderStack(); renderGrowth(); renderCreditMargin(); renderTable();
     if (mode !== "live") renderSweep();
     saveSoon();
   }
-  return { init, render, getState, setState, reset, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
+  // the Credit kept table for the export, as plain text (null before the first run)
+  function exportKept() {
+    if (!RES || !RES.A) { return null; }
+    const plain = html => String(html || "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
+    const head = ["Preset", ...kepts.flatMap(([who]) => [`${who} kept a cycle`, `${who} NAV week ${ys.sc.W}`])];
+    const rows = KEPT_PRESETS.map(p => [p.name, ...kepts.flatMap(([, K]) => { const c = describeKeptCell(p, K); return [plain(c.sub ? `${c.text} (${c.sub})` : c.text), plain(c.nav)]; })]);
+    rows.push(["Full model (Weeks view)", ...kepts.flatMap(([, K]) => ["", f$(K.R.main.end.med)])]);
+    return { intro: kepts.map(([who, K]) => `${who}: ${runName(K.R.run)}`).join(" · ") + `. Share x = ${ys.ck.x}%; managed: take profit ${ys.ck.tp}%, stop ${ys.ck.sl}%.`, head, rows, note: "Cycle 1's own legs at its pricing IV; the price spread at the run's moves vol around the path. NAV: the options and shares alone (no margin calls, interest or assignment)." };
+  }
+  return { init, render, getState, setState, reset, exportKept, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
 })(COMPOUND_ENGINE, COMPOUND_STRESS);
 // ---------------------------------------------------------------- app.js
 /**
@@ -10035,13 +10975,38 @@ function syncTabs(tab) {
 // summary → dock → title → views. DOCK9.render sets body.dock-off, which changes the main column's width before the
 // charts measure it. The title names A vs B once the summary rendered (v9's summary set it at its end, so a summary
 // that threw kept the previous name) and before the views, so a views failure does not keep the previous name
+// the summary and the dock define A and B on every junior tab; below them only the shown junior view renders
 function renderCompare(context) {
   const summary = runGuarded({ where: "summary", run: () => SUM9.render(context) });
   runGuarded({ where: "dock", run: () => DOCK9.render(context) });
-  runGuarded({ where: "facts", run: () => FACTS.render(context) });
   const hasTitle = summary.ok && context.labels && context.labels.title;
   if (hasTitle) { document.title = context.labels.title; }
+  const view = context.prefs.cmpView;
+  if (view === CompareView.Facts) { runGuarded({ where: "facts", run: () => FACTS.render(context) }); }
+  if (view === CompareView.Capture) { runGuarded({ where: "capture", run: () => CAPTURE_VIEW.render(context) }); }
   VIEWS.render(context);
+}
+// the Compare tab's junior tabs, in the header's second row
+const COMPARE_VIEWS = Object.freeze([[CompareView.Results, "Comparison"], [CompareView.Capture, "Capture"], [CompareView.Facts, "Market facts"]]);
+function syncCompareViews(view) {
+  // a card pinned on one junior view would float over the next one's content
+  if (document.body.dataset.cmpview !== view) { KNOBS.closeAll(); }
+  document.body.dataset.cmpview = view;
+  document.querySelectorAll("#sub-cmp [data-sub]").forEach(node => {
+    const button = /** @type {HTMLElement} */ (node), isOn = button.dataset.sub === view;
+    button.classList.toggle("on", isOn);
+    button.setAttribute("aria-selected", String(isOn));
+  });
+}
+function wireCompareViews() {
+  const host = $("#sub-cmp");
+  host.innerHTML = COMPARE_VIEWS.map(([view, label]) => `<button type="button" class="stab" role="tab" data-sub="${view}">${label}</button>`).join("");
+  host.addEventListener("click", e => {
+    const button = /** @type {HTMLElement} */ (/** @type {Element} */ (e.target).closest("[data-sub]"));
+    if (!button || button.dataset.sub === page.store.read().prefs.cmpView) { return; }
+    page.executor.execute({ type: Command.SetPref, patch: { cmpView: button.dataset.sub }, source: "tabs" });
+    window.scrollTo(0, 0);
+  });
 }
 function renderCompounding() {
   runGuarded({ where: "COMPOUND.render", run: () => COMPOUND.render("full") });
@@ -10060,6 +11025,7 @@ function renderActiveTab(frame) {
   if (isRenderedByTab) { return; }
   applyTheme(state.prefs.theme);
   syncTabs(state.tab);
+  syncCompareViews(state.prefs.cmpView);
   document.body.classList.toggle("dock-off", !state.prefs.dock);
   if (state.tab === Tab.Compounding) {
     renderCompounding();
@@ -10104,6 +11070,7 @@ function showTab(tab) {
   const isSwitch = TABS.includes(tab) && tab !== current;
   if (!isSwitch) { return; }
   page.scroll[current] = scrollY;
+  KNOBS.closeAll();
   const shown = page.executor.execute({ type: Command.ShowTab, tab, source: "tabs" });
   if (!shown.ok) { return; }
   const restoreScroll = () => window.scrollTo(0, page.scroll[tab] || 0);
@@ -10182,6 +11149,7 @@ function wireCompare() {
   SUM9.init();
   DOCK9.init();
   FACTS.init();
+  CAPTURE_VIEW.init();
   VIEWS.wire({ host: $("#views") });
   VIEWS.notes();
   EXPORT9.wire({ readState: () => page.store.read(), code: () => page.saved.code });
@@ -10281,6 +11249,7 @@ function main() {
   page.bus.subscribe(EnvelopeType.Fault, logFault);
   reportBootFaults(boot);
   wireCompare();
+  wireCompareViews();
   wireTabStrip();
   wirePageMenu();
   wireWindow();

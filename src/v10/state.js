@@ -14,6 +14,9 @@ const STATE = (() => {
     ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, payLeft: 0, cs: "comp", cr: "auto", crx: 20, shared: true,
     sweep: "both", sweepSmoothing: 0, mgTp: 50, mgSl: 200, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,
+    // the Compare tab's junior tab; the Capture view: the share x for the fixed preset and the odds of keeping at least
+    // x, and the custom variant (vol source and typed vol, a gap's chance / size / side, the reading, the exit)
+    cmpView: CompareView.Results, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
     exportSections: Object.freeze({})
@@ -24,16 +27,17 @@ const STATE = (() => {
     gview: ["heat", "num"], gval: ["pnl", "contrib"], gtab: ["A", "B", "D"], ct: ["zero", "lev"], cs: ["comp", "lin"], cr: ["auto", "fix"],
     sweep: ["both", "put", "call", "wingCall"], theme: THEMES,
     rdHit: Object.values(HitBasis), rdDir: Object.values(HitSide), rdBase: ["nav", "start"], rdCap: Object.values(Capital), rdG: Object.values(GrowthRate),
-    nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20]
+    nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20],
+    cmpView: Object.values(CompareView), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
   });
   // which export sections are on until the reader chooses, per tab in document order (the export holds the labels)
   const EXPORT_SECTION_DEFAULTS = Object.freeze({
     [Tab.Compare]: Object.freeze({
       [ExportSection.Header]: true, [ExportSection.Comparison]: true, [ExportSection.Assumptions]: true, [ExportSection.Results]: true,
-      [ExportSection.Recovery]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
+      [ExportSection.Recovery]: true, [ExportSection.Capture]: true, [ExportSection.Pins]: true, [ExportSection.Overview]: false, [ExportSection.Notes]: true
     }),
     [Tab.Compounding]: Object.freeze({
-      [ExportSection.Runs]: true, [ExportSection.Base]: true, [ExportSection.Strip]: true, [ExportSection.Weeks]: false,
+      [ExportSection.Runs]: true, [ExportSection.Base]: true, [ExportSection.Strip]: true, [ExportSection.Kept]: true, [ExportSection.Weeks]: false,
       [ExportSection.Stress]: true, [ExportSection.Random]: true
     })
   });
@@ -111,7 +115,9 @@ const STATE = (() => {
   function sanitizePrefs(o) {
     const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
     const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 4); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.capX = clamp(s.capX, -300, 100); s.ccVol = clamp(s.ccVol, 1, 400); s.ccGapP = clamp(s.ccGapP, 0, 100); s.ccGapS = clamp(s.ccGapS, 0, 95);
+    s.ccPct = clamp(s.ccPct, 1, 99); s.ccLeft = Math.round(clamp(s.ccLeft, 0, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);
     s.exportSections = sanitizeExportSections(isObj(o) ? o.exportSections : null);
     return s;

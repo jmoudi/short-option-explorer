@@ -16,7 +16,7 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   };
   await hover('#y-credit svg', 0.5, 'cmp_credit.png'); await hover('#y-margin svg', 0.7);
   await p.click('#y-sweep h3'); await p.waitForTimeout(2500); await hover('#y-sweep svg', 0.5, 'cmp_sweep.png');
-  await p.click('#y-view button[data-v=stress]'); await p.waitForTimeout(3500);
+  await p.click('#sub-yr button[data-v=stress]'); await p.waitForTimeout(3500);
   await hover('#y-sbw svg', 0.4); await hover('#y-sroom svg', 0.4); await hover('#y-scurve svg', 0.3, 'cmp_scurve.png');
   await p.evaluate(() => { document.querySelector('#y-mc').open = true; document.querySelector('#y-mcrun').click(); });
   for (let i = 0; i < 90; i++) { await p.waitForTimeout(1000); const t = await p.evaluate(() => (document.querySelector('#y-mcp') || {}).textContent || ''); if (/paths per run/.test(t)) break; }

@@ -1,6 +1,6 @@
 // ============================================================ ui_dock: the Positions dock (Compare tab)
 // Two position boxes, A on top and B below: the same kind of thing with two identities, so one box renderer called
-// twice, the same rows in the same order (instrument with its spot / IV / period vol box, expiry, structure, legs,
+// twice, the same rows in the same order (instrument, expiry, structure, legs,
 // strikes by with the placement sliders, protective call, protective put, fill with the typed fills, the legs).
 // B's relation to A is part of B's box: a chain after each of B's row labels (closed: B follows A there; editing the
 // control sets B on its own, and the toast offers the relink; open: B set on its own, click to follow A again).
@@ -124,7 +124,9 @@ const DOCK9 = (() => {
     return +(Math.round(raw / st) * st).toFixed(6);
   }
   const atmV = (E, basis, role) => basis !== "delta" ? 0 : role === "short put" ? 100 - E.callDelta(E.Fpar) * 100 : E.callDelta(E.Fpar) * 100;
-  const atmT = (E, basis, role, word) => basis === "delta" ? `${word || "ATM"} ${Math.round(atmV(E, basis, role))}Δ` : (word || "ATM");
+  // the ATM marks name the place only; the Δ there (a fact of the chain) is in the mark's tooltip
+  const atmT = (E, basis, role, word) => word || "ATM";
+  const atmTip = (E, basis, role, text) => basis === "delta" ? `${text}: ${Math.round(atmV(E, basis, role))}Δ` : text;
   const atEnd = (v, e, basis) => { const st = (RULE.STEP[basis] || 1) / 2; return v <= e.lo.value + st ? "lo" : v >= e.hi.value - st ? "hi" : ""; };
 
   // the placement sliders of one side (A, or B with its own placement); bE = B's chain for "B end" ticks on A
@@ -138,24 +140,24 @@ const DOCK9 = (() => {
       const e = RULE.ends(E, bas, "center"); if (!e) return;
       const c = b.center, atm = P.values.center === "atm";
       const v = atm ? (c ? c.achieved[bas] : atmV(E, bas, "short call")) : +P.values.center;
-      const ticks = [{ v: atmV(E, bas, "short call"), t: atmT(E, bas, "short call"), pri: 0, tip: "the strike at the forward" }];
+      const ticks = [{ v: atmV(E, bas, "short call"), t: atmT(E, bas, "short call"), pri: 0, tip: atmTip(E, bas, "short call", "the strike at the forward") }];
       if (bas === "delta") ticks.push({ v: 50, t: "Δ-neutral", pri: 2, tip: "call Δ 50: the delta-neutral straddle" });
       if (bE) { const eb = RULE.ends(bE, bas, "center"); if (eb) for (const w of ["lo", "hi"]) if (eb[w].value > e.lo.value + 1e-6 && eb[w].value < e.hi.value - 1e-6) ticks.push({ v: eb[w].value, t: "B end", bx: true, pri: 1, tip: `B's chain ends at ${fK(eb[w].K)} (${fV(eb[w].value, bas)})` }); }
       const end = atEnd(v, e, bas);
       out.push(slider(`sl:${sk}:center`, {
         side, basis: bas, name: name("center"), muted, lo: e.lo.value, hi: e.hi.value, value: v, ticks,
-        readout: `${atm ? "ATM" : fC(+P.values.center, bas)} → ${c ? `${fK(c.K)} ${fC(c.achieved[bas], bas)}` : "n/a"}` + (!atm && !opt.noAtm ? ` <button type="button" class="d9i" data-act="atm" data-side="${side}" title="Back to the strike nearest the forward">ATM</button>` : ""),
+        readout: `${atm ? "ATM" : fC(+P.values.center, bas)} → ${c ? fK(c.K) : "n/a"}` + (!atm && !opt.noAtm ? ` <button type="button" class="d9i" data-act="atm" data-side="${side}" title="Back to the strike nearest the forward">ATM</button>` : ""),
         note: end ? `${opt.whose ? opt.whose + "center " : ""}stops at ${fK(e[end].K)}, the ${end === "lo" ? "lowest" : "highest"} strike with a put and a call bid (${fV(e[end].value, bas)})` : "",
         input: v2 => input("values.center", v2), step: c ? { E, role: "short call", K: c.K } : null
       }));
       return;
     }
     const vp = +P.values.put, vc = +P.values.call;
-    const ro = (l, cp) => l ? `${fK(l.K)}${cp} ${fV(l.achieved[bas], bas)}` : "n/a";
+    const ro = (l, cp) => l ? `${fK(l.K)}${cp}` : "n/a";
     if (P.legs === "together" || opt.together) {
       const rt = RULE.rangeTogether(E, bas, P.values); if (!rt) return;
       const lo = vp + rt.dlo, hi = Math.max(vp + rt.dhi, lo);
-      const ticks = [{ v: atmV(E, bas, "short put"), t: atmT(E, bas, "short put", "put ATM"), pri: 0, tip: "the put at the forward" }, { v: vp + (atmV(E, bas, "short call") - vc), t: atmT(E, bas, "short call", "call ATM"), pri: 0, tip: "the call at the forward" }];
+      const ticks = [{ v: atmV(E, bas, "short put"), t: atmT(E, bas, "short put", "put ATM"), pri: 0, tip: atmTip(E, bas, "short put", "the put at the forward") }, { v: vp + (atmV(E, bas, "short call") - vc), t: atmT(E, bas, "short call", "call ATM"), pri: 0, tip: atmTip(E, bas, "short call", "the call at the forward") }];
       if (bE) { const rb = RULE.rangeTogether(bE, bas, P.values); if (rb) for (const [d, leg] of /** @type {[number, string][]} */ ([[rb.dlo, rb.loLeg], [rb.dhi, rb.hiLeg]])) { const x = vp + d; if (x > lo + 1e-6 && x < hi - 1e-6) ticks.push({ v: x, t: "B end", bx: true, pri: 1, tip: `B's ${leg} reaches the end of its chain here` }); } }
       const st = (RULE.STEP[bas] || 1) / 2, end = vp <= lo + st ? "lo" : vp >= hi - st ? "hi" : "";
       const leg = end === "lo" ? rt.loLeg : rt.hiLeg, ex = end === "lo" ? rt.loEnd : rt.hiEnd;
@@ -169,7 +171,7 @@ const DOCK9 = (() => {
     }
     for (const [k, role, l, cp, v] of [["put", "short put", lp, "P", vp], ["call", "short call", lc, "C", vc]]) {
       const e = RULE.ends(E, bas, role); if (!e) continue;
-      const ticks = [{ v: atmV(E, bas, role), t: atmT(E, bas, role), pri: 0, tip: `the ${k} at the forward` }];
+      const ticks = [{ v: atmV(E, bas, role), t: atmT(E, bas, role), pri: 0, tip: atmTip(E, bas, role, `the ${k} at the forward`) }];
       if (bE) { const eb = RULE.ends(bE, bas, role); if (eb) for (const w of ["lo", "hi"]) if (eb[w].value > e.lo.value + 1e-6 && eb[w].value < e.hi.value - 1e-6) ticks.push({ v: eb[w].value, t: "B end", bx: true, pri: 1, tip: `B's ${k} chain ends at ${fK(eb[w].K)}${cp} (${fV(eb[w].value, bas)})` }); }
       const end = atEnd(v, e, bas);
       out.push(slider(`sl:${sk}:${k}`, {
@@ -189,7 +191,7 @@ const DOCK9 = (() => {
     const v = +P.wings[s].value, end = atEnd(v, e, wbas);
     out.push(slider(`wsl:${side}:${s}`, {
       side, basis: wbas, name: `protective ${s}`, lo: e.lo.value, hi: e.hi.value, value: v, ticks: [],
-      readout: `${fV(v, wbas)} → ${l ? `${kc(l)} ${fV(l.achieved[wbas], wbas)}` : "n/a"}`, warnRo: !!b.flags.find(f => f.leg === key && f.severity === "warn"),
+      readout: `${fV(v, wbas)} → ${l ? kc(l) : "n/a"}`, warnRo: !!b.flags.find(f => f.leg === key && f.severity === "warn"),
       note: end ? `stops at ${fK(e[end].K)}${s === "call" ? "C" : "P"}, the ${end === "lo" ? (wbas === "delta" ? "farthest" : "nearest") : (wbas === "delta" ? "nearest" : "farthest")} ${s} with an ask beyond the short ${kc(sh)} (${fV(e[end].value, wbas)})` : "",
       input: v2 => setSide({ side, path: `wings.${s}.value`, value: v2 }), step: l ? { E, role, K: l.K, Kshort: sh.K } : null
     }));
@@ -316,40 +318,7 @@ const DOCK9 = (() => {
     });
   }
 
-  // ---------------------------------------------------------- Legs in detail and Pair sizing
-  // a leg's distance from the forward, in the summary's line 3 convention: a straddle's strike signed vs the forward
-  // ("strike +0.3% / +0.01σ vs fwd"); any other leg as % and σ out of the money ("25.2% / 0.26σ OTM vs fwd",
-  // negative = in the money)
-  function place(b, l) {
-    const pc = (v, d) => { const t = Math.abs(v).toFixed(d); return { s: sgs(v, t), m: sgn(v, t), t }; };
-    if (b.center && b.kind === "straddle" && l.qty < 0) { const m = pc(l.money, 1), g = pc(l.sigma, 2); return `strike ${m.s}${m.t}% / ${g.s}${g.t}σ vs fwd`; }
-    const o = l.cp === "P" ? -1 : 1, m = pc(o * l.money, 1), g = pc(o * l.sigma, 2);
-    return `${m.m}${m.t}% / ${g.m}${g.t}σ OTM vs fwd`;
-  }
-  function legsDetail() {
-    return ["A", "B"].map(side => {
-      const b = bOf(side), sideFlags = b.flags.filter(f => !f.leg);
-      let h = `<span class="d9lg"><span class="h"><span class="key ${side.toLowerCase()}">${side}</span>${esc(b.label.full)}</span>`;
-      h += sideFlags.map(f => `<span class="lf${f.severity === "warn" ? " w" : ""}">${f.severity === "warn" ? "! " : ""}${esc(f.text)}</span>`).join("");
-      if (b.na) return h + `<span class="lf w">n/a: ${esc(b.naReason)}</span></span>`;
-      h += `<span class="lf">fwd ${fPx2(b.F)} · spot ${fPx2(b.S)} · ATM IV ${fP(b.E.atm, 1)} · σ√T ${b.sig.toFixed(3)} · ${b.dte} d · ${b.fill === "nat" ? "natural fill" : "mid fill"}</span>`;
-      for (const l of b.legs) {
-        const w = l.qty > 0, fills = b.fill === "nat" ? (w ? "ask" : "bid") : "mid";
-        const lf = b.flags.filter(f => f.leg === l.key || (f.leg === "center" && (l.key === "put" || l.key === "call")));
-        let itm;
-        if (l.itm && l.intrinsic > 0) itm = `ITM vs fwd · intrinsic ${f2(l.intrinsic)} vs spot · time value ${f2(l.timeValue)}`;
-        else if (l.itm) itm = `ITM vs fwd ${fPx2(b.F)}, no intrinsic vs spot ${fPx2(b.S)} · time value ${f2(l.timeValue)}`;
-        else if (l.intrinsic > 0) itm = `OTM vs fwd ${fPx2(b.F)}, but ${f2(l.intrinsic)} intrinsic vs spot ${fPx2(b.S)} · time value ${f2(l.timeValue)}`;
-        else itm = `OTM · all time value`;
-        if (Number.isFinite(l.quotePremium)) itm += ` · quote premium over parity ${f2(l.quotePremium)}`;
-        h += `<span class="d9leg"><span class="t"><b>${fK(l.K)}${l.cp}</b> ${w ? "long" : "short"} ${l.cp === "P" ? "put" : "call"}${w ? " (protective)" : ""}<span class="px">${l.perContract < 0 ? "debit " + usd(l.perContract) : "credit " + usd(l.perContract)}</span></span>` +
-          `<span class="q">bid ${f2(l.bid)} · mid ${f2(l.mid)} · ask ${f2(l.ask)} · fill ${f2(l.fillPx)} at ${fills}${l.model ? " · model quote" : ""}</span>` +
-          `<span class="q">IV ${fP(l.iv, 1)} · ${(Math.abs(l.delta) * 100).toFixed(1)}Δ · ${place(b, l)}</span>` +
-          `<span class="q">${esc(itm)}</span>` + lf.map(f => `<span class="q${f.severity === "warn" ? " w" : ""}">${f.severity === "warn" ? "! " : ""}${esc(f.text)}</span>`).join("") + `</span>`;
-      }
-      return h + `</span>`;
-    }).join("") + `<span class="cap">$ per contract (100 shares). Δ is the forward delta with the smile at the strike. % and σ OTM are measured from the forward, as on the summary's third line (negative = in the money); ITM is measured against the forward, intrinsic against spot.</span>`;
-  }
+  // ---------------------------------------------------------- Pair sizing
   function syncSizing() {
     for (const sync of SIZING_SYNCS) { sync(C.state); }
     const sz = C.comparison.sizing, rn = r => (CTX.SIZES.find(s => s[0] === r) || ["", r])[1].toLowerCase();
@@ -493,8 +462,6 @@ const DOCK9 = (() => {
     if (!C.prefs.dock) { return; }
     SL = {};
     renderBox("A"); renderBox("B");
-    q("#d9-legb").innerHTML = legsDetail();
-    q("#d9-legsv").textContent = `· ITM, intrinsic, deltas, flags`;
     syncSizing();
   }
   // open the dock and bring one row of one box into view (from a summary pill)

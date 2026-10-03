@@ -149,5 +149,5 @@ const MANAGE = (() => {
     if (!built || built.na) { return null; }
     return memo.get(`${built.key}|${vol}|${takeProfit}|${stopLoss}|${JSON.stringify(shock || {})}|${MANAGE_CONFIG.paths}|${MANAGE_CONFIG.seed}`) || null;
   }
-  return Object.freeze({ simulate, peek, ExitKind, CONFIG: MANAGE_CONFIG });
+  return Object.freeze({ simulate, peek, createNormals, correctWithExactHold, ExitKind, CONFIG: MANAGE_CONFIG });
 })();

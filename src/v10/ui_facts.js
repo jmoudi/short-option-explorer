@@ -61,20 +61,21 @@ const FACTS = (() => {
     }).join("");
     return `<table class="fxx"><thead><tr><th>Expiry</th><th>Days</th><th>Forward</th><th>ATM IV</th><th colspan="2">1σ move to expiry</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
-  // the contracts A and B hold: quote, own IV (from the mid; * = the smile fit), forward delta
+  // the contracts A and B hold: quote, own IV (from the mid; * = the smile fit), forward delta, where the strike sits
+  // against the forward (% and the expiry's σ), and the mid's intrinsic value (against spot) and time value
+  const signed = (v, digits, suffix) => { const t = Math.abs(v).toFixed(digits); return (+t === 0 ? "" : v < 0 ? MINUS : "+") + t + suffix; };
   function describeContracts() {
     const rows = ["A", "B"].flatMap(side => {
       const b = bOf(side);
       if (b.na) { return []; }
       return b.legs.map(l => {
         const iv = Number.isFinite(l.ivm) ? fP(l.ivm, 1) : fP(l.iv, 1) + "*";
-        return `<tr><td>${keyHtml(side)}${esc(b.tk)} ${esc(fmtE(b.exp))} ${fK(l.K)}${l.cp}</td><td>${pxOf(l.bid)}</td><td>${pxOf(l.ask)}</td><td>${pxOf(l.mid)}</td><td>${pxOf(l.ask - l.bid)}</td><td>${iv}</td><td>${(Math.abs(l.delta) * 100).toFixed(0)}Δ</td><td class="muted">${l.model ? "model quote" : ""}</td></tr>`;
+        const timeValue = Number.isFinite(l.tvMid) ? l.tvMid : l.mid - l.intrinsic;
+        return `<tr><td>${keyHtml(side)}${esc(b.tk)} ${esc(fmtE(b.exp))} ${fK(l.K)}${l.cp}</td><td>${pxOf(l.bid)}</td><td>${pxOf(l.ask)}</td><td>${pxOf(l.mid)}</td><td>${pxOf(l.ask - l.bid)}</td><td>${iv}</td><td>${(Math.abs(l.delta) * 100).toFixed(0)}Δ</td>` +
+          `<td>${signed(l.money, 1, "%")} · ${signed(l.sigma, 2, "σ")}</td><td>${pxOf(l.intrinsic)}</td><td>${pxOf(timeValue)}</td><td class="muted">${l.model ? "model quote" : ""}</td></tr>`;
       });
     }).join("");
-    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-  }
-  function describeSummary(tickers) {
-    return tickers.map(t => { const I = instOf(t.sides[0]); return `${esc(I.name || I.id)} ${pxOf(I.spot)} · period vol ${esc(C.volOf(t.id).label.replace(/^vol /, ""))}`; }).join(" &nbsp;|&nbsp; ");
+    return `<table class="fxx fxc"><thead><tr><th>Contracts in use</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Spread</th><th>IV</th><th>Delta</th><th>Strike vs forward</th><th>Intrinsic</th><th>Time value</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   function instX(side) {
@@ -207,7 +208,7 @@ const FACTS = (() => {
   // ---------------------------------------------------------- init, render, reveal
   function init() {
     const host = q("#facts");
-    host.innerHTML = `<summary><h2>Market facts</h2><span class="fxs" id="fx-sum"></span></summary><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
+    host.innerHTML = `<div class="ph"><h2>Market facts</h2><span class="sub" id="fx-sum"></span></div><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
     host.addEventListener("click", onClick);
     host.addEventListener("change", onChange);
     host.addEventListener("input", onInput);
@@ -223,18 +224,12 @@ const FACTS = (() => {
     C = c;
     const tickers = listTickers();
     for (const id of [...open]) { if (!tickers.some(t => t.id === id)) { open.delete(id); } }
-    q("#fx-sum").innerHTML = describeSummary(tickers);
+    // the quotes line (written by the views from the data's as-of) is a fact of the data: shown here on this tab
+    const asof = q("#asof");
+    q("#fx-sum").textContent = asof ? asof.textContent : "";
     q("#fx-body").innerHTML = tickers.map(t => `<div class="fxtk">${describeTickerLine(t)}${describeExpiries(t)}</div>`).join("") + describeContracts() +
       `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the move range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
     renderEditors(tickers);
   }
-  // open the panel and one ticker's editor (from a card or a pill)
-  function reveal(side) {
-    const I = C && instOf(side === "B" ? "B" : "A");
-    if (!I) { return; }
-    const host = /** @type {HTMLDetailsElement} */ (q("#facts"));
-    host.open = true; open.add(I.id); page.frames.mark({ cause: FrameCause.Ui });
-    requestAnimationFrame(() => host.scrollIntoView({ block: "start", behavior: "smooth" }));
-  }
-  return { init, render, reveal };
+  return { init, render };
 })();
