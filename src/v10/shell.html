@@ -446,6 +446,11 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .s9l2.f6 .s9leg .k{margin-right:2px}
 .s9l1.fx .s9ovd{display:none}
 .s9l3{font:400 12px/17px var(--f-ui);color:var(--ink-3)}
+/* line 4: bid × ask of the legs in use (one line, cut with …) */
+.s9l4{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:400 12px/17px var(--f-num);color:var(--ink-2)}
+.s9l4 .s9qh{font:400 11px var(--f-ui);color:var(--ink-3);margin-right:8px}
+.s9l4 .s9q{margin-right:12px}
+.s9l4 .s9q .k{color:var(--ink-3);margin-right:4px}
 .s9l3 .s9wn{color:var(--diff-warn)}
 .s9l3 .s9fl{cursor:help}
 .s9l3 .s9vol{color:var(--ink-2);cursor:pointer}
@@ -722,13 +727,13 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
   <section id="tab-cmp" role="tabpanel" aria-labelledby="tb-compare">
   <div class="sum9" id="sum9" aria-label="What is compared">
     <div class="s9pair">
-      <div class="s9card a" id="s9A"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span></div>
+      <div class="s9card a" id="s9A"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span><span class="s9l4"></span></div>
       <span class="s9mid"><span class="vs">vs</span><button class="btn ib" id="s9swap" type="button" title="Swap A and B" aria-label="Swap A and B">⇄</button></span>
-      <div class="s9card b" id="s9B"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span></div>
+      <div class="s9card b" id="s9B"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span><span class="s9l4"></span></div>
     </div>
     <div class="s9bot">
-      <span class="s9rng" id="s9rng"><span class="lbl" style="font-size:12px;color:var(--ink-2)">Move</span> −<input type="number" id="s9-rlo" min="0" aria-label="Move range down"><span class="muted">…</span> +<input type="number" id="s9-rhi" min="0" aria-label="Move range up"><span class="seg" id="s9-unit"></span><details class="menu" id="s9-rmenu"><summary title="Range and reading options" aria-label="Range and reading options">▾</summary><span class="mb" style="width:380px">
-        <span class="mt">Move range</span>
+      <span class="s9rng" id="s9rng"><span class="lbl" style="font-size:12px;color:var(--ink-2)" title="The price span of the payoff, grid and joint-move charts (and the worst loss, unless it has its own range): this far down and up from spot, in σ, % or price">Chart range</span> −<input type="number" id="s9-rlo" min="0" aria-label="Chart range down"><span class="muted">…</span> +<input type="number" id="s9-rhi" min="0" aria-label="Chart range up"><span class="seg" id="s9-unit"></span><details class="menu" id="s9-rmenu"><summary title="Range and reading options" aria-label="Range and reading options">▾</summary><span class="mb" style="width:380px">
+        <span class="mt">Chart range</span>
         <span class="mrow"><label class="chk"><input type="checkbox" id="s9-rlink">Symmetric</label></span>
         <span class="mrow cap" id="s9-rngeq"></span>
         <span class="mrow cap" id="s9-uinfo"></span>

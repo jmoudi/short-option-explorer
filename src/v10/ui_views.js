@@ -279,7 +279,7 @@ const VIEWS = (() => {
     const cell = (v, row) => `<td>${text(v, row)}</td>`;
     const pairCell = row => row.isShares && crossTicker ? `<td class="gpair muted" title="${esc(C.A.tk)} and ${esc(C.B.tk)} shares do not add up: see the dollar rows">–</td>` : `<td class="gpair">${text(gA[row.key] - (showSized ? sized(row.key) : gB[row.key]), row)}</td>`;
     const head = `<thead><tr><th></th><th>${key("A")} 1 ${esc(C.A.tk)} contract</th>${showB ? `<th><span class="key b">B</span> 1 ${esc(C.B.tk)} contract</th>${showSized ? `<th><span class="key b">B</span> at ${k.toFixed(2)} per A</th>` : ""}<th><span class="key d">A − B</span>${showSized ? " at that size" : ""}</th>` : ""}</tr></thead>`;
-    const body = GREEK_ROWS.map(row => `<tr><td class="l"><span class="gname">${row.label}</span><span class="info" tabindex="0" data-tip="${esc(row.tip)}">i</span> <span class="muted">${row.unit}</span></td>${cell(gA[row.key], row)}${showB ? cell(gB[row.key], row) + (showSized ? cell(sized(row.key), row) : "") + pairCell(row) : ""}</tr>`).join("");
+    const body = GREEK_ROWS.map(row => `<tr><td class="l"><span class="gname tipname" tabindex="0" data-tip="${esc(row.tip)}">${row.label}</span> <span class="muted">${row.unit}</span></td>${cell(gA[row.key], row)}${showB ? cell(gB[row.key], row) + (showSized ? cell(sized(row.key), row) : "") + pairCell(row) : ""}</tr>`).join("");
     q("#grk").innerHTML = head + `<tbody>${body}</tbody>`;
     q("#grk-sub").textContent = `per contract, now, at the model's mark (no shocks)${C.A.na ? " · A is n/a" : ""}${showB && crossTicker ? ` · ${C.A.tk} and ${C.B.tk} shares do not add up, so A − B keeps the dollar rows` : ""}`;
   }
@@ -638,6 +638,7 @@ const VIEWS = (() => {
     const extends_ = lens === PayLens.Pnl || lens === PayLens.Decay, canExtend = extends_ && time.index > 0 && time.index < last;
     const btn = /** @type {HTMLButtonElement} */ (q("#c-extra"));
     btn.classList.toggle("on", on); btn.setAttribute("aria-pressed", String(on)); btn.disabled = !extends_;
+    btn.style.visibility = extends_ ? "" : "hidden"; // only the lenses that read it show it (its space stays, so the bar does not shift)
     btn.innerHTML = `${ICONS.trendingUp}<span>${on ? "Extrapolating" : "Extrapolate"}</span>`;
     const why = time.index === 0 ? "step at least one trading day on from today" : "at expiry no days are left";
     btn.title = !extends_ ? "Extrapolation reads in the P&L and Time decay lenses" : canExtend ? "Repeat the last day's change over the trading days left (dashed, in the accent colour)" : `Extrapolation repeats the last day's change: ${why}`;
@@ -945,7 +946,7 @@ const VIEWS = (() => {
     rows.push(`<tr class="grp"><td>Break-even price${KNOBS.html({ id: "cmp-touch", title: "Touching a breakeven", body: "The chance the price trades through the breakeven at some point before expiry, at the ticker's period vol: about twice the chance of ending beyond it (the reflection principle for a driftless walk). Ending beyond it is what loses money; touching it is when you have to decide whether to adjust." })}<span class="cap">the move from spot, and the odds of touching it before expiry</span></td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     rows.push(`<tr><td>Break-even vol${KNOBS.html({ id: "cmp-edge", title: "Break-even vol", body: "The period vol at which the position's EV at expiry is zero, at its fill. Above the vol you assume, the trade has an edge of that many vol points; below it, it gives one away. It moves with the fill: a typed fill below mid lowers it." })}<span class="cap">the period vol at which EV is 0</span></td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "A")}>${fP(ea, 1)}</td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "B")}>${fP(eb, 1)}</td><td>${Number.isFinite(ea) && Number.isFinite(eb) ? formatSigned({ value: (ea - eb) * 100, digits: 1, suffix: " pts" }) : ""}</td><td></td></tr>`);
     rows.push(`<tr><td>Profit odds${rowKnob("odds")}<span class="cap">P&amp;L above 0 at expiry</span></td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "A")}>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "B")}>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
-    const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
+    const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the chart range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
     const own = sc.wl === "own" ? ` −<input type="number" data-wlo value="${+sc.wlo.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> to +<input type="number" data-whi value="${+sc.whi.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> ${STATE.UNAME[C.unit]}` : "";
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const worstWinner = pickBetterSide({ a: nA || !sa ? NaN : sa.worst / A.S, b: nB || !sb ? NaN : sB(sb.worst / B.S), better: Better.High });
@@ -1038,7 +1039,7 @@ const VIEWS = (() => {
     q("#c-gtab").hidden = !num; q("#gwrap").hidden = num; q("#numwrap").hidden = !num;
     q("#shockSum").innerHTML = shockOn() ? `Shocks <span class="chip">${shockTxt()}</span>` : "Shocks";
     q("#c-cts").hidden = vw.ct !== "lev"; q("#crxW").hidden = vw.cr !== "fix";
-    q("#gInfo").dataset.tip = `Across: the move range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. Column odds (× odds, the bottom strip): ${C.oddsText()}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
+    q("#gInfo").dataset.tip = `Across: the chart range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. Column odds (× odds, the bottom strip): ${C.oddsText()}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
     const nX = 120, G = GRID.data = gridData(nX);
     GRID.gw = gutW(); q("#gwrap").style.setProperty("--gutw", GRID.gw + "px");
     if (num) { renderNumbers(); q("#gfoot").innerHTML = shockOn() ? `<span class="chip" style="margin-left:0">shocks: ${shockTxt()}</span>` : ""; return; }
@@ -1215,7 +1216,7 @@ const VIEWS = (() => {
     if (!P.querySelector("#c-jday")) P.innerHTML = `<div class="ph phc"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Day</span><input type="range" id="c-jday" min="0" max="50" step="1" style="width:160px" aria-label="Day"> <output id="o-jday"></output></span></span><h2>Joint moves</h2> <span class="sub" id="j-note"></span></div><div id="joint"></div>`;
     const ji = P.querySelector("#c-jday"); ji.max = maxD; if (document.activeElement !== ji) ji.value = day;
     P.querySelector("#o-jday").textContent = `day ${day}` + (day === maxD ? ` (${A.dte === maxD ? "A" : "B"} expiry)` : "");
-    P.querySelector("#j-note").textContent = `A − ${hTxt()}, ${A.tk} and ${B.tk} moving independently${C.sizeWords() ? ` · ${C.sizeWords()}` : ""}`;
+    P.querySelector("#j-note").textContent = `A − ${hTxt()} for every pair of ${A.tk} and ${B.tk} moves · no correlation assumed: the solid same-σ line is the fully correlated case${C.sizeWords() ? ` · ${C.sizeWords()}` : ""}`;
     const host = P.querySelector("#joint");
     if (A.na || B.na) { host.innerHTML = `<span class="gna">n/a: ${esc((A.na ? A : B).naReason)}</span>`; return; }
     const { lo, hi } = C, W = 520, Hh = 470, o = { l: 70, r: 10, t: 8, b: 44 }, pw = W - o.l - o.r, ph = Hh - o.t - o.b, n = 90;
@@ -1260,7 +1261,7 @@ const VIEWS = (() => {
     let minAll = Infinity; for (const r of Z) for (const v of r) minAll = Math.min(minAll, v);
     P.querySelector("#jside").innerHTML = `${shockOn() ? `<p><span class="chip" style="margin-left:0">shocks: ${shockTxt()}</span></p>` : ""}<p class="big">Worst cell <b class="num neg">${fU(minAll)}</b><br>Worst on the assumed ${curLab} line <b class="num ${pn(minLine)}">${fU(minLine)}</b></p>
     <p>Each cell values the pair on day ${day} for one ${A.tk} move (across) and one ${B.tk} move (up), both over ${uLab(lo, C.unit)} to ${uLab(hi, C.unit)}${C.unit === "sig" ? `, each in its own σ${diffExp() ? " over A's horizon" : ""}` : ""}. The colour scale runs to the largest |value|.</p>
-    <p>The solid diagonal is the path the payoff and grid panels assume; the dashed curve is the ${altLab} alternative. Anything off the diagonal is risk those panels cannot show. Correlation is not modelled, so this shows outcomes, not their odds.</p>`;
+    <p>The solid diagonal is the path the payoff and grid panels assume; the dashed curve is the ${altLab} alternative. Anything off the diagonal is risk those panels cannot show.</p>`;
     const octx = ov.getContext("2d"); octx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ov.addEventListener("pointermove", ev => {
       const r = ov.getBoundingClientRect(), i = Math.floor((ev.clientX - r.left - o.l) / cw), j = Math.floor((ev.clientY - r.top - o.t) / ch);
@@ -1590,7 +1591,11 @@ const VIEWS = (() => {
   /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
   function describeRecoveryRun({ run, vw, base, dstr }) {
     const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
-    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">The hit</span><span class="v neg">wiped out</span><span class="cpa">${describeRecoverySurvival(run)}</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    // a hit that wipes the position out leads with the size that survives it (the number to act on), then says why
+    if (r.status === "wiped") {
+      const vw = V(), test = vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`, cap = SURVIVAL.capital({ usd: r.Lnotional * run.b.S * 100, tk: esc(run.b.tk), multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" });
+      return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">Size that survives ${test}</span><span class="v">≤\u00a0${SURVIVAL.floor2(1 / r.L)}×\u00a0this size</span><span class="cpa">wiped out at this size: ${describeHitBases(r)}, more than the capital${cap ? ` · ${cap}` : ""}</span></span></span>`;
+    }
     if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">The hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
     const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
     const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";
@@ -1604,14 +1609,6 @@ const VIEWS = (() => {
       `<span class="rrates">${describeRates({ rec: r, chosen: vw.rdG })}${rateKnob()}</span>` +
       (vw.rdG === GrowthRate.IfNoSuchHit ? `<span class="rhon${r.isAmber ? " w" : ""}">${describeHonesty(r)}${honestyKnob()}</span>` : "") + `</span>`;
   }
-  // the next step after a wipe-out: the size whose capital covers the hit (1 / L of this size), and the capital a
-  // contract that takes
-  const describeRecoverySurvival = run => {
-    const r = run.rec, vw = V(), lossPerContract = r.Lnotional * run.b.S * 100;
-    if (!(r.L > 0) || !Number.isFinite(lossPerContract)) { return ""; }
-    const test = vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`;
-    return SURVIVAL.line({ scale: 1 / r.L, test, capital: SURVIVAL.capital({ usd: lossPerContract, tk: esc(run.b.tk), multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" }) });
-  };
   const describeHitBases = r => `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional`;
   // the three rates side by side, the chosen one bold, each with its cycles
   /** @param {{ rec: any, chosen: string }} input */
@@ -1978,7 +1975,7 @@ const VIEWS = (() => {
     q("#cmp").addEventListener("click", e => { if (/** @type {Element} */ (e.target).closest("[data-xmore]")) { setPref({ cmpMore: !V().cmpMore }); } });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
-      // "own" starts from the move range in view (the render context's bounds)
+      // "own" starts from the chart range in view (the render context's bounds)
       if (t.matches("[data-wl]")) { const v = t.value; setAssumption(v === "own" ? { wl: v, wlo: -C.lo, whi: C.hi } : { wl: v }); }
       if (t.matches("[data-wlo],[data-whi]")) { const v = Math.abs(parseFloat(t.value)); if (v > 0) setAssumption({ [t.matches("[data-wlo]") ? "wlo" : "whi"]: v }); else askFrame(); }
     });

@@ -123,12 +123,12 @@ const EXPORT9 = (() => {
     const odds = sc.dist === Odds.Implied ? "implied, the risk-neutral distribution from each smile (the table's EV is then fill vs mid, 0 at mid)" : `period vol, a zero-drift lognormal at each ticker's period vol (${[...new Set([C.A.tk, C.B.tk].filter(Boolean))].map(id => `${id} ${Math.round(C.volOf(id).pct)}%`).join(", ")})`;
     const rng = `${C.uLab(C.lo, C.unit)} to ${C.uLab(C.hi, C.unit)}${C.unit === MoveUnit.Sigma && C.sigAxisLabel !== "σ" ? ` (${C.sigAxisLabel})` : ""}: ${sideTk(C, "A")} ${fPx2(C.toSA(C.lo))}–${fPx2(C.toSA(C.hi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.lo))}–${fPx2(C.toSB(C.hi))}`}`;
     const unitW = { sig: "σ = each instrument's ATM vol at A's horizon × √T", pct: "% of spot", pts: `price points on ${sideTk(C, "A")}` }[C.unit];
-    const wl = sc.wl === WorstLossRange.View ? "the view range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
+    const wl = sc.wl === WorstLossRange.View ? "the chart range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
     const shock = [sc.ivs ? `IV shock ${sc.ivs > 0 ? "+" : MINUS}${Math.abs(sc.ivs)} pts` : "", sc.svs ? `+${sc.svs} vol pts per −10% spot${sc.svd ? " (down only)" : ""}` : ""].filter(Boolean).join(", ");
     const items = [
       `Odds: ${odds}. They set the profit odds and the Results table's EV row; every other EV reading uses the period vol.`,
       `Period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}; one number per ticker for every expiry, annualized like IV. σ (the move axis, the worst-loss range, sizing) stays implied.`,
-      `Move range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
+      `Chart range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
       C.unitsNote ? `Values: ${C.unitsNote}.` : "",
       `Pair sizing${C.comparison.sizing.rule === "auto" ? " (auto)" : ""}: ${C.sizeStatement()}.`,
       shock ? `Shocks after entry (marks before expiry and the pins only): ${shock}.` : "",
@@ -171,7 +171,7 @@ const EXPORT9 = (() => {
     rows.push([`Profit odds · ${C.oddsText()} (P&L above 0 at expiry)`, nA || !sa ? "–" : fP(sa.pop, 0), nB || !sb ? "–" : fP(sb.pop, 0), pair ? fP(pairPop(C), 0) : "", ""]);
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const wr = `${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}: ${C.same ? A.tk : sideTk(C, "A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}`;
-    rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the view range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
+    rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the chart range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
     add("Vega per IV point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
     add(`Margin (approx.: 20% × leverage, ${levTxt()}, Reg-T style)`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
     add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false);

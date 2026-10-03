@@ -278,9 +278,19 @@
   both runs; any text cut with … shows its full text on hover. tools_checks/layout_rows.js checks rows, heights,
   overlaps, edges and hover titles across lenses, replay stops, views and the states that lengthen text.
 
+## Round 10: the pit-trader report, items 9 to 15 (fix loop, trader critique, fix loop)
+
+- The header's range control is "Chart range" (σ, % or price), with a hover saying which charts it spans.
+- Extrapolate shows only on the lenses that read it (P&L, Time decay); its space stays so the lens bar never shifts.
+- Each card has a fourth line: bid × ask per leg, the market you would trade.
+- Recovery leads with the size that survives the hit ("≤ 0.61× this size"), then why in red; the capital multiple is
+  rounded up to two decimals so it agrees with the size.
+- The Compounding week table shows the Move column only while the path moves; prices print with two decimals.
+- The Greeks rows carry their tip on the name (dotted underline): six fewer "i" badges.
+- Joint moves says no correlation is assumed, with the solid same-σ line as the fully correlated case.
+
 ## Still open
 
-1. Pit-trader report items 9 to 15 (the second half).
 2. Compare tab: a single-position mode (B off), as the Compounding tab has.
 3. Skew at the chosen strikes (put IV − call IV).
 4. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"

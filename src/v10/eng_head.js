@@ -89,7 +89,7 @@ const SURVIVAL = (() => {
   // up, so the printed multiple is never below what it takes)
   /** @param {{ usd: number, tk: string, multiple?: number, base?: string }} input */
   const capital = ({ usd, tk, multiple, base }) => !Number.isFinite(usd) ? "" :
-    `at least $${Math.ceil(usd).toLocaleString("en-US")} of capital a ${tk} contract${Number.isFinite(multiple) && base ? `, ${(Math.ceil(multiple * 10 - 1e-9) / 10).toFixed(1)}× its ${base}` : ""}`;
+    `at least $${Math.ceil(usd).toLocaleString("en-US")} of capital a ${tk} contract${Number.isFinite(multiple) && base ? `, ${(Math.ceil(multiple * 100 - 1e-9) / 100).toFixed(2)}× its ${base}` : ""}`;
   /** @param {{ scale: number, test: string, size?: string, capital?: string, plain?: boolean }} input */
   function line({ scale, test, size, capital, plain }) {
     if (!(scale > 0) || !Number.isFinite(scale)) { return `no size survives ${test}`; }

@@ -282,7 +282,7 @@ math[display="block"]{text-align:left}
 .v9views .lgd .szn{color:var(--ink-2);margin-left:4px}
 /* Greeks: the unit is a designed second line under the name, so the label column never pushes the table wide */
 .v9views .cmp.grk td.l{white-space:nowrap}
-.grk td.l .muted{display:block;line-height:1.2}
+.grk td.l .muted{display:block;line-height:1.2;margin-top:3px}
 /* the loss fill of the A − B strip: the dark --neg is the deeper red, so it gets more opacity to read as strongly */
 .dneg{fill-opacity:.22}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dneg{fill-opacity:.4}}
@@ -302,3 +302,5 @@ math[display="block"]{text-align:left}
 .v9views .mg table.mgt th.mgh .muted{display:block;font-weight:400}
 /* the payoff head's lead is a fixed track (its date changes at every replay stop), so the caption beside it stays put */
 #p-pay>.ph{grid-template-columns:minmax(0,400px) minmax(0,1fr) auto}
+/* a row name that carries its own tip (dotted underline) instead of a separate "i" badge on every row */
+.tipname{text-decoration:underline dotted var(--ink-3);text-underline-offset:3px;cursor:help}

@@ -451,6 +451,11 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .s9l2.f6 .s9leg .k{margin-right:2px}
 .s9l1.fx .s9ovd{display:none}
 .s9l3{font:400 12px/17px var(--f-ui);color:var(--ink-3)}
+/* line 4: bid × ask of the legs in use (one line, cut with …) */
+.s9l4{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:400 12px/17px var(--f-num);color:var(--ink-2)}
+.s9l4 .s9qh{font:400 11px var(--f-ui);color:var(--ink-3);margin-right:8px}
+.s9l4 .s9q{margin-right:12px}
+.s9l4 .s9q .k{color:var(--ink-3);margin-right:4px}
 .s9l3 .s9wn{color:var(--diff-warn)}
 .s9l3 .s9fl{cursor:help}
 .s9l3 .s9vol{color:var(--ink-2);cursor:pointer}
@@ -982,7 +987,7 @@ math[display="block"]{text-align:left}
 .v9views .lgd .szn{color:var(--ink-2);margin-left:4px}
 /* Greeks: the unit is a designed second line under the name, so the label column never pushes the table wide */
 .v9views .cmp.grk td.l{white-space:nowrap}
-.grk td.l .muted{display:block;line-height:1.2}
+.grk td.l .muted{display:block;line-height:1.2;margin-top:3px}
 /* the loss fill of the A − B strip: the dark --neg is the deeper red, so it gets more opacity to read as strongly */
 .dneg{fill-opacity:.22}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dneg{fill-opacity:.4}}
@@ -1002,6 +1007,8 @@ math[display="block"]{text-align:left}
 .v9views .mg table.mgt th.mgh .muted{display:block;font-weight:400}
 /* the payoff head's lead is a fixed track (its date changes at every replay stop), so the caption beside it stays put */
 #p-pay>.ph{grid-template-columns:minmax(0,400px) minmax(0,1fr) auto}
+/* a row name that carries its own tip (dotted underline) instead of a separate "i" badge on every row */
+.tipname{text-decoration:underline dotted var(--ink-3);text-underline-offset:3px;cursor:help}
 
 /* ===== Compounding tab ===== */
 #tab-yr .panel{display:block}
@@ -1197,13 +1204,13 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
   <section id="tab-cmp" role="tabpanel" aria-labelledby="tb-compare">
   <div class="sum9" id="sum9" aria-label="What is compared">
     <div class="s9pair">
-      <div class="s9card a" id="s9A"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span></div>
+      <div class="s9card a" id="s9A"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span><span class="s9l4"></span></div>
       <span class="s9mid"><span class="vs">vs</span><button class="btn ib" id="s9swap" type="button" title="Swap A and B" aria-label="Swap A and B">⇄</button></span>
-      <div class="s9card b" id="s9B"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span></div>
+      <div class="s9card b" id="s9B"><span class="s9l1"></span><span class="s9l2"></span><span class="s9l3"></span><span class="s9l4"></span></div>
     </div>
     <div class="s9bot">
-      <span class="s9rng" id="s9rng"><span class="lbl" style="font-size:12px;color:var(--ink-2)">Move</span> −<input type="number" id="s9-rlo" min="0" aria-label="Move range down"><span class="muted">…</span> +<input type="number" id="s9-rhi" min="0" aria-label="Move range up"><span class="seg" id="s9-unit"></span><details class="menu" id="s9-rmenu"><summary title="Range and reading options" aria-label="Range and reading options">▾</summary><span class="mb" style="width:380px">
-        <span class="mt">Move range</span>
+      <span class="s9rng" id="s9rng"><span class="lbl" style="font-size:12px;color:var(--ink-2)" title="The price span of the payoff, grid and joint-move charts (and the worst loss, unless it has its own range): this far down and up from spot, in σ, % or price">Chart range</span> −<input type="number" id="s9-rlo" min="0" aria-label="Chart range down"><span class="muted">…</span> +<input type="number" id="s9-rhi" min="0" aria-label="Chart range up"><span class="seg" id="s9-unit"></span><details class="menu" id="s9-rmenu"><summary title="Range and reading options" aria-label="Range and reading options">▾</summary><span class="mb" style="width:380px">
+        <span class="mt">Chart range</span>
         <span class="mrow"><label class="chk"><input type="checkbox" id="s9-rlink">Symmetric</label></span>
         <span class="mrow cap" id="s9-rngeq"></span>
         <span class="mrow cap" id="s9-uinfo"></span>
@@ -2146,7 +2153,7 @@ const SURVIVAL = (() => {
   // up, so the printed multiple is never below what it takes)
   /** @param {{ usd: number, tk: string, multiple?: number, base?: string }} input */
   const capital = ({ usd, tk, multiple, base }) => !Number.isFinite(usd) ? "" :
-    `at least $${Math.ceil(usd).toLocaleString("en-US")} of capital a ${tk} contract${Number.isFinite(multiple) && base ? `, ${(Math.ceil(multiple * 10 - 1e-9) / 10).toFixed(1)}× its ${base}` : ""}`;
+    `at least $${Math.ceil(usd).toLocaleString("en-US")} of capital a ${tk} contract${Number.isFinite(multiple) && base ? `, ${(Math.ceil(multiple * 100 - 1e-9) / 100).toFixed(2)}× its ${base}` : ""}`;
   /** @param {{ scale: number, test: string, size?: string, capital?: string, plain?: boolean }} input */
   function line({ scale, test, size, capital, plain }) {
     if (!(scale > 0) || !Number.isFinite(scale)) { return `no size survives ${test}`; }
@@ -3990,7 +3997,7 @@ const STATE = (() => {
       const lo = Math.max(sc.rlo, 0), hi = Math.max(sc.rhi, 0);
       sc.unit = MoveUnit.Sigma; sc.rlo = uRound(-uOf(Math.max(S - lo, S * 0.05)), MoveUnit.Sigma) || 0.05; sc.rhi = uRound(uOf(S + hi), MoveUnit.Sigma) || 0.05;
       sc.wlo = sc.rlo; sc.whi = sc.rhi; if (Math.abs(sc.rlo - sc.rhi) > 1e-9) sc.rlink = false;
-      events.push({ type: "note", aspects: [], text: "Price moves need one instrument, so the move range was converted to σ", actions: [] });
+      events.push({ type: "note", aspects: [], text: "Price moves need one instrument, so the chart range was converted to σ", actions: [] });
     }
     const [capLo, capHi] = rangeCaps(sc.unit, bA.na ? bA.S || 1 : bA.S);
     let note = "";
@@ -5920,6 +5927,12 @@ const SUM9 = (() => {
     const wings = b.label.wings ? " " + tok(m.wing, esc(b.label.wings).replace(/ (wings?)$/, `<span class="s9ww"> $1</span>`)) : "";
     return `${tk}${ov}${sep}${tok(m.exp, esc(exp))}${sep}${tok(m.struct, glyph(b.kind, wc, wp, col) + st)}${wings}`;
   }
+  // line 4: the market for the legs in use, as a quote screen shows it (bid × ask per leg); what you would trade
+  function lineQuotes(b) {
+    if (b.na) return "";
+    const q = l => `<span class="s9q"><span class="k">${fK(l.K)}${l.cp}</span>${l.bid > 0 ? l.bid.toFixed(2) : "–"} × ${l.ask > 0 ? l.ask.toFixed(2) : "–"}</span>`;
+    return `<span class="s9qh">bid × ask</span>${b.legs.map(q).join("")}`;
+  }
   function line2(b, side, m, C) {
     if (b.na) return `<span class="s9leg na">n/a: ${esc(b.naReason || "no usable strikes")}</span>`;
     const naF = b.flags.filter(f => f.code === "WING_NA");
@@ -6227,6 +6240,8 @@ const SUM9 = (() => {
       const card = q(side === "A" ? "#s9A" : "#s9B"), b = side === "A" ? C.A : C.B, P = side === "A" ? C.Ap : C.Bp, m = marks(C.diff, side);
       card.querySelector(".s9l1").innerHTML = line1(b, side, m);
       card.querySelector(".s9l2").innerHTML = line2(b, side, m, C);
+      const quotes = lineQuotes(b), l4 = /** @type {HTMLElement} */ (card.querySelector(".s9l4"));
+      if (l4) { l4.innerHTML = quotes; l4.title = b.na ? "" : "bid × ask: " + b.legs.map(l => `${fK(l.K)}${l.cp} ${l.bid > 0 ? l.bid.toFixed(2) : "–"} × ${l.ask > 0 ? l.ask.toFixed(2) : "–"}`).join(" · "); }
       card.setAttribute("aria-label", `${side}: ${b.label.full}`);
       return { card, l3: line3({ b, P, C, side }) };
     });
@@ -7031,7 +7046,7 @@ const FACTS = (() => {
     const asof = q("#asof");
     q("#fx-sum").textContent = asof ? asof.textContent : "";
     q("#fx-body").innerHTML = tickers.map(t => `<div class="fxtk">${describeTickerLine(t)}${describeExpiries(t)}</div>`).join("") + describeContracts() +
-      `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the move range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
+      `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the chart range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
     renderEditors(tickers);
   }
   return { init, render };
@@ -8053,7 +8068,7 @@ const VIEWS = (() => {
     const cell = (v, row) => `<td>${text(v, row)}</td>`;
     const pairCell = row => row.isShares && crossTicker ? `<td class="gpair muted" title="${esc(C.A.tk)} and ${esc(C.B.tk)} shares do not add up: see the dollar rows">–</td>` : `<td class="gpair">${text(gA[row.key] - (showSized ? sized(row.key) : gB[row.key]), row)}</td>`;
     const head = `<thead><tr><th></th><th>${key("A")} 1 ${esc(C.A.tk)} contract</th>${showB ? `<th><span class="key b">B</span> 1 ${esc(C.B.tk)} contract</th>${showSized ? `<th><span class="key b">B</span> at ${k.toFixed(2)} per A</th>` : ""}<th><span class="key d">A − B</span>${showSized ? " at that size" : ""}</th>` : ""}</tr></thead>`;
-    const body = GREEK_ROWS.map(row => `<tr><td class="l"><span class="gname">${row.label}</span><span class="info" tabindex="0" data-tip="${esc(row.tip)}">i</span> <span class="muted">${row.unit}</span></td>${cell(gA[row.key], row)}${showB ? cell(gB[row.key], row) + (showSized ? cell(sized(row.key), row) : "") + pairCell(row) : ""}</tr>`).join("");
+    const body = GREEK_ROWS.map(row => `<tr><td class="l"><span class="gname tipname" tabindex="0" data-tip="${esc(row.tip)}">${row.label}</span> <span class="muted">${row.unit}</span></td>${cell(gA[row.key], row)}${showB ? cell(gB[row.key], row) + (showSized ? cell(sized(row.key), row) : "") + pairCell(row) : ""}</tr>`).join("");
     q("#grk").innerHTML = head + `<tbody>${body}</tbody>`;
     q("#grk-sub").textContent = `per contract, now, at the model's mark (no shocks)${C.A.na ? " · A is n/a" : ""}${showB && crossTicker ? ` · ${C.A.tk} and ${C.B.tk} shares do not add up, so A − B keeps the dollar rows` : ""}`;
   }
@@ -8412,6 +8427,7 @@ const VIEWS = (() => {
     const extends_ = lens === PayLens.Pnl || lens === PayLens.Decay, canExtend = extends_ && time.index > 0 && time.index < last;
     const btn = /** @type {HTMLButtonElement} */ (q("#c-extra"));
     btn.classList.toggle("on", on); btn.setAttribute("aria-pressed", String(on)); btn.disabled = !extends_;
+    btn.style.visibility = extends_ ? "" : "hidden"; // only the lenses that read it show it (its space stays, so the bar does not shift)
     btn.innerHTML = `${ICONS.trendingUp}<span>${on ? "Extrapolating" : "Extrapolate"}</span>`;
     const why = time.index === 0 ? "step at least one trading day on from today" : "at expiry no days are left";
     btn.title = !extends_ ? "Extrapolation reads in the P&L and Time decay lenses" : canExtend ? "Repeat the last day's change over the trading days left (dashed, in the accent colour)" : `Extrapolation repeats the last day's change: ${why}`;
@@ -8719,7 +8735,7 @@ const VIEWS = (() => {
     rows.push(`<tr class="grp"><td>Break-even price${KNOBS.html({ id: "cmp-touch", title: "Touching a breakeven", body: "The chance the price trades through the breakeven at some point before expiry, at the ticker's period vol: about twice the chance of ending beyond it (the reflection principle for a driftless walk). Ending beyond it is what loses money; touching it is when you have to decide whether to adjust." })}<span class="cap">the move from spot, and the odds of touching it before expiry</span></td><td>${be(A, sa)}</td><td>${be(B, sb)}</td><td></td><td></td></tr>`);
     rows.push(`<tr><td>Break-even vol${KNOBS.html({ id: "cmp-edge", title: "Break-even vol", body: "The period vol at which the position's EV at expiry is zero, at its fill. Above the vol you assume, the trade has an edge of that many vol points; below it, it gives one away. It moves with the fill: a typed fill below mid lowers it." })}<span class="cap">the period vol at which EV is 0</span></td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "A")}>${fP(ea, 1)}</td><td${winClass(pickBetterSide({ a: ea, b: eb, better: Better.High }), "B")}>${fP(eb, 1)}</td><td>${Number.isFinite(ea) && Number.isFinite(eb) ? formatSigned({ value: (ea - eb) * 100, digits: 1, suffix: " pts" }) : ""}</td><td></td></tr>`);
     rows.push(`<tr><td>Profit odds${rowKnob("odds")}<span class="cap">P&amp;L above 0 at expiry</span></td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "A")}>${nA || !sa ? "–" : fP(sa.pop, 0)}</td><td${winClass(pickBetterSide({ a: sa && !nA ? sa.pop : NaN, b: sb && !nB ? sb.pop : NaN, better: Better.High }), "B")}>${nB || !sb ? "–" : fP(sb.pop, 0)}</td><td>${pair ? fP(pairPop(C), 0) : ""}</td><td></td></tr>`);
-    const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the view range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
+    const sel = `<select data-wl aria-label="Worst-loss range"><option value="view"${sc.wl === "view" ? " selected" : ""}>the chart range</option><option value="own"${sc.wl === "own" ? " selected" : ""}>its own range</option></select>`;
     const own = sc.wl === "own" ? ` −<input type="number" data-wlo value="${+sc.wlo.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> to +<input type="number" data-whi value="${+sc.whi.toFixed(2)}" step="${STATE.uStep(C.unit)}" min="0" style="width:56px"> ${STATE.UNAME[C.unit]}` : "";
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const worstWinner = pickBetterSide({ a: nA || !sa ? NaN : sa.worst / A.S, b: nB || !sb ? NaN : sB(sb.worst / B.S), better: Better.High });
@@ -8812,7 +8828,7 @@ const VIEWS = (() => {
     q("#c-gtab").hidden = !num; q("#gwrap").hidden = num; q("#numwrap").hidden = !num;
     q("#shockSum").innerHTML = shockOn() ? `Shocks <span class="chip">${shockTxt()}</span>` : "Shocks";
     q("#c-cts").hidden = vw.ct !== "lev"; q("#crxW").hidden = vw.cr !== "fix";
-    q("#gInfo").dataset.tip = `Across: the move range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. Column odds (× odds, the bottom strip): ${C.oddsText()}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
+    q("#gInfo").dataset.tip = `Across: the chart range (${uLab(C.lo, C.unit)} to ${uLab(C.hi, C.unit)}${sigWord()}${C.same ? "" : `, ${tkOf("B")} moving ${C.unit === "sig" ? "the same number of its own σ" : "the same %"}`}). Down: ${C.cal ? "calendar days from today; an expired position keeps its expiry payoff and odds" : C.sameExp ? "days from today" : "share of each position's life"}, today at the top. Colour: ${vw.gval === "contrib" ? "P&L × the odds of that column on that grid's own instrument and clock, so a row sums to the expected mark" : "mark-to-model P&L, each leg pinned to its traded mid at entry"}. Column odds (× odds, the bottom strip): ${C.oddsText()}. The ±σ cones use each position's own ATM vol on its own clock. The contour line is break-even. Click a cell to pin it.`;
     const nX = 120, G = GRID.data = gridData(nX);
     GRID.gw = gutW(); q("#gwrap").style.setProperty("--gutw", GRID.gw + "px");
     if (num) { renderNumbers(); q("#gfoot").innerHTML = shockOn() ? `<span class="chip" style="margin-left:0">shocks: ${shockTxt()}</span>` : ""; return; }
@@ -8989,7 +9005,7 @@ const VIEWS = (() => {
     if (!P.querySelector("#c-jday")) P.innerHTML = `<div class="ph phc"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Day</span><input type="range" id="c-jday" min="0" max="50" step="1" style="width:160px" aria-label="Day"> <output id="o-jday"></output></span></span><h2>Joint moves</h2> <span class="sub" id="j-note"></span></div><div id="joint"></div>`;
     const ji = P.querySelector("#c-jday"); ji.max = maxD; if (document.activeElement !== ji) ji.value = day;
     P.querySelector("#o-jday").textContent = `day ${day}` + (day === maxD ? ` (${A.dte === maxD ? "A" : "B"} expiry)` : "");
-    P.querySelector("#j-note").textContent = `A − ${hTxt()}, ${A.tk} and ${B.tk} moving independently${C.sizeWords() ? ` · ${C.sizeWords()}` : ""}`;
+    P.querySelector("#j-note").textContent = `A − ${hTxt()} for every pair of ${A.tk} and ${B.tk} moves · no correlation assumed: the solid same-σ line is the fully correlated case${C.sizeWords() ? ` · ${C.sizeWords()}` : ""}`;
     const host = P.querySelector("#joint");
     if (A.na || B.na) { host.innerHTML = `<span class="gna">n/a: ${esc((A.na ? A : B).naReason)}</span>`; return; }
     const { lo, hi } = C, W = 520, Hh = 470, o = { l: 70, r: 10, t: 8, b: 44 }, pw = W - o.l - o.r, ph = Hh - o.t - o.b, n = 90;
@@ -9034,7 +9050,7 @@ const VIEWS = (() => {
     let minAll = Infinity; for (const r of Z) for (const v of r) minAll = Math.min(minAll, v);
     P.querySelector("#jside").innerHTML = `${shockOn() ? `<p><span class="chip" style="margin-left:0">shocks: ${shockTxt()}</span></p>` : ""}<p class="big">Worst cell <b class="num neg">${fU(minAll)}</b><br>Worst on the assumed ${curLab} line <b class="num ${pn(minLine)}">${fU(minLine)}</b></p>
     <p>Each cell values the pair on day ${day} for one ${A.tk} move (across) and one ${B.tk} move (up), both over ${uLab(lo, C.unit)} to ${uLab(hi, C.unit)}${C.unit === "sig" ? `, each in its own σ${diffExp() ? " over A's horizon" : ""}` : ""}. The colour scale runs to the largest |value|.</p>
-    <p>The solid diagonal is the path the payoff and grid panels assume; the dashed curve is the ${altLab} alternative. Anything off the diagonal is risk those panels cannot show. Correlation is not modelled, so this shows outcomes, not their odds.</p>`;
+    <p>The solid diagonal is the path the payoff and grid panels assume; the dashed curve is the ${altLab} alternative. Anything off the diagonal is risk those panels cannot show.</p>`;
     const octx = ov.getContext("2d"); octx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ov.addEventListener("pointermove", ev => {
       const r = ov.getBoundingClientRect(), i = Math.floor((ev.clientX - r.left - o.l) / cw), j = Math.floor((ev.clientY - r.top - o.t) / ch);
@@ -9364,7 +9380,11 @@ const VIEWS = (() => {
   /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
   function describeRecoveryRun({ run, vw, base, dstr }) {
     const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
-    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">The hit</span><span class="v neg">wiped out</span><span class="cpa">${describeRecoverySurvival(run)}</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    // a hit that wipes the position out leads with the size that survives it (the number to act on), then says why
+    if (r.status === "wiped") {
+      const vw = V(), test = vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`, cap = SURVIVAL.capital({ usd: r.Lnotional * run.b.S * 100, tk: esc(run.b.tk), multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" });
+      return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">Size that survives ${test}</span><span class="v">≤\u00a0${SURVIVAL.floor2(1 / r.L)}×\u00a0this size</span><span class="cpa">wiped out at this size: ${describeHitBases(r)}, more than the capital${cap ? ` · ${cap}` : ""}</span></span></span>`;
+    }
     if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">The hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
     const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
     const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";
@@ -9378,14 +9398,6 @@ const VIEWS = (() => {
       `<span class="rrates">${describeRates({ rec: r, chosen: vw.rdG })}${rateKnob()}</span>` +
       (vw.rdG === GrowthRate.IfNoSuchHit ? `<span class="rhon${r.isAmber ? " w" : ""}">${describeHonesty(r)}${honestyKnob()}</span>` : "") + `</span>`;
   }
-  // the next step after a wipe-out: the size whose capital covers the hit (1 / L of this size), and the capital a
-  // contract that takes
-  const describeRecoverySurvival = run => {
-    const r = run.rec, vw = V(), lossPerContract = r.Lnotional * run.b.S * 100;
-    if (!(r.L > 0) || !Number.isFinite(lossPerContract)) { return ""; }
-    const test = vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`;
-    return SURVIVAL.line({ scale: 1 / r.L, test, capital: SURVIVAL.capital({ usd: lossPerContract, tk: esc(run.b.tk), multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" }) });
-  };
   const describeHitBases = r => `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional`;
   // the three rates side by side, the chosen one bold, each with its cycles
   /** @param {{ rec: any, chosen: string }} input */
@@ -9752,7 +9764,7 @@ const VIEWS = (() => {
     q("#cmp").addEventListener("click", e => { if (/** @type {Element} */ (e.target).closest("[data-xmore]")) { setPref({ cmpMore: !V().cmpMore }); } });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);
-      // "own" starts from the move range in view (the render context's bounds)
+      // "own" starts from the chart range in view (the render context's bounds)
       if (t.matches("[data-wl]")) { const v = t.value; setAssumption(v === "own" ? { wl: v, wlo: -C.lo, whi: C.hi } : { wl: v }); }
       if (t.matches("[data-wlo],[data-whi]")) { const v = Math.abs(parseFloat(t.value)); if (v > 0) setAssumption({ [t.matches("[data-wlo]") ? "wlo" : "whi"]: v }); else askFrame(); }
     });
@@ -9957,12 +9969,12 @@ const EXPORT9 = (() => {
     const odds = sc.dist === Odds.Implied ? "implied, the risk-neutral distribution from each smile (the table's EV is then fill vs mid, 0 at mid)" : `period vol, a zero-drift lognormal at each ticker's period vol (${[...new Set([C.A.tk, C.B.tk].filter(Boolean))].map(id => `${id} ${Math.round(C.volOf(id).pct)}%`).join(", ")})`;
     const rng = `${C.uLab(C.lo, C.unit)} to ${C.uLab(C.hi, C.unit)}${C.unit === MoveUnit.Sigma && C.sigAxisLabel !== "σ" ? ` (${C.sigAxisLabel})` : ""}: ${sideTk(C, "A")} ${fPx2(C.toSA(C.lo))}–${fPx2(C.toSA(C.hi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.lo))}–${fPx2(C.toSB(C.hi))}`}`;
     const unitW = { sig: "σ = each instrument's ATM vol at A's horizon × √T", pct: "% of spot", pts: `price points on ${sideTk(C, "A")}` }[C.unit];
-    const wl = sc.wl === WorstLossRange.View ? "the view range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
+    const wl = sc.wl === WorstLossRange.View ? "the chart range" : `its own range, ${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}`;
     const shock = [sc.ivs ? `IV shock ${sc.ivs > 0 ? "+" : MINUS}${Math.abs(sc.ivs)} pts` : "", sc.svs ? `+${sc.svs} vol pts per −10% spot${sc.svd ? " (down only)" : ""}` : ""].filter(Boolean).join(", ");
     const items = [
       `Odds: ${odds}. They set the profit odds and the Results table's EV row; every other EV reading uses the period vol.`,
       `Period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}; one number per ticker for every expiry, annualized like IV. σ (the move axis, the worst-loss range, sizing) stays implied.`,
-      `Move range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
+      `Chart range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
       C.unitsNote ? `Values: ${C.unitsNote}.` : "",
       `Pair sizing${C.comparison.sizing.rule === "auto" ? " (auto)" : ""}: ${C.sizeStatement()}.`,
       shock ? `Shocks after entry (marks before expiry and the pins only): ${shock}.` : "",
@@ -10005,7 +10017,7 @@ const EXPORT9 = (() => {
     rows.push([`Profit odds · ${C.oddsText()} (P&L above 0 at expiry)`, nA || !sa ? "–" : fP(sa.pop, 0), nB || !sb ? "–" : fP(sb.pop, 0), pair ? fP(pairPop(C), 0) : "", ""]);
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const wr = `${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}: ${C.same ? A.tk : sideTk(C, "A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}`;
-    rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the view range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
+    rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the chart range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
     add("Vega per IV point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
     add(`Margin (approx.: 20% × leverage, ${levTxt()}, Reg-T style)`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
     add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false);
@@ -11814,9 +11826,10 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const who = RES.B && ys.view.tableRun === "B" ? "B" : "A", R = RES[who], cc = R.run.fam === "cc";
     q("#y-tablesub").textContent = `run ${who} · ${R.main.rows.length} cycles · click a row to pin its week`;
     q("#y-tabletools").innerHTML = RES.B ? `<span class="seg" id="y-trun"><button type="button" data-v="A" class="${who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${who === "B" ? "on" : ""}">B</button></span> <button type="button" class="btn" id="y-csv">Copy CSV</button>` : `<button type="button" class="btn" id="y-csv">Copy CSV</button>`;
+    // the cycle-to-cycle move: a column only while the path moves (on a flat path it is 0.0% in every row)
     const moveOf = readCycleMoves({ R, who });
     /** @type {any[][]} column label, row formatter */
-    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => fKs(r.S0)], ["Move", r => moveOf.get(r) || ""], ["Strikes", r => [r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
+    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => "$" + r.S0.toFixed(2)], ...(ys.sc.path.mode === "flat" ? [] : [["Move", r => moveOf.get(r) || ""]]), ["Strikes", r => [r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
       ["Premium", r => fPc((r.pc + r.pp) / r.S0, 2)], ["Time value", r => fPc((r.tvc + r.tvp) / r.S0, 2)], [cc ? "Shares" : "Contracts", r => cc ? fInt(r.shMed) : Math.floor(r.kMed)], ...(cc ? [["Lots", r => r.lots]] : []), ["NAV typical", r => f$(r.med)], ["10%", r => f$(r.c10)], ["90%", r => f$(r.c90)], ["Average", r => f$(r.avg)], ["Credit", r => f$(r.credit)], ["Margin call so far", r => fPc(r.called, 1)], ["Cushion", r => r.cush < 1 ? fPs(-r.cush, 0) : "–"], ...(cc ? [["Typical λ", r => r.lamTyp.toFixed(2)]] : [])];
     const pinR = rowAt(R, ys.view.pin);
     q("#y-table").innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${R.main.rows.map(r => `<tr data-w="${Math.min(r.w1, ys.sc.W)}" class="${r === pinR ? "pin" : ""}">${cols.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;

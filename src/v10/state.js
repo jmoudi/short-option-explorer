@@ -164,7 +164,7 @@ const STATE = (() => {
       const lo = Math.max(sc.rlo, 0), hi = Math.max(sc.rhi, 0);
       sc.unit = MoveUnit.Sigma; sc.rlo = uRound(-uOf(Math.max(S - lo, S * 0.05)), MoveUnit.Sigma) || 0.05; sc.rhi = uRound(uOf(S + hi), MoveUnit.Sigma) || 0.05;
       sc.wlo = sc.rlo; sc.whi = sc.rhi; if (Math.abs(sc.rlo - sc.rhi) > 1e-9) sc.rlink = false;
-      events.push({ type: "note", aspects: [], text: "Price moves need one instrument, so the move range was converted to σ", actions: [] });
+      events.push({ type: "note", aspects: [], text: "Price moves need one instrument, so the chart range was converted to σ", actions: [] });
     }
     const [capLo, capHi] = rangeCaps(sc.unit, bA.na ? bA.S || 1 : bA.S);
     let note = "";

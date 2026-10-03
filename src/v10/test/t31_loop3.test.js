@@ -40,7 +40,8 @@ test("T31 the size statement covers every case: sized, one for one, and a side t
 });
 
 test("T31 the survival sentence: at least the capital a contract needs at the printed size, and its multiple of the base", () => {
-  assert.equal(SURVIVAL.capital({ usd: 1117.2, tk: "RAM", multiple: 1.62, base: "margin" }), "at least $1,118 of capital a RAM contract, 1.7× its margin"); // the multiple rounds up
+  assert.equal(SURVIVAL.capital({ usd: 1117.2, tk: "RAM", multiple: 1.62, base: "margin" }), "at least $1,118 of capital a RAM contract, 1.62× its margin");
+  assert.equal(SURVIVAL.capital({ usd: 1117.2, tk: "RAM", multiple: 1.6241, base: "margin" }), "at least $1,118 of capital a RAM contract, 1.63× its margin"); // rounds up
   assert.equal(SURVIVAL.capital({ usd: NaN, tk: "RAM" }), "");
   const line = SURVIVAL.line({ scale: 0.6123, test: "this 2σ hit", capital: "at least $1,118 of capital a RAM contract", plain: true });
   assert.equal(line, "survives this 2σ hit at ≤\u00a00.61×\u00a0this size (at least $1,118 of capital a RAM contract)");

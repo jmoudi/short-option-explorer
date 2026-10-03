@@ -87,6 +87,12 @@ const SUM9 = (() => {
     const wings = b.label.wings ? " " + tok(m.wing, esc(b.label.wings).replace(/ (wings?)$/, `<span class="s9ww"> $1</span>`)) : "";
     return `${tk}${ov}${sep}${tok(m.exp, esc(exp))}${sep}${tok(m.struct, glyph(b.kind, wc, wp, col) + st)}${wings}`;
   }
+  // line 4: the market for the legs in use, as a quote screen shows it (bid × ask per leg); what you would trade
+  function lineQuotes(b) {
+    if (b.na) return "";
+    const q = l => `<span class="s9q"><span class="k">${fK(l.K)}${l.cp}</span>${l.bid > 0 ? l.bid.toFixed(2) : "–"} × ${l.ask > 0 ? l.ask.toFixed(2) : "–"}</span>`;
+    return `<span class="s9qh">bid × ask</span>${b.legs.map(q).join("")}`;
+  }
   function line2(b, side, m, C) {
     if (b.na) return `<span class="s9leg na">n/a: ${esc(b.naReason || "no usable strikes")}</span>`;
     const naF = b.flags.filter(f => f.code === "WING_NA");
@@ -394,6 +400,8 @@ const SUM9 = (() => {
       const card = q(side === "A" ? "#s9A" : "#s9B"), b = side === "A" ? C.A : C.B, P = side === "A" ? C.Ap : C.Bp, m = marks(C.diff, side);
       card.querySelector(".s9l1").innerHTML = line1(b, side, m);
       card.querySelector(".s9l2").innerHTML = line2(b, side, m, C);
+      const quotes = lineQuotes(b), l4 = /** @type {HTMLElement} */ (card.querySelector(".s9l4"));
+      if (l4) { l4.innerHTML = quotes; l4.title = b.na ? "" : "bid × ask: " + b.legs.map(l => `${fK(l.K)}${l.cp} ${l.bid > 0 ? l.bid.toFixed(2) : "–"} × ${l.ask > 0 ? l.ask.toFixed(2) : "–"}`).join(" · "); }
       card.setAttribute("aria-label", `${side}: ${b.label.full}`);
       return { card, l3: line3({ b, P, C, side }) };
     });

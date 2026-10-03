@@ -245,7 +245,7 @@ const FACTS = (() => {
     const asof = q("#asof");
     q("#fx-sum").textContent = asof ? asof.textContent : "";
     q("#fx-body").innerHTML = tickers.map(t => `<div class="fxtk">${describeTickerLine(t)}${describeExpiries(t)}</div>`).join("") + describeContracts() +
-      `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the move range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
+      `<span class="cap">Ingested from the quotes, or typed in under Edit (✎). The ATM IV sets σ and the chart range; the period vol sets every EV and, under that odds switch, the odds. * = the smile fit at the strike (no IV from the mid).</span>`;
     renderEditors(tickers);
   }
   return { init, render };
