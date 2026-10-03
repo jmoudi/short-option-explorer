@@ -11,6 +11,9 @@
   --pos:#2a78d6; --neg:#e34948; --mid:#e8eaed;
   --warn:#8f5400; --warn-bg:#fff0d4; --shade:#e0a73a;
   --itm:#a9b1bb; --itm-bg:#f0f2f5;
+  /* market moves: up, down, notable, flat; --y is the free second accent beside teal (extrapolation uses it) */
+  --up:#1d8546; --up-bg:#e0f3e7; --down:#c8312c; --down-bg:#fbe4e2; --note:#9a7000; --note-bg:#fbf0c8; --flat:#7f8892; --flat-bg:#eceef1;
+  --y:#b0277e; --y-bg:#f8e3f0;
   --shadow:0 8px 28px rgba(17,20,24,.16);
   --f-ui:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-cond:"IBM Plex Sans Condensed","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
@@ -26,6 +29,8 @@
     --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
     --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
     --itm:#4f5862; --itm-bg:#1b1f23;
+    --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
+    --y:#e46bb8; --y-bg:#3a1530;
     --shadow:0 8px 28px rgba(0,0,0,.55);
   }
 }
@@ -37,6 +42,8 @@
   --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
   --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
   --itm:#4f5862; --itm-bg:#1b1f23;
+  --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
+  --y:#e46bb8; --y-bg:#3a1530;
   --shadow:0 8px 28px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box}
@@ -491,7 +498,9 @@ details.capem>summary{list-style:none}
 .panel.collapsed>.ph .tools,.panel.collapsed>.ph .lgd{display:none!important}
 .ph .pcol,.ph .pnotes{margin:0 8px 0 2px}
 /* in the side docks the chip leads its line, so it never wraps away from its label */
-details.sub>summary::after,details.d9sec>summary::after{order:-1}
+/* one rule for every expander chip: right after the name of what it opens (a summary's value or caption comes after) */
+details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{order:1}
+details.panel>summary>.sub,details.sub>summary>.sv,details.d9sec>summary>.sv,details.capem>summary>*:not(h2){order:2}
 details.sub>summary,details.d9sec>summary{gap:6px 8px}
 /* rows and details behind a "more" chip */
 .cmp:not(.showmore) tr.xmore{display:none}

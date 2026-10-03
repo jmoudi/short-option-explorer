@@ -855,18 +855,32 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   }
 
   // ---------------------------------------------------------- table
+  // each cycle's price move from the cycle before, coloured by its size in σ of the days it took at the pricing IV
+  // (MOVES: grey flat, yellow notable, green a clear rise, red a clear fall); the CSV keeps the plain number
+  /** @param {{ R: any, who: string }} input */
+  function readCycleMoves({ R, who }) {
+    const { iv } = readRunVol({ run: R.run, slot: who === "B" ? RunSlot.B : RunSlot.A }), cells = new Map();
+    R.main.rows.forEach((r, i) => {
+      const before = i ? R.main.rows[i - 1] : null;
+      if (!before || !(before.S0 > 0) || !(r.S0 > 0)) { return; }
+      const move = r.S0 / before.S0 - 1, sigma = iv * Math.sqrt(Math.max(1, before.days) / 365), z = Math.log(1 + move) / sigma;
+      cells.set(r, `<span class="mvc-${MOVES.classify(z)}" title="${MOVES.WORDS[MOVES.classify(z)]}: ${z.toFixed(1)}σ over ${before.days} days at ${(iv * 100).toFixed(0)}% IV">${fPs(move, 1)}</span>`);
+    });
+    return cells;
+  }
   function renderTable() {
     const who = RES.B && ys.view.tableRun === "B" ? "B" : "A", R = RES[who], cc = R.run.fam === "cc";
     q("#y-tablesub").textContent = `run ${who} · ${R.main.rows.length} cycles · click a row to pin its week`;
     q("#y-tabletools").innerHTML = RES.B ? `<span class="seg" id="y-trun"><button type="button" data-v="A" class="${who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${who === "B" ? "on" : ""}">B</button></span> <button type="button" class="btn" id="y-csv">Copy CSV</button>` : `<button type="button" class="btn" id="y-csv">Copy CSV</button>`;
+    const moveOf = readCycleMoves({ R, who });
     /** @type {any[][]} column label, row formatter */
-    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => fKs(r.S0)], ["Strikes", r => [r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
+    const cols = [["Week", r => r.w1], ["Expiry", r => fD(r.date)], ["Days", r => r.days], ["Price", r => fKs(r.S0)], ["Move", r => moveOf.get(r) || ""], ["Strikes", r => [r.Kp ? fKs(r.Kp) + "P" : "", r.Kc ? fKs(r.Kc) + "C" : ""].filter(Boolean).join(" / ")], ["Δ", r => [r.Kp ? (r.dp * 100).toFixed(0) : "", r.Kc ? (r.dc * 100).toFixed(0) : ""].filter(Boolean).join(" / ")], ["% away", r => [r.Kp ? fPs(r.Kp / r.S0 - 1, 0) : "", r.Kc ? fPs(r.Kc / r.S0 - 1, 0) : ""].filter(Boolean).join(" / ")],
       ["Premium", r => fPc((r.pc + r.pp) / r.S0, 2)], ["Time value", r => fPc((r.tvc + r.tvp) / r.S0, 2)], [cc ? "Shares" : "Contracts", r => cc ? fInt(r.shMed) : Math.floor(r.kMed)], ...(cc ? [["Lots", r => r.lots]] : []), ["NAV typical", r => f$(r.med)], ["10%", r => f$(r.c10)], ["90%", r => f$(r.c90)], ["Average", r => f$(r.avg)], ["Credit", r => f$(r.credit)], ["Margin call so far", r => fPc(r.called, 1)], ["Cushion", r => r.cush < 1 ? fPs(-r.cush, 0) : "–"], ...(cc ? [["Typical λ", r => r.lamTyp.toFixed(2)]] : [])];
     const pinR = rowAt(R, ys.view.pin);
     q("#y-table").innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${R.main.rows.map(r => `<tr data-w="${Math.min(r.w1, ys.sc.W)}" class="${r === pinR ? "pin" : ""}">${cols.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     q("#y-table").onclick = e => { const tr = e.target.closest("tr[data-w]"); if (!tr) return; ys.view.pin = +tr.dataset.w; renderGrowth(); renderStackPin(); renderTable(); };
     const tr_ = q("#y-trun"); if (tr_) tr_.onclick = e => { const b = e.target.closest("button"); if (!b) return; ys.view.tableRun = b.dataset.v; renderTable(); };
-    q("#y-csv").onclick = () => { const csv = [cols.map(c => c[0]).join(","), ...R.main.rows.map(r => cols.map(c => `"${String(c[1](r)).replace(/"/g, "")}"`).join(","))].join("\n"); clipboard.writeText(csv).then(r => port.showNotice(r.ok ? "Copied" : "Clipboard blocked")); };
+    q("#y-csv").onclick = () => { const csv = [cols.map(c => c[0]).join(","), ...R.main.rows.map(r => cols.map(c => `"${String(c[1](r)).replace(/<[^>]*>/g, "").replace(/"/g, "")}"`).join(","))].join("\n"); clipboard.writeText(csv).then(r => port.showNotice(r.ok ? "Copied" : "Clipboard blocked")); };
   }
 
   // ============================================================ Credit kept: each cycle's share of its maximum payoff

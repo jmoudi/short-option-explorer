@@ -800,3 +800,12 @@ Grid odds with calendar alignment should use `cdfAt(d, x, Math.min(day, b.dte) /
 | `t14_migrate.test.js` | T14 (each `along`, no wrap, free, finding-35 v5 code, 50/50 → straddle, pins, nm, sweep/ovm maps, v9 code and blob round trips, bad codes, audit repro states) |
 | `t15_views.test.js` | T15, node part (views on Proxy-wrapped positions; see the views report) |
 | `t18_dist_smooth.test.js` | T18 (added at integration): no RN density bin above 2.5× the 90th-percentile bin; smile slope continuous inside the quoted range, on all 8 chains |
+
+## Round 6 additions
+
+- `PayLens = {Pnl, Day, Decay}` (core.js); prefs `payLens`, `payExtra`, `payAt` (−90…300).
+- ui_views.js: `timeAtIndex({stops, index})`, `readLensValues({time, lens})` → `{a, b, ext, extWords, since, title,
+  change, prevTime}`, `renderPriceLens`, `renderDecayLens`, `readDecaySeries`, `readDecayShare`, `describeDecayShape`,
+  `drawMoveZones`, `moveZoneRow`. `LAST.decay` holds the series for checks.
+- ui_common.js: `MOVES = {FLAT, CLEAR, WORDS, classify(z), chip(z)}`; `ICONS.trendingUp`; `PANELS.decorate` places
+  `.phx` chips after the collapse and notes chips.

@@ -146,6 +146,8 @@ const HitSide = Object.freeze({ Worse: "worse", Down: "down", Up: "up" });
 // the Compare tab's junior tabs (prefs.cmpView): the readings of A against B, what A and B keep of their maximum
 // payoff, and the market facts the positions stand on
 const CompareView = Object.freeze({ Results: "results", Capture: "capture", Facts: "facts" });
+// the payoff chart's lens: the P&L, the change since the previous trading day, or the time decay at one price
+const PayLens = Object.freeze({ Pnl: "pnl", Day: "day", Decay: "decay" });
 // the recovery panel's hit (prefs.rdHit): a kσ move to the position's own expiry, or a fixed % of NAV
 const HitBasis = Object.freeze({ Move: "move", Fixed: "fixed" });
 // the Compounding tab's two runs (the run that carries a "B differs in vol" override: yr.sc.volOverride.run)

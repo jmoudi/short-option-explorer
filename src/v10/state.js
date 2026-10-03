@@ -20,7 +20,7 @@ const STATE = (() => {
     fillMatch: "off",
     // de-soup: the comparison table's extra rows, the details under Capture's numbers
     cmpMore: false, capDetails: false,
-    cmpView: CompareView.Results, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
+    cmpView: CompareView.Results, payLens: PayLens.Pnl, payExtra: false, payAt: 0, capX: 50, ccSrc: "pv", ccVol: 100, ccGapP: 0, ccGapS: 30, ccGapSide: "down", ccRead: "mean", ccPct: 25, ccExit: "expiry", ccLeft: 2,
     // a tab's entry exists once the reader chose its sections (absent: the defaults below, so a section added later
     // shows by its own default); key order is the order of the first choice
     exportSections: Object.freeze({})
@@ -32,7 +32,7 @@ const STATE = (() => {
     sweep: ["both", "put", "call", "wingCall"], theme: THEMES,
     rdHit: Object.values(HitBasis), rdDir: Object.values(HitSide), rdBase: ["nav", "start"], rdCap: Object.values(Capital), rdG: Object.values(GrowthRate),
     nm: [9, 13, 17, 25], nd: [1, 2, 5, 7, 14, 30], cts: [1, 2, 5, 10, 20],
-    fillMatch: ["off", "A", "B"], cmpView: Object.values(CompareView), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
+    fillMatch: ["off", "A", "B"], cmpView: Object.values(CompareView), payLens: Object.values(PayLens), ccSrc: ["pv", "atm", "typed"], ccGapSide: ["down", "either"], ccRead: ["mean", "median", "pct"], ccExit: ["expiry", "days"]
   });
   // which export sections are on until the reader chooses, per tab in document order (the export holds the labels)
   const EXPORT_SECTION_DEFAULTS = Object.freeze({
@@ -119,7 +119,7 @@ const STATE = (() => {
   function sanitizePrefs(o) {
     const legacyGrowth = isObj(o) && LEGACY_GROWTH[o.rdG];
     const s = sanFlat(legacyGrowth ? Object.assign({}, o, { rdG: legacyGrowth }) : o, PREFS_DEF);
-    s.crx = clamp(s.crx, 0.5, 200); s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
+    s.crx = clamp(s.crx, 0.5, 200); s.payAt = clamp(+s.payAt || 0, -90, 300); s.payExtra = !!s.payExtra; s.sweepSmoothing = clamp(s.sweepSmoothing, 0, 2); s.mgTp = clamp(s.mgTp, 0, 95); s.mgSl = clamp(s.mgSl, 0, 1000); s.jday = Math.round(clamp(s.jday, -1, 400)); s.payLeft = Math.round(clamp(s.payLeft, 0, 400));
     s.capX = clamp(s.capX, -300, 100); s.ccVol = clamp(s.ccVol, 1, 400); s.ccGapP = clamp(s.ccGapP, 0, 100); s.ccGapS = clamp(s.ccGapS, 0, 95);
     s.ccPct = clamp(s.ccPct, 1, 99); s.ccLeft = Math.round(clamp(s.ccLeft, 0, 400));
     s.pins = sanPins(isObj(o) ? o.pins : null);

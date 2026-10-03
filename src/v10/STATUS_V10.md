@@ -201,6 +201,25 @@
   the Growth floor, signed losses, the closes parser and the other minors. Checks: `tools_checks/junior_tabs.js` and
   `tools_checks/capture_review.js`.
 
+## Round 6: lenses, extrapolation, market colours, expander placement
+
+- **Payoff lenses** (`prefs.payLens`, enum `PayLens`): P&L · Day change · Time decay, in the payoff panel's head.
+  - Day change: each position's change since the trading day before, at every price (on the first stop: since entry);
+    A − B below; a readout at an unchanged price compares the day with the day before (×) and names a weekend span.
+  - Time decay: the price to close at one price (`prefs.payAt`, % vs spot) at every stop, a straight line from today's
+    to expiry's, the decay each stop brings as bars (Mondays carry the weekend), the shape (back-loaded / even /
+    front-loaded at half the days) and the share the last 7 days carry. A click picks a stop.
+- **Extrapolation** (`prefs.payExtra`, a toggle in the accent colour): P&L and Time decay lenses. The last day's pace
+  per calendar day carried over the calendar days left; dashed in `--y`, "EXTRAPOLATED" on the chart and a badge in
+  the legend. When it is on but cannot draw (today, expiry), a hint says why.
+- **Colours**: market moves `--up` green, `--down` red, `--note` yellow, `--flat` grey (each with a `-bg`), and a
+  free second accent `--y` (magenta) beside teal. `MOVES.classify(z)`: under 0.5σ flat, to 1.5σ notable, beyond a
+  clear rise or fall. Used on the payoff's move axis (a zone band, σ over the days since entry), the hover, the pasted
+  closes (a strip of daily moves in the series' own σ) and the Week by week table (a Move column).
+- **Expanders**: one rule. On a title line: title · hide/show · notes · the panel's detail chips (`.phx`, moved by
+  `PANELS.decorate`). In a summary: the chip right after the name, then its value or caption.
+- Check: `tools_checks/lenses.js`.
+
 ## Trader notes from this round
 
 - The KORU 16 Oct straddle filled at 2.90 (mid 4.32) has a break-even vol of 85% against a period vol of 117%: the fill

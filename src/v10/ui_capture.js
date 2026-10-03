@@ -271,7 +271,7 @@ const CAPTURE_VIEW = (() => {
   // ---------------------------------------------------------- empirical closes
   function describeClosesEditor(readings) {
     const ids = [...new Set(readings.filter(r => !r.na).map(r => r.b.tk))];
-    return ids.map(id => `<span class="ceed"><span class="lbl">${esc(id)}</span><textarea data-closes="${esc(id)}" rows="2" placeholder="daily closes, oldest first: 20.1, 20.4, 19.8, … (one per line may use a decimal comma)" aria-label="${esc(id)} daily closes">${esc(pastedText.get(id) || "")}</textarea><span class="muted" data-closes-n="${esc(id)}"></span></span>`).join("");
+    return ids.map(id => `<span class="ceed"><span class="lbl">${esc(id)}</span><textarea data-closes="${esc(id)}" rows="2" placeholder="daily closes, oldest first: 20.1, 20.4, 19.8, … (one per line may use a decimal comma)" aria-label="${esc(id)} daily closes">${esc(pastedText.get(id) || "")}</textarea><span class="muted" data-closes-n="${esc(id)}"></span><span class="mvrow" data-closes-mv="${esc(id)}"></span></span>`).join("");
   }
 
   // what was understood from the closes: the count, first and last, and a warning when day-to-day jumps look misread
@@ -280,10 +280,23 @@ const CAPTURE_VIEW = (() => {
     const c = CAPTURE.checkCloses(closes);
     return `${c.count} closes, ${fPx2(c.first)} → ${fPx2(c.last)}${c.jumps ? `<br><span class="warnc">${c.jumps} day-to-day jump${c.jumps === 1 ? "" : "s"} over 50%: check the format</span>` : ""}`;
   }
+  // the pasted days as a strip of market-move colours (MOVES), each day judged in σ of the series' own daily moves
+  const MOVE_STRIP_DAYS = 120;
+  function describeDailyMoves(closes) {
+    const moves = closes.slice(1).map((v, i) => Math.log(v / closes[i])).filter(Number.isFinite);
+    if (moves.length < 5) { return ""; }
+    const mean = moves.reduce((a, b) => a + b, 0) / moves.length;
+    const sd = Math.sqrt(moves.reduce((a, b) => a + (b - mean) ** 2, 0) / (moves.length - 1));
+    if (!(sd > 0)) { return ""; }
+    const kinds = moves.map(x => MOVES.classify(x / sd)), count = k => kinds.filter(x => x === k).length;
+    const shown = moves.slice(-MOVE_STRIP_DAYS), offset = moves.length - shown.length;
+    const cells = shown.map((x, i) => `<i class="mvd mvd-${kinds[offset + i]}" title="day ${offset + i + 1}: ${fS(Math.exp(x) - 1, 1)} (${(x / sd).toFixed(1)}σ)"></i>`).join("");
+    return `<span class="mvstrip">${cells}</span><span class="mvsum">daily σ ${(sd * 100).toFixed(1)}% · <span class="mvc-down">${count("down")} clear fall${count("down") === 1 ? "" : "s"}</span> · <span class="mvc-up">${count("up")} clear rise${count("up") === 1 ? "" : "s"}</span> · <span class="mvc-note">${count("note")} notable</span> · <span class="mvc-flat">${count("flat")} flat</span>${shown.length < moves.length ? ` · strip: the last ${shown.length} days` : ""}</span>`;
+  }
   // ---------------------------------------------------------- markup, wiring, render
   const MARKUP = `
   <section class="panel" id="cap-head">
-    <div class="ph"><span class="tools"><button type="button" class="xbtn" id="cap-det"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
+    <div class="ph"><span class="tools"><button type="button" class="xbtn phx" id="cap-det"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
     <span class="capmax" id="cap-max"></span>
     <table class="cmp cpt" id="cap-table"></table>
     <details class="capem" id="cap-emp"><summary>Price history for the empirical preset</summary><span class="cap">Paste daily closes per ticker, oldest first, for this session; the data feed can bring them later.</span><span id="cap-closes"></span></details>
@@ -343,6 +356,7 @@ const CAPTURE_VIEW = (() => {
     const closesHost = q("#cap-closes"), idsKey = readings.filter(r => !r.na).map(r => r.b.tk).join("|");
     if (closesHost.dataset.ids !== idsKey) { closesHost.innerHTML = describeClosesEditor(readings); closesHost.dataset.ids = idsKey; }
     for (const n of closesHost.querySelectorAll("[data-closes-n]")) { const id = /** @type {HTMLElement} */ (n).dataset.closesN; n.innerHTML = describeClosesCheck(closesFor(id)); }
+    for (const n of closesHost.querySelectorAll("[data-closes-mv]")) { const id = /** @type {HTMLElement} */ (n).dataset.closesMv; n.innerHTML = describeDailyMoves(closesFor(id)); }
     scheduleManaged(readings, vw);
   }
   // ---------------------------------------------------------- export: the presets as a plain table

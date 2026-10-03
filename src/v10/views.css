@@ -221,3 +221,30 @@
 .ftex math{font-size:inherit}
 .ytex math[display="block"]{text-align:left}
 math[display="block"]{text-align:left}
+/* ===== payoff lenses: the extrapolation toggle and badges in the free accent (--y); the lens readouts ===== */
+.ytog{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border:1px solid var(--y);border-radius:3px;background:var(--surface);color:var(--y);font:600 12px var(--f-ui);cursor:pointer}
+.ytog:hover:not(:disabled){background:var(--y-bg)}
+.ytog.on,.ytog.on:hover:not(:disabled){background:var(--y);color:var(--surface)}
+.ytog:disabled{border-color:var(--line);color:var(--ink-3);cursor:not-allowed}
+.ybadge{display:inline-flex;align-items:center;border:1px solid var(--y);background:var(--y-bg);color:var(--y);border-radius:3px;padding:0 7px;font:600 11.5px/18px var(--f-ui)}
+.ybadge.wide{display:block;margin:6px 0 0;padding:3px 9px}
+#p-pay .ph .tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lensread{display:flex;flex-direction:column;gap:3px;margin:4px 0 8px;font-size:12.5px;color:var(--ink-2)}
+.lensread:empty{display:none}
+.lensread .lbl{font-weight:600;color:var(--ink)}
+.lensread .dr{display:block}
+.lensread .dr b{margin:0 2px}
+.lensread .lsw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:2px}
+/* market moves: grey flat, yellow notable, green a clear rise, red a clear fall */
+.mv{display:inline-block;border-radius:3px;padding:0 6px;font:600 11px/17px var(--f-ui);border:1px solid}
+.mv-flat{color:var(--flat);background:var(--flat-bg);border-color:var(--flat)}
+.mv-note{color:var(--note);background:var(--note-bg);border-color:var(--note)}
+.mv-up{color:var(--up);background:var(--up-bg);border-color:var(--up)}
+.mv-down{color:var(--down);background:var(--down-bg);border-color:var(--down)}
+.mvc-up{color:var(--up);font-weight:600}.mvc-down{color:var(--down);font-weight:600}.mvc-note{color:var(--note);font-weight:600}.mvc-flat{color:var(--flat)}
+.capem .mvrow{grid-column:2 / span 2;font-size:11.5px;color:var(--ink-2)}
+.capem .mvrow:empty{display:none}
+.mvstrip{display:flex;gap:1px;margin-top:0;flex-wrap:wrap}
+.mvd{display:inline-block;width:5px;height:12px;border-radius:1px}
+.mvd-flat{background:var(--flat);opacity:.45}.mvd-note{background:var(--note)}.mvd-up{background:var(--up)}.mvd-down{background:var(--down)}
+.mvsum{display:block;font-size:11.5px;margin-top:2px}

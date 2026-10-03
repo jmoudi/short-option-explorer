@@ -298,6 +298,10 @@ const PANELS = (() => {
       let notes = /** @type {HTMLButtonElement} */ (head.querySelector(".pnotes"));
       if (hasNotes && !notes) { notes = document.createElement("button"); notes.type = "button"; notes.className = "xbtn pnotes"; chip.insertAdjacentElement("afterend", notes); }
       if (notes) { const on = panel.classList.contains("notes-on"); notes.hidden = !hasNotes || isClosed; notes.textContent = on ? "notes ▾" : "notes ▸"; notes.setAttribute("aria-expanded", String(on)); }
+      // one place for every expander on a title line: title · hide/show · notes · the panel's own detail chips (.phx)
+      /** @type {Element} */
+      let anchor = notes && !notes.hidden ? notes : chip;
+      for (const extra of head.querySelectorAll(".phx")) { if (anchor.nextElementSibling !== extra) { anchor.insertAdjacentElement("afterend", extra); } anchor = extra; }
     }
   }
   document.addEventListener("click", ev => {
@@ -339,6 +343,24 @@ const ICONS = (() => {
     forward: svg('<polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/>'),
     skipBack: svg('<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/>'),
     skipForward: svg('<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>'),
-    repeat: svg('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')
+    repeat: svg('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>'),
+    trendingUp: svg('<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>')
   });
+})();
+// market moves in colour words, judged in σ of the move's own span (a day, a week, the days since entry): grey flat
+// (under 0.5σ), yellow notable (0.5σ to 1.5σ either way), green a clear rise, red a clear fall (1.5σ or more)
+const MOVES = (() => {
+  const FLAT = 0.5, CLEAR = 1.5;
+  const WORDS = Object.freeze({ flat: "flat", note: "notable", up: "clear rise", down: "clear fall" });
+  /** @param {number} z the move in σ of its span */
+  function classify(z) {
+    if (!Number.isFinite(z)) { return "flat"; }
+    const size = Math.abs(z);
+    if (size < FLAT) { return "flat"; }
+    if (size < CLEAR) { return "note"; }
+    return z > 0 ? "up" : "down";
+  }
+  /** @param {number} z */
+  const chip = z => `<span class="mv mv-${classify(z)}">${WORDS[classify(z)]} · ${Number.isFinite(z) ? (z < 0 ? MINUS : "+") + Math.abs(z).toFixed(1) : "–"}σ</span>`;
+  return Object.freeze({ FLAT, CLEAR, WORDS, classify, chip });
 })();
