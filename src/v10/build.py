@@ -79,7 +79,10 @@ compound_css = r('compound.css', V9) if ex('compound.css', V9) else ''
 shell = shell.replace('<!--COMPOUND_SHELL-->', compound_shell, 1).replace('/*VIEWS9_CSS*/', views_css, 1).replace('/*COMPOUND_CSS*/', compound_css, 1)
 data = r('data.json', V9)
 json.loads(data)   # fail the build on a broken data file
-body = shell + "\n<script>\nconst D = " + data.strip() + ";\n</script>\n<script>\n" + js + "\n</script>\n"
+# vendored libraries, inlined ahead of the bundle (no network at view time): KaTeX (MIT) sets LaTeX as MathML
+katex_js = open(os.path.join(V9, 'vendor', 'katex.min.js'), encoding='utf-8').read()
+vendor = "<script>\n/* KaTeX 0.16.11, MIT License, (c) Khan Academy and contributors: vendor/KATEX_LICENSE */\n" + katex_js.replace("</script", "<\\/script") + "\n</script>\n"
+body = shell + "\n<script>\nconst D = " + data.strip() + ";\n</script>\n" + vendor + "<script>\n" + js + "\n</script>\n"
 stand = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=1200">\n'
          + body.replace('</style>\n', '</style>\n</head>\n<body>\n', 1) + '</body>\n</html>\n')
 
@@ -161,7 +164,7 @@ ALLOWED = {
     'dist.js': {'DIST', 'cdfT', 'cdfAt', 'quantAt'}, 'inst.js': {'INST'}, 'rule.js': {'RULE'}, 'pos.js': {'POS'},
     'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'}, 'recovery.js': {'RECOVERY'}, 'manage.js': {'MANAGE'}, 'capture.js': {'CAPTURE'},
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',
-                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES', 'PANELS'},
+                     'hideTip', 'findTipTarget', 'findOpenMenus', 'krow', 'copyText', 'openPopAt', 'axisTicks', 'NS', 'el', 'txt', 'halo', 'pathOf', 'mix', 'rgb', 'KNOBS', 'AXES', 'PANELS', 'TEX', 'ICONS'},
     'ui_summary.js': {'SUM9'}, 'ui_dock.js': {'DOCK9'}, 'ui_facts.js': {'FACTS'}, 'ui_capture.js': {'CAPTURE_VIEW'}, 'ui_views.js': {'VIEWS'}, 'ui_export.js': {'EXPORT9'},
     'compound_engine.js': {'COMPOUND_ENGINE'}, 'compound_stress.js': {'COMPOUND_STRESS'}, 'compound_ui.js': {'COMPOUND'},
     'app.js': {'PAGE_CONFIG', 'page', 'reportCaught', 'runGuarded', 'readYrState', 'reportStorageFault', 'logFault', 'saveView',

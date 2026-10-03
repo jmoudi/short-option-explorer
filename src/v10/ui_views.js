@@ -433,14 +433,38 @@ const VIEWS = (() => {
     }).join("");
     return `<span class="h">P&amp;L at expiry ${fU(v)}</span>${describeUnitRows(v)}${odds}`;
   }
-  // ---------------------------------------------------------- the payoff's time: days left on A (0 = at expiry)
-  // each position's own days left follow from the days elapsed, so a later expiry still has time when A expires
-  /** @returns {{ left: number, total: number, elapsed: number, isExpiry: boolean, phrase: string, title: string }} */
+  // ---------------------------------------------------------- the payoff's time: trading days before A's expiry
+  // The chart is read at one stop: expiry (0, the right end) or a trading day before it, counted in calendar days
+  // (−1, −2, … and over a weekend from −4 to −7); weekends are never stops, and each Monday marks a week's start.
+  // Each position's own days left follow from the days elapsed, so a later expiry still has time when A expires.
+  const DAY_MS = 864e5, WEEKDAYS = Object.freeze(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  const expiryDate = b => new Date(Date.UTC(+b.exp.slice(0, 4), +b.exp.slice(4, 6) - 1, +b.exp.slice(6, 8)));
+  const dayLabel = date => `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MON[date.getUTCMonth()]}`;
+  // the stops from today (left) to expiry (right): calendar days left, the date, whether it starts a week
+  /** @returns {{ left: number, date: Date, isMonday: boolean }[]} */
+  function listTradingStops() {
+    const lead = !C.A.na ? C.A : !C.B.na ? C.B : null;
+    if (!lead) { return [{ left: 0, date: new Date(0), isMonday: false }]; }
+    const end = expiryDate(lead), stops = [];
+    for (let left = lead.dte; left >= 0; left--) {
+      const date = new Date(end.getTime() - left * DAY_MS), weekday = date.getUTCDay();
+      const isTradingDay = weekday !== 0 && weekday !== 6;
+      if (isTradingDay || left === 0 || left === lead.dte) { stops.push({ left, date, isMonday: weekday === 1 }); }
+    }
+    return stops;
+  }
+  // the stop nearest a number of calendar days left (a stored value from before the stops, or a weekend)
+  const nearestStop = (stops, left) => stops.reduce((best, s, i) => Math.abs(s.left - left) < Math.abs(stops[best].left - left) ? i : best, stops.length - 1);
+  // replay: a looping slideshow over the stops, forwards (towards expiry) or backwards, at a chosen pace; while it runs
+  // only the payoff redraws, and the stop it pauses on is kept
+  const REPLAY = { timer: 0, index: /** @type {number | null} */ (null), direction: 1, stepsPerSecond: 2 };
+  /** @returns {{ left: number, total: number, elapsed: number, isExpiry: boolean, phrase: string, title: string, stops: any[], index: number }} */
   function readPayoffTime() {
-    const lead = !C.A.na ? C.A : !C.B.na ? C.B : null, total = lead ? lead.dte : 0;
-    const left = clamp(Math.round(V().payLeft), 0, total), isExpiry = left === 0;
-    const phrase = isExpiry ? "at expiry" : left === total ? `now, ${left} days left` : `with ${left} of ${total} days left`;
-    return { left, total, elapsed: total - left, isExpiry, phrase, title: isExpiry ? "Payoff at expiry" : `P&L ${phrase}` };
+    const stops = listTradingStops(), total = stops[0].left;
+    const index = REPLAY.index !== null ? clamp(REPLAY.index, 0, stops.length - 1) : nearestStop(stops, Math.round(V().payLeft));
+    const stop = stops[index], left = stop.left, isExpiry = left === 0;
+    const phrase = isExpiry ? "at expiry" : `${left} day${left === 1 ? "" : "s"} before expiry (${dayLabel(stop.date)}${left === total ? ", today" : ""})`;
+    return { left, total, elapsed: total - left, isExpiry, phrase, title: isExpiry ? "Payoff at expiry" : `P&L ${phrase}`, stops, index };
   }
   // a position's time to expiry in years once `elapsed` days have passed; 0 at or past its expiry
   /** @param {{ b: any, elapsed: number }} input */
@@ -451,13 +475,52 @@ const VIEWS = (() => {
     const markOr = (b, value, payoff) => { const tau = tauAfter({ b, elapsed: time.elapsed }); return tau > 0 ? u => value(u, tau) : payoff; };
     return { a: C.A.na ? C.pA : markOr(C.A, C.vA, C.pA), b: C.B.na ? C.pB : markOr(C.B, C.vB, C.pB) };
   }
-  // the panel's title and the days-left slider follow the time
+  // the panel's title, the slider, its Monday marks and the readout follow the time
   function describePayoffTime(time) {
     q("#pay-h").textContent = time.title;
-    const slider = /** @type {HTMLInputElement} */ (q("#c-payleft"));
-    slider.max = String(time.total);
-    if (document.activeElement !== slider) { slider.value = String(time.left); }
-    q("#c-paylefto").textContent = time.isExpiry ? "expiry" : time.left === time.total ? `now · ${time.left} d` : `${time.left} d`;
+    const slider = /** @type {HTMLInputElement} */ (q("#c-payleft")), last = time.stops.length - 1;
+    slider.max = String(last);
+    if (document.activeElement !== slider || REPLAY.timer) { slider.value = String(time.index); }
+    const stop = time.stops[time.index];
+    q("#c-paylefto").innerHTML = time.isExpiry ? `<b>0</b> (Expiry) · ${dayLabel(stop.date)}` : `<b>${MINUS}${time.left}</b> · ${dayLabel(stop.date)}${time.left === time.total ? " · today" : ""}`;
+    const marksKey = time.stops.map(s => s.left).join(",");
+    const marks = q("#tl-marks");
+    if (marks.dataset.key !== marksKey) {
+      marks.dataset.key = marksKey;
+      marks.innerHTML = time.stops.map((s, i) => s.isMonday && i > 0 ? `<i class="tl-mon" style="left:calc(8px + (100% - 16px) * ${(i / Math.max(1, last)).toFixed(5)})" title="Monday ${dayLabel(s.date)}: a week starts"></i>` : "").join("") + `<i class="tl-exp" title="expiry"></i>`;
+    }
+    q("#tl-play").innerHTML = REPLAY.timer && REPLAY.direction > 0 ? ICONS.pause : ICONS.play;
+    q("#tl-back").innerHTML = REPLAY.timer && REPLAY.direction < 0 ? ICONS.pause : `<span class="flip">${ICONS.play}</span>`;
+    q("#tl-play").classList.toggle("on", !!REPLAY.timer && REPLAY.direction > 0);
+    q("#tl-back").classList.toggle("on", !!REPLAY.timer && REPLAY.direction < 0);
+  }
+  // one replay step: the next stop that way, wrapping round at either end; only the payoff redraws
+  function stepReplay() {
+    const stops = listTradingStops(), last = stops.length - 1, from = REPLAY.index !== null ? REPLAY.index : nearestStop(stops, Math.round(V().payLeft));
+    REPLAY.index = from + REPLAY.direction > last ? 0 : from + REPLAY.direction < 0 ? last : from + REPLAY.direction;
+    safe(renderPayoff, "payoff");
+  }
+  function stopReplay({ keep }) {
+    if (!REPLAY.timer) { return; }
+    clearInterval(REPLAY.timer); REPLAY.timer = 0;
+    const stops = listTradingStops(), index = REPLAY.index;
+    REPLAY.index = null;
+    if (keep && index !== null) { setPref({ payLeft: stops[clamp(index, 0, stops.length - 1)].left }); } else { safe(renderPayoff, "payoff"); }
+  }
+  /** @param {number} direction 1 forwards (towards expiry), −1 backwards */
+  function toggleReplay(direction) {
+    const isSame = REPLAY.timer && REPLAY.direction === direction;
+    stopReplay({ keep: true });
+    if (isSame) { return; }
+    REPLAY.direction = direction;
+    REPLAY.index = readPayoffTime().index;
+    REPLAY.timer = setInterval(stepReplay, 1000 / REPLAY.stepsPerSecond);
+    safe(renderPayoff, "payoff");
+  }
+  function jumpTo(edge) {
+    stopReplay({ keep: false });
+    const stops = listTradingStops();
+    setPref({ payLeft: edge === "expiry" ? 0 : stops[0].left });
   }
   // the hover's reference rows when the chart shows a time before expiry: A and B at expiry, at this price
   function describeExpiryRows(u) {
@@ -1434,7 +1497,17 @@ const VIEWS = (() => {
     <div class="tblx" id="ovtable" hidden><table class="full" id="full"></table></div>
   </details>
   <section class="panel" id="p-pay">
-    <div class="ph"><span class="tools"><label class="ptime" title="Read the chart this many days before A's expiry: 0 is the payoff at expiry, the far end is today. Before expiry the P&amp;L is the model's mark (the implied smile, with the shocks under P&amp;L through time); the expiry payoff stays as a faint line">Days left <input type="range" id="c-payleft" min="0" max="1" step="1" aria-label="Days left before A's expiry"> <output id="c-paylefto"></output></label><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2 id="pay-h">Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
+    <div class="ph"><span class="tools"><label class="chk"><input type="checkbox" id="c-pso">odds strip</label><label class="chk"><input type="checkbox" id="c-pss">±1σ, ±2σ</label></span><h2 id="pay-h">Payoff at expiry</h2><span class="lgd" id="pay-lgd"></span></div>
+    <div class="tline" id="tline" title="Read the chart at a trading day before A's expiry. Before expiry the P&amp;L is the model's mark (the implied smile, with the shocks under P&amp;L through time); the expiry payoff stays as a faint line">
+      <span class="tl-lbl">Days to expiry</span>
+      <span class="tl-track"><span class="tl-marks" id="tl-marks"></span><input type="range" id="c-payleft" min="0" max="1" step="1" aria-label="Trading day before A's expiry"></span>
+      <output class="tl-out" id="c-paylefto"></output>
+      <span class="tl-replay" role="group" aria-label="Replay">
+        <span class="tl-rl">Replay</span>
+        <button type="button" class="ibtn" id="tl-start" title="To today"></button><button type="button" class="ibtn" id="tl-back" title="Replay backwards (loops)"></button><button type="button" class="ibtn" id="tl-play" title="Replay towards expiry (loops)"></button><button type="button" class="ibtn" id="tl-end" title="To expiry"></button>
+        <select id="tl-speed" aria-label="Replay speed" title="Replay speed"><option value="1">1 day/s</option><option value="2" selected>2 days/s</option><option value="4">4 days/s</option><option value="8">8 days/s</option></select>
+      </span>
+    </div>
     <div class="chart" id="pay"></div>
     <table class="cmp" id="cmp"></table>
   </section>
@@ -1509,7 +1582,17 @@ const VIEWS = (() => {
     seg({ el: q("#c-ovv"), options: [["chart", "Charts"], ["table", "Table"]], read: state => state.prefs.ovv, command: pref("ovv") });
     q("#p-over").addEventListener("toggle", () => { if (C) safe(renderOverview, "overview"); });
     q("#ovtable").addEventListener("click", e => { const b = e.target.closest("button[data-set]"); if (!b || b.disabled) return; const c = OV[+b.dataset.i]; if (c) setFromCell(b.dataset.set, c); });
-    q("#c-payleft").addEventListener("input", ev => runControlCommand({ command: pref("payLeft"), value: +(/** @type {HTMLInputElement} */ (ev.target)).value, source: "c-payleft" })); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
+    // the slider moves over the trading-day stops; its value is the stop's index, the pref the calendar days left
+    q("#c-payleft").addEventListener("input", ev => { stopReplay({ keep: false }); const stops = listTradingStops(), i = clamp(+(/** @type {HTMLInputElement} */ (ev.target)).value, 0, stops.length - 1); setPref({ payLeft: stops[i].left }); });
+    q("#tl-start").innerHTML = ICONS.skipBack; q("#tl-end").innerHTML = ICONS.skipForward;
+    q("#tl-play").addEventListener("click", () => toggleReplay(1));
+    q("#tl-back").addEventListener("click", () => toggleReplay(-1));
+    q("#tl-start").addEventListener("click", () => jumpTo("today"));
+    q("#tl-end").addEventListener("click", () => jumpTo("expiry"));
+    q("#tl-speed").addEventListener("change", ev => {
+      REPLAY.stepsPerSecond = +(/** @type {HTMLSelectElement} */ (ev.target)).value;
+      if (REPLAY.timer) { clearInterval(REPLAY.timer); REPLAY.timer = setInterval(stepReplay, 1000 / REPLAY.stepsPerSecond); }
+    }); bindChk({ input: "#c-pso", read: state => state.prefs.pso, command: pref("pso") }); bindChk({ input: "#c-pss", read: state => state.prefs.pss, command: pref("pss") });
     q("#cmp").addEventListener("click", e => { if (/** @type {Element} */ (e.target).closest("[data-xmore]")) { setPref({ cmpMore: !V().cmpMore }); } });
     q("#cmp").addEventListener("change", e => {
       const t = /** @type {HTMLInputElement} */ (e.target);

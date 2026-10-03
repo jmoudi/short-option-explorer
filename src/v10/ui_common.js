@@ -315,3 +315,30 @@ const PANELS = (() => {
   });
   return { decorate };
 })();
+
+// ---------------------------------------------------------- LaTeX and icons
+// TEX.html: LaTeX set by the inlined KaTeX as MathML, which the browser draws with no extra fonts or CSS; the TeX
+// source in a code tag where KaTeX is missing (node tests)
+const TEX = Object.freeze({
+  /** @param {string} tex @param {{ display?: boolean }} [options] */
+  html(tex, { display = false } = {}) {
+    try {
+      // full-size fractions everywhere; a display formula is its own left-aligned line (the browser would centre it)
+      if (typeof katex !== "undefined" && katex) { const math = katex.renderToString("\\displaystyle " + tex, { output: "mathml", throwOnError: false }); return display ? `<span class="texblock">${math}</span>` : math; }
+    } catch (error) { }
+    return `<code>${String(tex).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c])}</code>`;
+  }
+});
+// icons from Lucide (lucide-static 0.454.0, ISC License: vendor/LUCIDE_LICENSE), inline SVG in currentColor
+const ICONS = (() => {
+  const svg = body => `<svg class="ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  return Object.freeze({
+    play: svg('<polygon points="6 3 20 12 6 21 6 3"/>'),
+    pause: svg('<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>'),
+    rewind: svg('<polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/>'),
+    forward: svg('<polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/>'),
+    skipBack: svg('<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/>'),
+    skipForward: svg('<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>'),
+    repeat: svg('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')
+  });
+})();

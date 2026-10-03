@@ -99,3 +99,11 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .kpt tr.kpick{cursor:pointer}
 .kpt tr:not(.kpick):hover td{cursor:default}
 .kpt .cv small{font:500 11px var(--f-num);color:var(--ink-3)}
+
+/* LaTeX in the week card: the formula, the symbols with this week's values, the worked readings */
+.ytex{display:block;font-size:13px}
+.ytex math[display="block"]{margin:6px 0;font-size:15px}
+.ysym{border-collapse:collapse;margin:4px 0 6px;font-size:12px}
+.ysym td{padding:2px 10px 2px 0;vertical-align:baseline;color:var(--ink-2)}
+.ysym td:first-child{color:var(--ink);font-size:14px;min-width:28px}
+.ysym td:nth-child(2){font:600 12px var(--f-num);color:var(--ink);white-space:nowrap}

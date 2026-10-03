@@ -84,7 +84,7 @@ body[data-tab="compare"] #sub-cmp,body[data-tab="yr"] #sub-yr{display:inline-blo
 .key.a{background:var(--a);color:var(--on-a)} .key.b{background:var(--b);color:var(--on-b)} .key.d{background:var(--ink);color:var(--surface)}
 
 /* controls */
-.seg{display:inline-block;white-space:nowrap;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface);vertical-align:middle}
+.seg{display:inline-block;white-space:nowrap;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:var(--surface);vertical-align:middle}
 .seg button{border:0;border-left:1px solid var(--line);background:transparent;padding:3px 9px;color:var(--ink-2);font-size:12px;line-height:1.45}
 .seg button:first-child{border-left:0}
 .seg button:hover:not(.on):not(:disabled){background:var(--surface-2)}
@@ -94,7 +94,7 @@ body[data-tab="compare"] #sub-cmp,body[data-tab="yr"] #sub-yr{display:inline-blo
 .seg.eq button{padding-inline:3px}
 select,input[type=number],input[type=text]{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:12px;vertical-align:middle}
 input[type=number]{font-family:var(--f-num);width:62px}
-.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 9px;font-size:12px;color:var(--ink-2);vertical-align:middle}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:3px;padding:3px 9px;font-size:12px;color:var(--ink-2);vertical-align:middle}
 .btn:hover{background:var(--surface-2)}
 .btn.fix{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
 .chk{font-size:12px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
@@ -114,11 +114,11 @@ output{font:11.5px var(--f-num);color:var(--ink-2)}
 
 /* popover menus */
 details.menu{display:inline-block;position:relative;vertical-align:middle}
-details.menu>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12px;color:var(--ink-2);background:var(--surface);white-space:nowrap}
+details.menu>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:3px;padding:3px 9px;font-size:12px;color:var(--ink-2);background:var(--surface);white-space:nowrap}
 details.menu>summary::-webkit-details-marker{display:none}
 details.menu>summary:hover{background:var(--surface-2)}
 details.menu[open]>summary,details.menu.on>summary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-details.menu>.mb{position:absolute;right:0;top:calc(100% + 5px);z-index:45;line-height:1.45;width:290px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:12px;white-space:normal;line-height:1.45;text-align:left}
+details.menu>.mb{position:absolute;right:0;top:calc(100% + 5px);z-index:45;line-height:1.45;width:290px;background:var(--surface);border:1px solid var(--line);border-radius:3px;box-shadow:var(--shadow);padding:12px;white-space:normal;line-height:1.45;text-align:left}
 details.menu.left>.mb{right:auto;left:0}
 details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .mb .mrow{display:block;margin-bottom:9px}
@@ -139,7 +139,7 @@ details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .crow input[type=number]{height:24px}
 .crow+.crow{border-top:1px solid var(--grid);margin-top:5px;padding-top:5px}
 .crow .rt{font:600 11px var(--f-cond);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:inline-block;width:78px;vertical-align:middle}
-.pchip{display:inline-block;vertical-align:middle;border:1px solid var(--line);border-radius:6px;padding:0 8px 0 3px;line-height:26px;font-size:12.5px;font-weight:600;background:var(--surface);cursor:pointer;min-width:200px;white-space:nowrap}
+.pchip{display:inline-block;vertical-align:middle;border:1px solid var(--line);border-radius:3px;padding:0 8px 0 3px;line-height:26px;font-size:12.5px;font-weight:600;background:var(--surface);cursor:pointer;min-width:200px;white-space:nowrap}
 .pchip .key{margin-right:6px;vertical-align:1px}
 .pchip .nm{display:inline-block;vertical-align:top}
 .pchip .nm small{font:500 11px var(--f-num);color:var(--ink-2);margin-left:4px}
@@ -230,7 +230,7 @@ details.panel[open]>summary{margin-bottom:10px}
 .full tr.sep td{border-top:1px solid var(--line)}
 .full tr.isA td:first-child{box-shadow:inset 3px 0 0 var(--a)}
 .full tr.isB td:first-child{box-shadow:inset 3px 0 0 var(--b)}
-.full button{border:1px solid var(--line);background:var(--surface);border-radius:4px;font:600 10.5px var(--f-cond);padding:0 5px;color:var(--ink-2)}
+.full button{border:1px solid var(--line);background:var(--surface);border-radius:3px;font:600 10.5px var(--f-cond);padding:0 5px;color:var(--ink-2)}
 .tblx{overflow-x:auto}
 
 /* charts */
@@ -347,7 +347,7 @@ details.notes li{margin:4px 0}
 .pop .cand:first-of-type{border-top:0;margin-top:2px;padding-top:0}
 .pop .cand .btns{display:block;margin-top:4px}
 .pop .cand .btns button{display:inline-block;width:auto;margin:0 6px 0 0}
-.pop button{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:4px 8px;margin-top:4px}
+.pop button{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:3px;padding:4px 8px;margin-top:4px}
 .pop button .key{margin-right:6px}
 .pop button:hover{background:var(--surface-2)}
 .pop button:disabled{opacity:.45;cursor:not-allowed}
@@ -421,7 +421,7 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .s9rng details.menu>summary{padding:1px 8px;line-height:20px;margin-left:4px}
 .s9rng .mb .seg{margin-left:0}
 .s9pills{display:block;overflow:hidden;white-space:nowrap;height:24px}
-.s9pill{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;vertical-align:top;margin:1px 6px 0 0;padding:0 9px;height:22px;line-height:20px;border:1px solid var(--line);border-radius:11px;background:var(--surface);font:500 12px/20px var(--f-ui);color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.s9pill{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;vertical-align:top;margin:1px 6px 0 0;padding:0 9px;height:22px;line-height:20px;border:1px solid var(--line);border-radius:3px;background:var(--surface);font:500 12px/20px var(--f-ui);color:var(--ink-2);cursor:pointer;white-space:nowrap}
 .s9pill:hover{background:var(--surface-2)}
 .s9pill.w{color:var(--diff-warn);border-color:var(--diff-warn)}
 .s9pill.rl{padding-right:3px}
@@ -475,10 +475,10 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .knw{white-space:nowrap}
 .pfr{display:block;font-size:11px;color:var(--ink-3);margin:2px 0}
 /* ===== expanders: one colour (--x), a chip that says show / hide, on every collapsible thing ===== */
-.xbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:999px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);cursor:pointer;white-space:nowrap;vertical-align:middle}
+.xbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:3px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);cursor:pointer;white-space:nowrap;vertical-align:middle}
 .xbtn:hover{background:var(--x);color:var(--surface)}
 details.panel>summary,details.sub>summary,details.d9sec>summary,details.capem>summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{content:"show ▸";display:inline-flex;align-items:center;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:999px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);white-space:nowrap;align-self:center}
+details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{content:"show ▸";display:inline-flex;align-items:center;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:3px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);white-space:nowrap;align-self:center}
 details.panel[open]>summary::after,details.sub[open]>summary::after,details.d9sec[open]>summary::after,details.capem[open]>summary::after,details.notes[open]>summary::after{content:"hide ▾"}
 details.panel>summary h2::before,details.sub>summary::before,details.d9sec>summary::before{display:none!important}
 details.panel>summary:hover::after,details.sub>summary:hover::after,details.d9sec>summary:hover::after,details.capem>summary:hover::after,details.notes>summary:hover::after{background:var(--x);color:var(--surface)}
@@ -498,6 +498,17 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
 .cmp tr.xtoggle td{text-align:left!important;padding-top:8px}
 .nodetail .cps,.nodetail .xdet{display:none!important}
 .panel:not(.notes-on) .pnote{display:none!important}
+/* controls sit flush (within 2-3px) with the edges of the bars and boxes that hold them */
+.ph .tools>:last-child,.crow>:last-child,.ccrow>:last-child,.tools .ctl:last-child,.ccrow .ctl:last-child,.tl-replay>:last-child{margin-right:0!important}
+.ph .tools>:first-child{margin-left:0}
+.tline{padding:3px 3px 3px 8px!important}
+.phead .pt{display:flex!important;align-items:center;gap:6px;flex-wrap:wrap}
+.phead .pt .key{flex:none}
+.phead .pt .pname{flex:1 1 0;min-width:170px}
+.phead .pt .pcopy,.phead .pt .prl{float:none!important;margin:0!important}
+.texblock{display:block;margin:6px 0;font-size:15px}
+.pcred{padding:3px 3px 3px 8px!important}
+.pcred .pcu{margin-left:auto}
 /* the credit you got: the head's input, the highest-leverage edit */
 .pcred{display:flex!important;align-items:center;gap:8px;margin:6px 0 2px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);cursor:text}
 .pcred.typed{border-color:var(--ink-3)}
@@ -556,7 +567,7 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
 .d9lk:hover{border-color:var(--line);background:var(--surface-2)}
 .d9lk svg{display:block;width:16px;height:16px;margin:1px 0}
 .d9lk.off{color:var(--ink-3)}
-.d9btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;font-size:12px;color:var(--ink-2)}
+.d9btn{border:1px solid var(--line);background:var(--surface);border-radius:3px;padding:2px 8px;font-size:12px;color:var(--ink-2)}
 .d9btn:hover{background:var(--surface-2)}
 .d9ov{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 3px;font-size:11px;line-height:16px;color:var(--ink-2);margin-left:2px;vertical-align:middle}
 .d9ov[aria-expanded="true"]{border-color:var(--ink-3);color:var(--ink)}

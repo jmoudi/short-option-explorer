@@ -9,6 +9,8 @@ declare namespace Lab {
   interface ViewerRuntime { use(capability: string): Promise<any> }
 }
 declare const D: Lab.Data;
+// KaTeX, inlined by build.py ahead of the bundle (vendor/katex.min.js); absent in node tests
+declare const katex: { renderToString(tex: string, options?: any): string } | undefined;
 interface Window { claude?: Lab.ViewerRuntime }
 // The Compounding engine files also export their namespace for node (`module.exports = COMPOUND_ENGINE`), which makes tsc read
 // them as CommonJS modules; the bundle uses them as globals.

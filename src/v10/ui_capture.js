@@ -98,42 +98,42 @@ const CAPTURE_VIEW = (() => {
   /** @typedef {{ value: number, text: string, sub?: string, unit: string, tone?: string }} PresetCell */
   const PRESETS = Object.freeze([
     {
-      id: CAPTURE.Preset.Fixed, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle",
+      id: CAPTURE.Preset.Fixed, tex: String.raw`c = x`, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle",
       knob: "A typed assumption, not a reading: the rule of thumb ‘expect half the credit’. It is a target for closing a trade early, not what a held trade averages. Under it: how often a cycle actually keeps that much. Use it to see what a plan built on it implies, never as the expectation.",
       cell: r => ({ value: r.x, text: signedPct(r.x, 0), sub: `actually kept that often: ${plainPct(r.measured.oddsAtLeast(r.x))}`, unit: "capture" })
     },
     {
-      id: CAPTURE.Preset.Expected, name: "Expected", line: "the average outcome: every expiry price weighed by its odds, held to expiry",
+      id: CAPTURE.Preset.Expected, tex: String.raw`\bar c = \frac{\mathbb{E}[\text{P\&L}]}{M} \approx 1 - \frac{\sigma_{\text{period}}}{\sigma_{\text{IV}}}`, name: "Expected", line: "the average outcome: every expiry price weighed by its odds, held to expiry",
       knob: "Expected P&L at expiry over the maximum payoff, with the price spread at the ticker's period vol (a zero-drift lognormal, as every EV reading here). For an at-the-money straddle it is about 1 − period vol / implied vol: the vol edge of the fill, counted in credits. It is 0 at the break-even vol. The Comparison's Expected value row matches this only when its odds are set to period vol. Under it: the market's own odds (the implied distribution), which measure only the fill against mid; the Comparison's EV row shows the same at implied odds.",
       cell: r => ({ value: r.measured.mean, text: signedPct(r.measured.mean), sub: `market's own odds: ${signedPct(r.impliedMean)}`, unit: "capture" })
     },
     {
-      id: CAPTURE.Preset.Median, name: "Median", line: "what a typical cycle keeps: half keep more, half less",
+      id: CAPTURE.Preset.Median, tex: String.raw`\tilde c = \frac{\operatorname{median}(\text{P\&L})}{M} \approx 1 - 0.845\,\frac{\sigma_{\text{period}}}{\sigma_{\text{IV}}}`, name: "Median", line: "what a typical cycle keeps: half keep more, half less",
       knob: "Short premium makes many small wins and a few large losses, so a typical cycle keeps more than the average. With no vol edge an at-the-money straddle's median keeps about 15% while its average is about 0: the gap is what the rare large losses cost.",
       cell: r => ({ value: r.measured.median, text: signedPct(r.measured.median), sub: `average ${signedPct(r.measured.mean)}`, unit: "capture" })
     },
     {
-      id: CAPTURE.Preset.OddsAtLeast, name: "Odds of keeping at least x", line: "how often a cycle keeps {x} or more; at 0, the profit odds",
+      id: CAPTURE.Preset.OddsAtLeast, tex: String.raw`P(c \ge x) \approx 2\,\Phi\!\Big(0.80\,(1-x)\,\frac{\sigma_{\text{IV}}}{\sigma_{\text{period}}}\Big) - 1`, name: "Odds of keeping at least x", line: "how often a cycle keeps {x} or more; at 0, the profit odds",
       knob: "The share of outcomes whose expiry P&L is at least x of the maximum payoff, at the period vol. Under it: the price band that keeps x, and the profit odds (x = 0).",
       cell: r => ({ value: r.measured.oddsAtLeast(r.x), text: plainPct(r.measured.oddsAtLeast(r.x), 1), sub: `${describeBand(r.band)} · profit ${plainPct(r.measured.oddsAtLeast(0))}`, unit: "odds" })
     },
     {
-      id: CAPTURE.Preset.Managed, name: "Managed", line: "closed at the take profit or the stop of Manage the trade, else held",
+      id: CAPTURE.Preset.Managed, tex: String.raw`\frac{\mathbb{E}[\text{P\&L}_{\tau}]}{M},\quad \tau = \min(t_{\text{TP}},\, t_{\text{stop}},\, T)`, name: "Managed", line: "closed at the take profit or the stop of Manage the trade, else held",
       knob: "Seeded daily price paths at the period vol, each day marked on the implied smile; the trade closes when its P&L reaches the take profit or the stop set in Comparison → Manage the trade. The average over all paths, in % of the maximum payoff. Under it: the share closed at the take profit and the average per day held, the rate at which freed margin can be put to work again.",
       cell: r => describeManagedCell(r)
     },
     {
-      id: CAPTURE.Preset.TimePath, name: "Time path", line: "kept so far if the price does not move at all",
+      id: CAPTURE.Preset.TimePath, tex: String.raw`c(t) = \frac{V(S_0,T) - V(S_0,T-t)}{M} \approx 1 - \sqrt{1 - t/T}`, name: "Time path", line: "kept so far if the price does not move at all",
       knob: "The position's own mark (the implied smile) at an unchanged price as days pass: time decay alone. For an at-the-money straddle it is close to 1 − √(time left / total time): about 29% half-way, and half the maximum only after about three quarters of the time. This is where ‘half the credit’ comes from: what a quiet market gives late in a cycle.",
       cell: r => ({ value: r.time.atHalf, text: `${signedPct(r.time.atHalf)} half-way`, sub: Number.isFinite(r.time.dayToX) ? `x kept on day ${r.time.dayToX.toFixed(1)} of ${r.time.days}` : `x not kept before expiry`, unit: "capture" })
     },
     {
-      id: CAPTURE.Preset.Growth, name: "Growth", line: "the fixed share that compounds like the real outcomes, on the Recovery panel's capital",
+      id: CAPTURE.Preset.Growth, tex: String.raw`g = \mathbb{E}\,\ln\!\Big(1 + \frac{\text{P\&L}}{C}\Big),\qquad c_{\text{eq}} = \frac{(e^{g}-1)\,C}{M}`, name: "Growth", line: "the fixed share that compounds like the real outcomes, on the Recovery panel's capital",
       knob: "Compounding multiplies outcomes: losing 50% needs +100% to get back. So the rate that compounds is the average of ln(1 + P&L / capital), not the average P&L. The capital is the one the Recovery panel uses (Basis → Capital per position: margin or notional). Shown as the fixed share of the maximum that, kept every cycle, compounds to the same growth; it sits below the expected share. When one cycle can lose the whole capital, compounding ends at zero sooner or later: the cell says so, and gives the growth of the cycles without a wipe-out. Sizing the position to a smaller share of the capital (or measuring on notional) avoids it.",
       cell: r => describeGrowthCell(r)
     },
     {
-      id: CAPTURE.Preset.Empirical, name: "Empirical", line: "the ticker's own past moves over the same number of days",
+      id: CAPTURE.Preset.Empirical, tex: String.raw`\bar c = \frac{1}{n}\sum_{i} \frac{\text{P\&L}\big(S_0\,S_{i+h}/S_i\big)}{M}`, name: "Empirical", line: "the ticker's own past moves over the same number of days",
       knob: "Every overlapping window of daily closes as long as the position's life, applied to today's position and weighed the same. It shows what actually happened, large moves and gaps included, but only what happened in the sample. Needs daily price history: paste closes below (oldest first), or they arrive with the data feed.",
       cell: r => !r.empirical.ok ? { value: NaN, text: "needs closes", sub: esc(r.empirical.error.message), unit: "capture" } : ({ value: r.empirical.value.mean, text: signedPct(r.empirical.value.mean), sub: `median ${signedPct(r.empirical.value.median)} · ≥ x ${plainPct(r.empirical.value.oddsAtLeast(r.x))}`, unit: "capture" })
     }
@@ -173,7 +173,7 @@ const CAPTURE_VIEW = (() => {
     const rows = PRESETS.map(preset => {
       const cells = live.map(r => preset.cell(r));
       const diff = cells.length === 2 && Number.isFinite(cells[0].value) && Number.isFinite(cells[1].value) && preset.id !== CAPTURE.Preset.Fixed ? pts(cells[0].value - cells[1].value) : "";
-      const name = `<b>${esc(preset.name)}</b>${KNOBS.html({ id: `cap-${preset.id}`, title: preset.name, body: preset.knob })}<span class="cap">${esc(preset.line.replace(/\{x\}/g, `${vw.capX}%`))}</span>`;
+      const name = `<b>${esc(preset.name)}</b>${KNOBS.html({ id: `cap-${preset.id}`, title: preset.name, body: preset.knob })}<span class="cap">${esc(preset.line.replace(/\{x\}/g, `${vw.capX}%`))}</span>${preset.tex ? `<span class="ftex">${TEX.html(preset.tex)}</span>` : ""}`;
       return `<tr data-preset="${preset.id}"><td>${name}</td>${cells.map(c => `<td><span class="cv ${c.tone || (c.unit === "capture" ? tone(c.value) : "")}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td>`).join("")}${live.length === 2 ? `<td class="cd">${diff}</td>` : ""}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${rows}</tbody>`;

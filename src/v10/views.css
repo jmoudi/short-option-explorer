@@ -52,7 +52,7 @@
 .v9views .full tr.sep td{border-top:1px solid var(--line)}
 .v9views .full tr.isA td:first-child{box-shadow:inset 3px 0 0 var(--a)}
 .v9views .full tr.isB td:first-child{box-shadow:inset 3px 0 0 var(--b)}
-.v9views .full button{border:1px solid var(--line);background:var(--surface);border-radius:4px;font:600 10.5px var(--f-cond);padding:0 5px;color:var(--ink-2)}
+.v9views .full button{border:1px solid var(--line);background:var(--surface);border-radius:3px;font:600 10.5px var(--f-cond);padding:0 5px;color:var(--ink-2)}
 
 /* payoff + comparison table; the table's A/B keys stick just below the summary */
 .v9views .chart{position:relative;width:100%}
@@ -151,7 +151,7 @@
 /* outside the host: the leg popover's refusal reason and the fallback event toast */
 .pop .why{display:block;font:11px var(--f-ui);color:var(--ink-3);margin:2px 0 4px 2px;white-space:normal;max-width:300px}
 .pop button .muted{font-weight:400}
-#toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:5px;padding:0 7px;font-size:12px}
+#toast .tbtn{margin-left:8px;border:1px solid currentColor;background:transparent;color:inherit;border-radius:3px;padding:0 7px;font-size:12px}
 .v9views .full .wn{display:block}
 .v9views .swbadge{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--ink-3);border-radius:4px;font:600 10px/15px var(--f-ui);color:var(--ink-2);vertical-align:1px;text-transform:uppercase;letter-spacing:.04em}
 .v9views .rec .rrates{display:block;font:12px var(--f-num);color:var(--ink-2);margin-top:6px}
@@ -167,9 +167,23 @@
 .v9views .mg table.mgt .info{margin-left:5px;vertical-align:1px}
 .v9views .mgcap{display:block;margin:-4px 0 8px}
 .v9views table.cmp td.win{font-weight:700;box-shadow:inset 3px 0 0 var(--pos)}
-.ptime{font-size:12px;color:var(--ink-2);white-space:nowrap}
-.ptime input[type=range]{width:120px;vertical-align:middle;margin:0 4px;accent-color:var(--ink)}
-.ptime output{display:inline-block;min-width:62px;font:12px var(--f-num);color:var(--ink)}
+/* Days to expiry + Replay: one container under the payoff's header */
+.tline{display:flex;align-items:center;gap:12px;margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:3px;background:var(--surface-2)}
+.tl-lbl{font:600 12px var(--f-ui);color:var(--ink);white-space:nowrap}
+.tl-track{position:relative;flex:1 1 auto;min-width:240px;height:26px}
+.tl-track input[type=range]{position:absolute;inset:4px 0 0 0;width:100%;margin:0;accent-color:var(--ink)}
+.tl-marks{position:absolute;inset:0;pointer-events:none}
+.tl-mon{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--x)}
+.tl-exp{position:absolute;top:0;bottom:0;right:8px;width:0;border-left:2px solid var(--ink)}
+.tl-out{min-width:150px;font:12px var(--f-num);color:var(--ink-2);white-space:nowrap}
+.tl-out b{font:600 15px var(--f-num);color:var(--ink)}
+.tl-replay{display:flex;align-items:center;gap:2px;padding-left:12px;border-left:1px solid var(--line)}
+.tl-rl{font:600 12px var(--f-ui);color:var(--ink);margin-right:6px}
+.tl-replay select{margin-left:6px;height:24px}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;padding:0;border:1px solid var(--line);border-radius:3px;background:var(--surface);color:var(--ink);cursor:pointer}
+.ibtn:hover{border-color:var(--ink-3)}
+.ibtn.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.ibtn .flip{display:inline-flex;transform:scaleX(-1)}
 /* Capture (ui_capture.js) */
 .capmax{display:block;font-size:12.5px;color:var(--ink-2);line-height:22px}
 .capmax b{color:var(--ink);font-family:var(--f-num);font-weight:600}
@@ -201,3 +215,9 @@
 .ccout .ccv b.pos{color:var(--pos)}.ccout .ccv b.neg{color:var(--neg)}
 .ccout .cap{display:block;margin-top:4px}
 #cap-curve,#cap-time{display:block;width:100%}
+
+/* formulas (LaTeX, set as MathML) under each preset */
+.ftex{display:block;margin:3px 0 1px;font-size:13.5px;color:var(--ink)}
+.ftex math{font-size:inherit}
+.ytex math[display="block"]{text-align:left}
+math[display="block"]{text-align:left}
