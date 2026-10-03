@@ -160,7 +160,7 @@ ALLOWED = {
     'adapters.js': {'ADAPTERS_CONFIG', 'AdapterError', 'describeError', 'isFilledString', 'isDate', 'storage', 'clipboard', 'download', 'calendar'},
     'app_store.js': {'STORAGE_KEY', 'readKey', 'BOOT'},
     'eng_head.js': {'$', 'css', 'MINUS', 'MON', 'TKS', 'EXPS', 'PCT_CAND', 'R', 'N', 'Ninv', 'erf', 'npdf', 'bs', 'bsDelta', 'bsVega',
-                    'impliedVol', 'smile', 'wingAnchors', 'clamp', 'ticks', 'pctTicks', 'pctLab', 'fK', 'fN', 'fP', 'fPx', 'fPx2', 'fS', 'fmtE'},
+                    'impliedVol', 'smile', 'wingAnchors', 'clamp', 'ticks', 'pctTicks', 'pctLab', 'fK', 'fN', 'fP', 'fPx', 'fPx2', 'fS', 'fmtE', 'SURVIVAL'},
     'dist.js': {'DIST', 'cdfT', 'cdfAt', 'quantAt'}, 'inst.js': {'INST'}, 'rule.js': {'RULE'}, 'pos.js': {'POS'},
     'cmp.js': {'CMP'}, 'state.js': {'STATE'}, 'ctx.js': {'CTX'}, 'recovery.js': {'RECOVERY'}, 'manage.js': {'MANAGE'}, 'capture.js': {'CAPTURE'},
     'ui_common.js': {'resolveElement', 'runControlCommand', 'subscribeSync', 'seg', 'bindRange', 'bindChk', 'bindSelect', 'TIP', 'showTip',

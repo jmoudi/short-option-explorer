@@ -8,11 +8,16 @@
   --bg:#eef0f2; --surface:#fafbfc; --surface-2:#e9ecef; --line:#d4d9df; --grid:#e2e6ea;
   --ink:#111418; --ink-2:#47505a; --ink-3:#737c87;
   --a:#4a3aa7; --b:#eb6834; --on-a:#ffffff; --on-b:#21100a; --x:#0b7a80; --x-bg:#dff3f3;
-  --pos:#2a78d6; --neg:#e34948; --mid:#e8eaed;
+  /* P&L: --pos / --neg are the chart fills, green gains and red losses, apart in lightness as well as hue so they stay
+     apart for red-green colour blindness (simulated: deutan ΔE 42, protan 14; the validator's 6-8 band, legal with the
+     signs, break-even contours and labels every P&L chart carries); --pos-ink / --neg-ink the text shades (4.5:1).
+     Dark: #2ca876 / #b73a37 pass every validator check on the dark surface (deutan ΔE 11.9, normal 29.7, both 3:1);
+     a brighter green would part them more but leaves the validator's lightness band */
+  --pos:#00704f; --neg:#ef5f4e; --pos-ink:#0b7355; --neg-ink:#c22f2c; --mid:#e8eaed;
   --warn:#8f5400; --warn-bg:#fff0d4; --shade:#e0a73a;
   --itm:#a9b1bb; --itm-bg:#f0f2f5;
   /* market moves: up, down, notable, flat; --y is the free second accent beside teal (extrapolation uses it) */
-  --up:#1d8546; --up-bg:#e0f3e7; --down:#c8312c; --down-bg:#fbe4e2; --note:#9a7000; --note-bg:#fbf0c8; --flat:#7f8892; --flat-bg:#eceef1;
+  --up:#1d8546; --up-bg:#e0f3e7; --down:#c8312c; --down-bg:#fbe4e2; --note:#9a7000; --note-ink:#806000; --note-bg:#fbf0c8; --flat:#7f8892; --flat-bg:#eceef1;
   --y:#b0277e; --y-bg:#f8e3f0;
   --shadow:0 8px 28px rgba(17,20,24,.16);
   --f-ui:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -26,10 +31,10 @@
     --bg:#0d0f11; --surface:#15181b; --surface-2:#1f2327; --line:#2e3339; --grid:#23272c;
     --ink:#eef1f4; --ink-2:#b3bac3; --ink-3:#848d98;
     --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b; --x:#4cc9d0; --x-bg:#123638;
-    --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
+    --pos:#2ca876; --neg:#b73a37; --pos-ink:#4cc27c; --neg-ink:#ef7a76; --mid:#2a2e33;
     --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
     --itm:#4f5862; --itm-bg:#1b1f23;
-    --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
+    --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-ink:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
     --y:#e46bb8; --y-bg:#3a1530;
     --shadow:0 8px 28px rgba(0,0,0,.55);
   }
@@ -39,10 +44,10 @@
   --bg:#0d0f11; --surface:#15181b; --surface-2:#1f2327; --line:#2e3339; --grid:#23272c;
   --ink:#eef1f4; --ink-2:#b3bac3; --ink-3:#848d98;
   --a:#9085e9; --b:#d95926; --on-a:#15181b; --on-b:#15181b; --x:#4cc9d0; --x-bg:#123638;
-  --pos:#3987e5; --neg:#e66767; --mid:#2a2e33;
+  --pos:#2ca876; --neg:#b73a37; --pos-ink:#4cc27c; --neg-ink:#ef7a76; --mid:#2a2e33;
   --warn:#f0b445; --warn-bg:#2e2410; --shade:#a9781f;
   --itm:#4f5862; --itm-bg:#1b1f23;
-  --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
+  --up:#4cc27c; --up-bg:#123222; --down:#f06a62; --down-bg:#3a1715; --note:#e8bf3a; --note-ink:#e8bf3a; --note-bg:#33290c; --flat:#8a939d; --flat-bg:#24282d;
   --y:#e46bb8; --y-bg:#3a1530;
   --shadow:0 8px 28px rgba(0,0,0,.55);
 }
@@ -53,10 +58,10 @@ html{min-width:1200px}
 body{margin:0;min-width:1200px;background:var(--bg);color:var(--ink);font:13px/1.45 var(--f-ui);font-variant-numeric:tabular-nums}
 button,select,input{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--pos);outline-offset:1px}
+:focus-visible{outline:2px solid var(--x);outline-offset:1px}
 .num{font-family:var(--f-num);font-size:12px}
 .muted{color:var(--ink-3)}
-.pos{color:var(--pos)} .neg{color:var(--neg)}
+.pos{color:var(--pos-ink)} .neg{color:var(--neg-ink)}
 
 /* type scale: 15 app title and panel · 13 tab and section · 12 control · 11 label */
 h1{font:600 22px/1.15 var(--f-cond);margin:0}
@@ -149,7 +154,10 @@ details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .crow .rt{font:600 11px var(--f-cond);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:inline-block;width:78px;vertical-align:middle}
 .pchip{display:inline-block;vertical-align:middle;border:1px solid var(--line);border-radius:3px;padding:0 8px 0 3px;line-height:26px;font-size:12.5px;font-weight:600;background:var(--surface);cursor:pointer;min-width:200px;white-space:nowrap}
 .pchip .key{margin-right:6px;vertical-align:1px}
-.pchip .nm{display:inline-block;vertical-align:top}
+/* a chip is one line by construction: key | name (cut with …) | size; never an inline-block that drops a line */
+.pchip{display:inline-flex;align-items:center;max-width:100%;overflow:hidden}
+.pchip>*{flex:none}
+.pchip .nm{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pchip .nm small{font:500 11px var(--f-num);color:var(--ink-2);margin-left:4px}
 .pchip .sz{display:inline-block;vertical-align:top;font:500 11.5px var(--f-num);color:var(--ink-2);margin-left:4px}
 .pchip:hover{background:var(--surface-2)}
@@ -181,7 +189,7 @@ details.menu.up>.mb{top:auto;bottom:calc(100% + 5px)}
 .row.sl output b.itm{font:600 9.5px var(--f-cond);letter-spacing:.04em;color:var(--ink-3);vertical-align:1px}
 .row.sl output.warn b.itm{color:var(--warn)}
 .dnote{display:block;margin:-3px 0 7px 52px;color:var(--warn)}
-.row.sl.na output{color:var(--neg)}
+.row.sl.na output{color:var(--neg-ink)}
 .bnote{font-size:12.5px;color:var(--ink-2);margin:0 0 8px}
 .bnote b{color:var(--ink);font-weight:600}
 details.sub{margin-top:8px}
@@ -202,10 +210,31 @@ body.dock-off #dock .rail,body.ydock-off #ydock .rail{display:block;text-align:c
 
 /* panels */
 .panel{scroll-margin-top:140px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
-.ph{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-bottom:10px;white-space:nowrap}
-.ph .tools{margin-left:auto;order:9}
+/* Layout rule: a row exists by design, never because content happened to overflow. Panel heads are three fixed
+   tracks (PANELS.layoutHead): lead | mid (one line, cut with …, full text in the tooltip) | tools; .ph2 gives the tools
+   a second row by design. Flex is used only inside a track that is one line by construction (nowrap). */
+.ph{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr) auto;align-items:center;column-gap:14px;margin-bottom:10px;min-height:28px}
+.ph>.phl>h2{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ph>.phl>:not(h2){flex:none}
+.ph>.phl{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;white-space:nowrap;min-width:0}
+.ph>.phm{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;color:var(--ink-2)}
+.ph>.phm *{white-space:nowrap}
+.ph>.pht{justify-self:end;white-space:nowrap;min-width:max-content}
+.ph>.pht>.tools{display:flex;flex-wrap:nowrap;align-items:center;gap:8px}
+.ph.ph2{grid-template-columns:minmax(0,max-content) minmax(0,1fr);row-gap:6px}
+.ph.ph2>.pht{grid-column:1 / -1;justify-self:start}
+.ph.phc{row-gap:4px}
+.ph.phc>.phm{grid-row:2;grid-column:1 / -1}
+.ph.ph2.phc>.pht{grid-row:3}
+/* a chart legend: its own two designed lines under the head (line 1: which line is A, which is B; line 2: the sizing
+   sentence and the chart's key), each cut with … and its full text in the tooltip */
+.phlg,.v9views .swlgd{display:block;margin:-6px 0 8px;font-size:12px;color:var(--ink-2)}
+.phlg .lg1,.phlg .lg2,.swlgd .lg1,.swlgd .lg2{display:block;height:18px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg2>.szn:first-child{margin-left:0!important}
+.lg2>.szn:first-child::before{content:none!important}
+.ph .tools>*{margin-left:0}
 .ph .tools>*{margin-left:8px}
-.ph .sub{font-size:12px;color:var(--ink-2);white-space:normal}
+.ph .sub{font-size:12px;color:var(--ink-2);white-space:nowrap}
 .lgd{font-size:12px;color:var(--ink-2)}
 .lgd>span{white-space:nowrap;margin-right:12px}
 .lgd i{display:inline-block;width:16px;height:2px;border-radius:1px;vertical-align:middle;margin-right:5px}
@@ -288,7 +317,7 @@ table{border-collapse:collapse}
 .pins th{font:600 11px var(--f-cond);color:var(--ink-2)}
 .pins td:first-child,.pins th:first-child,.pins td:nth-child(2),.pins th:nth-child(2){text-align:left}
 .pins button.x{border:0;background:none;color:var(--ink-3);font-size:15px;padding:0 4px}
-.pins button.x:hover{color:var(--neg)}
+.pins button.x:hover{color:var(--neg-ink)}
 
 /* joint / sweep / smile */
 .panel.slim{padding:9px 14px}
@@ -464,8 +493,8 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 .phead .pref{display:block;font-size:11px;color:var(--ink-3);margin-top:1px}
 .phead .pedge{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
 .phead .pedge b{color:var(--ink);font-family:var(--f-num)}
-.phead .pedge .pos{color:var(--pos)}
-.phead .pedge .neg{color:var(--neg)}
+.phead .pedge .pos{color:var(--pos-ink)}
+.phead .pedge .neg{color:var(--neg-ink)}
 .phead .pedge .info{margin-left:4px;vertical-align:1px}
 .prow{display:grid!important;grid-template-columns:114px minmax(0,1fr);column-gap:6px;align-items:center;min-height:28px}
 .plbl{font-size:12px;color:var(--ink-2);line-height:1.2;white-space:nowrap}
@@ -485,7 +514,12 @@ body[data-cmpview="facts"] #capture,body[data-cmpview="facts"] #views>.panel:not
 /* ===== expanders: one colour (--x), a chip that says show / hide, on every collapsible thing ===== */
 .xbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:3px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);cursor:pointer;white-space:nowrap;vertical-align:middle}
 .xbtn:hover{background:var(--x);color:var(--surface)}
-details.panel>summary,details.sub>summary,details.d9sec>summary,details.capem>summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+/* section summaries: the name and its chip on one line; a panel's caption cut with … on that line; a dock section's
+   value always on a line of its own (so its length never decides the row count) */
+details.panel>summary,details.capem>summary{display:flex;flex-wrap:nowrap;align-items:baseline;gap:10px;white-space:nowrap}
+details.panel>summary>.sub{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.sub>summary,details.d9sec>summary{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;column-gap:8px}
+details.sub>summary>.sv,details.d9sec>summary>.sv{grid-column:1 / -1;grid-row:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:0}
 details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{content:"show ▸";display:inline-flex;align-items:center;border:1px solid var(--x);background:var(--x-bg);color:var(--x);border-radius:3px;padding:0 9px;height:20px;font:600 11.5px/18px var(--f-ui);white-space:nowrap;align-self:center}
 details.panel[open]>summary::after,details.sub[open]>summary::after,details.d9sec[open]>summary::after,details.capem[open]>summary::after,details.notes[open]>summary::after{content:"hide ▾"}
 details.panel>summary h2::before,details.sub>summary::before,details.d9sec>summary::before{display:none!important}
@@ -497,7 +531,7 @@ details.capem>summary{list-style:none}
 .panel.collapsed>:not(.ph){display:none!important}
 .panel.collapsed>.ph{margin-bottom:0}
 .panel.collapsed>.ph .tools,.panel.collapsed>.ph .lgd{display:none!important}
-.ph .pcol,.ph .pnotes{margin:0 8px 0 2px}
+.ph .pcol,.ph .pnotes{margin:0}
 /* in the side docks the chip leads its line, so it never wraps away from its label */
 /* one rule for every expander chip: right after the name of what it opens (a summary's value or caption comes after) */
 details.panel>summary::after,details.sub>summary::after,details.d9sec>summary::after,details.capem>summary::after,details.notes>summary::after{order:1}
@@ -506,15 +540,24 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
 /* rows and details behind a "more" chip */
 .cmp:not(.showmore) tr.xmore{display:none}
 .cmp tr.xtoggle td{text-align:left!important;padding-top:8px}
-.nodetail .cps,.nodetail .xdet{display:none!important}
+.nodetail .cps,.nodetail .xdet,.nodetail .ftex{display:none!important}
+/* the next step after a wipe-out: always shown, in the loss colour */
+/* the size that survives: one style everywhere, the multiple in bold, wraps */
+.cpa{display:block;font:400 12px/1.35 var(--f-ui);color:var(--neg-ink);white-space:normal;max-width:560px;margin-top:2px}
+.cpa b{font-weight:700}
+/* two notes under the cards read as two */
+.s9note+.s9note::before{content:"·";margin:0 6px 0 -4px;color:var(--ink-3)}
 .panel:not(.notes-on) .pnote{display:none!important}
 /* controls sit flush (within 2-3px) with the edges of the bars and boxes that hold them */
 .ph .tools>:last-child,.crow>:last-child,.ccrow>:last-child,.tools .ctl:last-child,.ccrow .ctl:last-child,.tl-replay>:last-child{margin-right:0!important}
 .ph .tools>:first-child{margin-left:0}
 .tline{padding:3px 3px 3px 8px!important}
-.phead .pt{display:flex!important;align-items:center;gap:6px;flex-wrap:wrap}
+/* the box title: key | name (two lines reserved, clamped) | copy | relink, one fixed row */
+.phead .pt{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:6px}
 .phead .pt .key{flex:none}
-.phead .pt .pname{flex:1 1 0;min-width:170px}
+.phead .pt .pname{min-width:0;height:40px;line-height:20px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;align-self:center}
+/* "Follow A everywhere" (shown once B is unlinked) gets its own row under the name, so the name keeps its width */
+.phead .pt .prl{grid-row:2;grid-column:2 / -1;justify-self:start;margin-top:2px!important}
 .phead .pt .pcopy,.phead .pt .prl{float:none!important;margin:0!important}
 .texblock{display:block;margin:6px 0;font-size:15px}
 .pcred{padding:3px 3px 3px 8px!important}
@@ -718,7 +761,7 @@ details.sub>summary,details.d9sec>summary{gap:6px 8px}
     <div class="d9t" id="d9t"></div>
     <details class="d9sec d9sz" id="d9size"><summary>Pair sizing <span class="sv" id="d9-sizesv"></span></summary><span class="d9sb">
       <span class="row"><span class="lbl">Size B</span><select id="d9-size" aria-label="Sizing rule for B"></select></span>
-      <span class="row" id="d9-rhc"><span class="lbl">h</span><input type="number" id="d9-hc" step="0.05" min="0.05" max="20" style="width:80px"> <span class="cap" style="display:inline">× A's notional</span></span>
+      <span class="row" id="d9-rhc"><span class="lbl">B contracts</span><input type="number" id="d9-hc" step="0.05" min="0.01" max="50" style="width:80px" aria-label="B contracts per A contract"> <span class="cap" style="display:inline">per A contract</span></span>
       <span class="cap" id="d9-oh"></span>
     </span></details>
   </div>

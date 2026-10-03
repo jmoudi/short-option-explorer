@@ -84,9 +84,10 @@ const LENSES = (() => {
       txt(ax, x, yb + 13, i === last ? "0" : `${MINUS}${stop.left}`, { "text-anchor": anchor, style: "font-size:10px;fill:var(--ink-3)" });
     });
   }
-  /** @param {{ ax: SVGElement, lo: number, hi: number, n: number, height: number, Y: (v: number) => number, left: number, right: number, format: (v: number, step: number) => string, kit: any }} input */
-  function drawValueTicks({ ax, lo, hi, n, height, Y, left, right, format, kit }) {
-    for (const { v, step } of kit.payTicks(lo, hi, n, height)) {
+  // scale: display units per internal unit (kit.C.uScale for P&L readings, 1 for % moves)
+  /** @param {{ ax: SVGElement, lo: number, hi: number, n: number, height: number, Y: (v: number) => number, left: number, right: number, format: (v: number, step: number) => string, kit: any, scale?: number }} input */
+  function drawValueTicks({ ax, lo, hi, n, height, Y, left, right, format, kit, scale = 1 }) {
+    for (const { v, step } of kit.payTicks(lo, hi, n, height, scale)) {
       el("line", { x1: left, x2: right, y1: Y(v), y2: Y(v) }, ax);
       txt(ax, left - 6, Y(v) + 3.5, format(v, step || 0.01), { "text-anchor": "end" });
     }
@@ -94,7 +95,7 @@ const LENSES = (() => {
   const pctTick = (v, step) => pct(v, step >= 0.01 ? 0 : 1);
   // the sides drawn: A, and B unless it repeats A
   const sidesOf = C => [["a", C.A, C.toSA, 1], ["b", C.B, C.toSB, C.h]].filter(([side, b]) => !b.na && !(side === "b" && C.same && C.diff.identical));
-  const nameOf = (side, kit) => side === "a" ? "A" : "B" + kit.hb();
+  const nameOf = (side, kit) => side === "a" ? "A" : "B";
   // hover over a day chart: the nearest stop; a click picks it
   /** @param {{ svg: SVGSVGElement, W: number, plot: { x: number, y: number, width: number, height: number }, stops: any[], total: number, X: (e: number) => number, describe: (i: number) => string, kit: any }} input */
   function wireDayHover({ svg, W, plot, stops, total, X, describe, kit }) {
@@ -135,7 +136,7 @@ const LENSES = (() => {
     if (!sides.length) { host.innerHTML = `<p class="muted">Both positions are n/a.</p>`; return; }
     const at = kit.V().payAt / 100;
     const series = sides.map(([side, b]) => ({ side, b, rows: readMoveSeries({ b, price: b.S * (1 + at), stops, kit, shock: C.shock }) }));
-    kit.title(`Decay vs move · how far the price may move in a day before the day's decay is gone${at ? ` (from ${pct(at, 0)} vs spot)` : ""}`);
+    kit.title(`Decay vs move${at ? ` · from ${pct(at, 0)} vs spot` : ""}`);
     const m = { l: 62, r: 54, t: 18, b: 46 }, H1 = 300, plotW = W - m.l - m.r, y1 = m.t, H = y1 + H1 + m.b;
     const X = e => m.l + e / total * plotW, elapsedAt = i => stops[0].left - stops[i].left;
     const lead = series[0].rows;
@@ -171,8 +172,8 @@ const LENSES = (() => {
         s.rows.forEach((r, i) => { if (r && Number.isFinite(r[key])) { el("circle", { cx: X(elapsedAt(i)), cy: Y(r[key]), r: i === time.index ? 4 : 2, fill: `var(--${s.side})` }, svg); } });
       }
     }
-    txt(svg, m.l + 6, y1 + 12, "above: how far up · below: how far down", { fill: "var(--ink-2)", "font-size": 11, ...halo });
-    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" ") +
+    txt(svg, m.l + 6, y1 + 12, "above: a rise · below: a fall", { fill: "var(--ink-2)", "font-size": 11, ...halo });
+    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" "), (series.length > 1 ? kit.sizeNote() : "") +
       ` <span class="muted">· shading: a day's move at ${kit.esc(series[0].b.tk)}'s ATM IV, <span class="mvc-flat">flat</span> / <span class="mvc-note">notable</span> / <span class="mvc-up">clear rise</span> / <span class="mvc-down">clear fall</span> · dotted: 1σ day at the period vol</span>`);
     kit.read(describeMoveReadout({ series, time, kit }));
     wireDayHover({ svg, W, plot: { x: m.l, y: y1, width: plotW, height: H1 }, stops, total, X, kit, describe: i => {
@@ -214,7 +215,7 @@ const LENSES = (() => {
     if (!sides.length) { host.innerHTML = `<p class="muted">Both positions are n/a.</p>`; return; }
     const series = sides.map(([side, b]) => ({ side, b, zone: readZoneSeries({ b, stops, kit, shock: C.shock }), cone: readCone({ b, stops, kit }) }));
     const lead = series[0];
-    kit.title("Profit zone by day · the break-even prices from today to expiry, inside the price cone");
+    kit.title("Profit zone by day");
     const m = { l: 62, r: 54, t: 18, b: 46 }, H1 = 300, plotW = W - m.l - m.r, y1 = m.t, H = y1 + H1 + m.b;
     const X = e => m.l + e / total * plotW, elapsedAt = i => stops[0].left - stops[i].left;
     const values = series.flatMap(s => [...s.zone.flatMap(z => [z.lo, z.hi]), ...s.cone.flatMap(c => [c.lo2, c.hi2])]).filter(Number.isFinite);
@@ -237,8 +238,8 @@ const LENSES = (() => {
         if (Number.isFinite(z)) { el("circle", { cx: xSel, cy: Y(z), r: 4, fill: `var(--${s.side})`, stroke: "var(--surface)", "stroke-width": 1.5 }, svg); }
       }
     }
-    txt(svg, m.l + 6, y1 + 12, "between a position's two lines it is in profit (at the model's mark that day)", { fill: "var(--ink-2)", "font-size": 11, ...halo });
-    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" ") +
+    txt(svg, m.l + 6, y1 + 12, "between a position's two lines it is in profit", { fill: "var(--ink-2)", "font-size": 11, ...halo });
+    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" "), (series.length > 1 ? kit.sizeNote() : "") +
       ` <span class="muted">· grey cone: ${kit.esc(lead.b.tk)} ±1σ (darker) and ±2σ under the odds switch (${kit.esc(C.oddsText())})${series.length > 1 && lead.b.tk !== series[1].b.tk ? ` · dotted: ${kit.esc(series[1].b.tk)}'s ±1σ` : ""}</span>`);
     kit.read(describeZoneReadout({ series, time, kit }));
     wireDayHover({ svg, W, plot: { x: m.l, y: y1, width: plotW, height: H1 }, stops, total, X, kit, describe: i => {
@@ -272,7 +273,7 @@ const LENSES = (() => {
     const { C } = kit, host = kit.host, W = Math.max(host.clientWidth, 600);
     const sides = sidesOf(C);
     if (!sides.length) { host.innerHTML = `<p class="muted">Both positions are n/a.</p>`; return; }
-    kit.title(`EV map · where the expected P&L ${time.isExpiry ? "at expiry" : `on ${kit.dayLabel(time.stops[time.index].date)}`} comes from (period-vol odds)`);
+    kit.title(`EV map · ${time.isExpiry ? "at expiry" : kit.dayLabel(time.stops[time.index].date)}`);
     if (time.elapsed < 1) { host.innerHTML = `<p class="muted lensempty">Today the price is where it is: step at least one trading day on (or to expiry) to see where the expected P&amp;L comes from.</p>`; kit.legend(""); kit.read(""); return; }
     const series = sides.map(([side, b, , scale]) => {
       const vol = C.volOf(b.tk).pct / 100, t = yearsOf(b, Math.min(time.elapsed, b.dte)), tau = kit.tauAfter({ b, elapsed: time.elapsed });
@@ -292,8 +293,8 @@ const LENSES = (() => {
     let rlo = Math.min(0, ...runs), rhi = Math.max(0, ...runs); const rp = (rhi - rlo) * 0.12 || 1e-6; rlo -= rp; rhi += rp;
     const Y = v => y1 + (yhi - v) / (yhi - ylo) * H1, Y2 = v => y2 + (rhi - v) / (rhi - rlo) * H2;
     const svg = /** @type {SVGSVGElement} */ (el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Expected P&L by price, and its running total" }, host)), ax = el("g", { class: "ax" }, svg);
-    drawValueTicks({ ax, lo: ylo, hi: yhi, n: 5, height: H1, Y, left: m.l, right: W - m.r, format: (v, step) => kit.fUt(v, step), kit });
-    drawValueTicks({ ax, lo: rlo, hi: rhi, n: 3, height: H2, Y: Y2, left: m.l, right: W - m.r, format: (v, step) => kit.fUt(v, step), kit });
+    drawValueTicks({ ax, lo: ylo, hi: yhi, n: 5, height: H1, Y, left: m.l, right: W - m.r, format: (v, step) => kit.fUt(v, step), kit, scale: kit.C.uScale });
+    drawValueTicks({ ax, lo: rlo, hi: rhi, n: 3, height: H2, Y: Y2, left: m.l, right: W - m.r, format: (v, step) => kit.fUt(v, step), kit, scale: kit.C.uScale });
     for (const r of kit.payTicks(xlo, xhi, Math.floor(W / 90), plotW).map(t => t.v)) { el("line", { x1: X(r), x2: X(r), y1: y1, y2: y2 + H2 }, ax); txt(ax, X(r), y2 + H2 + 14, pct(r, 0), { "text-anchor": "middle" }); }
     txt(svg, m.l - 8, y2 + H2 + 14, "move", { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10 });
     el("line", { x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0), stroke: "var(--ink-3)" }, svg); el("line", { x1: m.l, x2: W - m.r, y1: Y2(0), y2: Y2(0), stroke: "var(--ink-3)" }, svg);
@@ -310,9 +311,9 @@ const LENSES = (() => {
     // the totals at the right edge (everything, off the view too); two close totals stack instead of overlapping
     const ends = series.map(s => ({ s, y: Y2(s.total) })).sort((p, r) => p.y - r.y);
     ends.forEach((e, k) => { const y = k > 0 && e.y - ends[k - 1].y < 12 ? ends[k - 1].y + 12 : e.y; e.y = y; txt(svg, W - m.r + 5, y + 4, `${nameOf(e.s.side, kit)} ${kit.fU(e.s.total)}`, { fill: `var(--${e.s.side})`, "font-size": 11, "font-weight": 600 }); });
-    txt(svg, m.l + 6, y1 + 12, "P&L × odds, per 1% of move: the area is the expected P&L", { fill: "var(--ink-2)", "font-size": 11, ...halo });
+    txt(svg, m.l + 6, y1 + 12, "P&L × odds (period vol) per 1% of move: the area is the expected P&L", { fill: "var(--ink-2)", "font-size": 11, ...halo });
     txt(svg, m.l + 6, y2 + 12, "running total from the left: ends at the expected P&L", { fill: "var(--ink-2)", "font-size": 11, ...halo });
-    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" ") + ` <span class="muted">· A's area: <span style="color:var(--pos)">adds</span> / <span style="color:var(--neg)">takes away</span> · odds at each ticker's period vol · ±${CONFIG.evView}σ shown; the totals run to ±${CONFIG.evSpan}σ (beyond: at the edge's P&amp;L)</span>`);
+    kit.legend(series.map(s => `<span><i style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} ${kit.esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" "), (series.length > 1 ? kit.sizeNote() : "") + ` <span class="muted">· A's area: <span class="pos">adds</span> / <span class="neg">takes away</span> · odds at each ticker's period vol · ±${CONFIG.evView}σ shown; the totals run to ±${CONFIG.evSpan}σ (beyond: at the edge's P&amp;L)</span>`);
     kit.read(describeEvReadout({ series, time, kit }));
     // hover: the cell under the pointer, for each side
     const cross = el("line", { y1: y1, y2: y2 + H2, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
@@ -333,7 +334,7 @@ const LENSES = (() => {
       const sum = pick => s.cells.filter(pick).reduce((acc, c) => acc + c.ev, 0);
       const losses = sum(c => c.ev < 0), farDown = sum(c => c.ev < 0 && c.mid < -MOVES.CLEAR * s.sigma), farUp = sum(c => c.ev < 0 && c.mid > MOVES.CLEAR * s.sigma);
       const share = v => losses < 0 ? `${(v / losses * 100).toFixed(0)}%` : "–";
-      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · expected P&amp;L ${time.isExpiry ? "at expiry" : `if closed ${kit.esc(kit.dayLabel(time.stops[time.index].date))}`} <b class="${kit.pn(s.total)}">${kit.fU(s.total)}</b> · gains ${kit.fU(sum(c => c.ev > 0))}, losses ${kit.fU(losses)} · of the losses, <span class="mvc-down">${share(farDown)} from a clear fall</span> and <span class="mvc-up">${share(farUp)} from a clear rise</span> (beyond 1.5σ)</span>`;
+      return `<span class="dr"><i class="lsw" style="background:var(--${s.side})"></i>${nameOf(s.side, kit)} · expected P&amp;L ${time.isExpiry ? "at expiry" : `if closed ${kit.esc(kit.dayLabel(time.stops[time.index].date))}`} <b class="${kit.pn(s.total)}">${kit.fU(s.total)}</b> · gains ${kit.fU(sum(c => c.ev > 0))}, losses ${kit.fU(losses)} · of the losses, <b class="neg">${share(farDown)}</b> from a clear fall ▼ and <b class="neg">${share(farUp)}</b> from a clear rise ▲ (beyond 1.5σ)</span>`;
     }).join("");
   }
 

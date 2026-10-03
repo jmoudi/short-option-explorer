@@ -225,7 +225,7 @@ const FACTS = (() => {
   // ---------------------------------------------------------- init, render, reveal
   function init() {
     const host = q("#facts");
-    host.innerHTML = `<div class="ph"><h2>Market facts</h2><span class="sub" id="fx-sum"></span></div><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
+    host.innerHTML = `<div class="ph phc"><h2>Market facts</h2><span class="sub" id="fx-sum"></span></div><div class="fxb" id="fx-body"></div><div class="fxeds" id="fx-eds"></div>`;
     host.addEventListener("click", onClick);
     host.addEventListener("change", onChange);
     host.addEventListener("input", onInput);

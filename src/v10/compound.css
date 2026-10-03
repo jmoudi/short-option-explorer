@@ -82,14 +82,29 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .yhalo{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 
 .ypts input{width:64px}
-#y-sstrip .cell.big{width:258px}
-#y-srow .ctl{margin-right:10px}
+/* the Stress headline: one grid template for both rows (set in JS as --scols); one-line labels, a fixed sub line
+   under the NAV and a fixed two-line slot for the margin call, so neither row grows because of its text */
+#y-sstrip .sr{display:grid;grid-template-columns:var(--scols);column-gap:18px;align-items:start}
+#y-sstrip .key{align-self:start;justify-self:start;margin:2px 0 0}
+#y-sstrip .cell{display:block;min-width:0;margin:0}
+#y-sstrip .cell .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#y-sstrip .cell .v{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#y-sstrip .cell.big .v{font-size:20px}
+#y-sstrip .cell .sub{display:block;font:400 11.5px var(--f-ui);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#y-sstrip .cell .v.two{font:500 13px/1.35 var(--f-num);white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;height:2.7em}
+#y-sstrip .bd{grid-column:1/-1}
 
 /* one run on its own: no B comparison controls, the B chip is a quiet "compare" link */
 .ybar.single .yb-only{display:none}
-.ybar.single #y-chipB{border-style:dashed;background:none}
 /* Credit kept */
 .kpt td:first-child{width:30%}
+/* fixed columns: a long survival alert wraps inside its own cell instead of widening its run's columns */
+#y-ktable{table-layout:fixed;width:100%}
+#y-ktable thead th:nth-child(1){width:30%}
+#y-ktable thead th:nth-child(2n){width:22%}
+#y-ktable thead th:nth-child(2n+3){width:13%}
+#y-ktable.one thead th:nth-child(2){width:44%}
+#y-ktable.one thead th:nth-child(3){width:26%}
 .kpt td.knav{font:600 13px var(--f-num);color:var(--ink)}
 .kpt tr.kon td:first-child{box-shadow:inset 3px 0 0 var(--ink-3)}
 .kpt tr.kref td{color:var(--ink-2)}
@@ -108,6 +123,42 @@ body.ydock-off .ydock .rail{display:block;text-align:center;padding:12px 0}
 .ysym td:first-child{color:var(--ink);font-size:14px;min-width:28px}
 .ysym td:nth-child(2){font:600 12px var(--f-num);color:var(--ink);white-space:nowrap}
 /* usability pass: the week card's head is title · caption, with the run switch and steps at the right */
-#y-growth h3{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
-#y-growth h3 .sub{margin-left:0}
+#y-growth h3{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:8px}
+#y-growth h3 .sub{margin-left:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #y-growth h3 .stp{float:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+/* loud risk: margin-call odds from 10% (notable) and 25% (high), with the size that keeps them low */
+#y-strip .v.risk-high{color:var(--neg-ink);font-weight:700}
+#y-strip .v.risk-high::before{content:"▲ high ";font:700 10.5px var(--f-ui);letter-spacing:.02em}
+#y-strip .rk{display:block;font-size:11.5px;line-height:1.35;color:var(--ink-2);max-width:260px;white-space:normal}
+#y-strip .v.risk-note::before{content:"● notable ";font:700 10.5px var(--f-ui)}
+#y-strip .v.risk-note{color:var(--note-ink)}
+/* the Compounding bar: chips | rows, a fixed grid (see compound_shell.html) */
+.ybar{display:grid;grid-template-columns:264px minmax(0,1fr);column-gap:16px;align-items:start}
+@media (min-width:1400px){.ybar{grid-template-columns:300px minmax(0,1fr)}}
+/* chips column: [chip | swap] over [chip | drop]; each chip is two fixed lines (name, key settings) */
+.ybar .ychips{display:grid;grid-template-columns:minmax(0,1fr) 26px;grid-auto-rows:46px;row-gap:6px;column-gap:4px;align-items:center}
+.ybar .ychips .pchip{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:20px 18px;column-gap:6px;align-content:center;align-self:stretch;min-width:0;max-width:none;padding:0 8px 0 4px;line-height:20px}
+.ybar .ychips .pchip .key{grid-row:1 / 3;align-self:center;margin:0}
+.ybar .ychips .pchip .nm{grid-column:2;grid-row:1;font-size:12px}
+.ybar .ychips .pchip .dif{grid-column:2;grid-row:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/18px var(--f-ui);color:var(--ink-3)}
+.ybar .ychips .pchip .dif b{font-weight:600;color:var(--ink)}
+.ybar .ychips .pchip .nm.muted{grid-column:1 / -1;grid-row:1 / 3;align-self:center;font-weight:500}
+.ybar .ychips .btn.ib{width:26px;height:26px;padding:0;justify-self:center}
+.ybar.single .ychips .pchip{grid-column:1 / -1}
+.ybar.single #y-chipB{border-style:dashed;background:none}
+.ybar .yrows{display:grid;row-gap:4px;min-width:0}
+.ybar .yrows .crow{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;white-space:nowrap;min-width:0;line-height:28px;border:0;margin:0;padding:0}
+.ybar .yrows .crow[hidden]{display:none}
+.ybar .yrows .crow .ctl{margin-right:0}
+.ybar .yrows #y-read{margin-left:auto}
+/* the stress base button is the one control whose text grows with the setup: it gives way, cut with … (full text in its title) */
+.ybar .yrows .ctl.ybase{flex:0 1 auto;min-width:0;overflow:hidden}
+.ybar .yrows #y-sbase{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ybar #y-warn{grid-column:1 / -1}
+/* the Weeks headline keeps every label on one line (cut with …, full text on hover); a value is one line, the
+   safe-size note a fixed two-line slot, so neither row grows because of its text */
+#y-strip .cell .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#y-strip .cell .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#y-strip .rk{max-width:none;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;height:2.7em}
+/* a half-width panel never lets a long line (the growth formula) run into its neighbour */
+.yhalf{overflow-x:auto;overflow-y:hidden}

@@ -73,7 +73,7 @@ const CAPTURE_VIEW = (() => {
     const empiricalScenario = CAPTURE.fromCloses({ S0: b.S, closes, days: b.dte });
     const empirical = empiricalScenario.ok ? Result.ok(CAPTURE.measure({ pnl: position.payoff, scenario: empiricalScenario.value, maxPayoff: max })) : empiricalScenario;
     const custom = buildCustom({ b, position, vw }), customMeasured = CAPTURE.measure({ pnl: custom.pnl, scenario: custom.scenario, maxPayoff: max });
-    const reading = { side, b, na: false, max, vol, x, capitalWord: vw.rdCap === Capital.Notional ? "notional" : "margin", measured, impliedMean, time, growth, band, empirical, custom: { ...custom, measured: customMeasured, value: readCustom({ measured: customMeasured, vw }) } };
+    const reading = { side, b, na: false, max, vol, x, capitalWord: vw.rdCap === Capital.Notional ? "notional" : "margin", capitalPerShare: capital, measured, impliedMean, time, growth, band, empirical, custom: { ...custom, measured: customMeasured, value: readCustom({ measured: customMeasured, vw }) } };
     if (memo.size > VIEW_CONFIG.memoSize) { memo.clear(); }
     memo.set(key, reading);
     return Object.assign({}, reading, { managed: readManaged({ b, vw }) });
@@ -95,7 +95,7 @@ const CAPTURE_VIEW = (() => {
 
   // ---------------------------------------------------------- the named presets
   // each preset: its name, one line on what it is, the knob's detail, and per side { value, text, sub }
-  /** @typedef {{ value: number, text: string, sub?: string, unit: string, tone?: string }} PresetCell */
+  /** @typedef {{ value: number, text: string, sub?: string, alert?: string, unit: string, tone?: string }} PresetCell */
   const PRESETS = Object.freeze([
     {
       id: CAPTURE.Preset.Fixed, tex: String.raw`c = x`, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle",
@@ -129,13 +129,13 @@ const CAPTURE_VIEW = (() => {
     },
     {
       id: CAPTURE.Preset.Growth, tex: String.raw`g = \mathbb{E}\,\ln\!\Big(1 + \frac{\text{P\&L}}{C}\Big),\qquad c_{\text{eq}} = \frac{(e^{g}-1)\,C}{M}`, name: "Growth", line: "the fixed share that compounds like the real outcomes, on the Recovery panel's capital",
-      knob: "Compounding multiplies outcomes: losing 50% needs +100% to get back. So the rate that compounds is the average of ln(1 + P&L / capital), not the average P&L. The capital is the one the Recovery panel uses (Basis → Capital per position: margin or notional). Shown as the fixed share of the maximum that, kept every cycle, compounds to the same growth; it sits below the expected share. When one cycle can lose the whole capital, compounding ends at zero sooner or later: the cell says so, and gives the growth of the cycles without a wipe-out. Sizing the position to a smaller share of the capital (or measuring on notional) avoids it.",
+      knob: "Compounding multiplies outcomes: losing 50% needs +100% to get back. So the rate that compounds is the average of ln(1 + P&L / capital), not the average P&L. The capital is the one the Recovery panel uses (Recovery dynamics → Measured on ▾ → Capital per position: margin or notional). Shown as the fixed share of the maximum that, kept every cycle, compounds to the same growth; it sits below the expected share. When one cycle can lose the whole capital, compounding ends at zero sooner or later: the cell says so, and gives the growth of the cycles without a wipe-out. Sizing the position to a smaller share of the capital (or measuring on notional) avoids it.",
       cell: r => describeGrowthCell(r)
     },
     {
       id: CAPTURE.Preset.Empirical, tex: String.raw`\bar c = \frac{1}{n}\sum_{i} \frac{\text{P\&L}\big(S_0\,S_{i+h}/S_i\big)}{M}`, name: "Empirical", line: "the ticker's own past moves over the same number of days",
       knob: "Every overlapping window of daily closes as long as the position's life, applied to today's position and weighed the same. It shows what actually happened, large moves and gaps included, but only what happened in the sample. Needs daily price history: paste closes below (oldest first), or they arrive with the data feed.",
-      cell: r => !r.empirical.ok ? { value: NaN, text: "needs closes", sub: esc(r.empirical.error.message), unit: "capture" } : ({ value: r.empirical.value.mean, text: signedPct(r.empirical.value.mean), sub: `median ${signedPct(r.empirical.value.median)} · ≥ x ${plainPct(r.empirical.value.oddsAtLeast(r.x))}`, unit: "capture" })
+      cell: r => !r.empirical.ok ? { value: NaN, text: "needs closes", sub: esc(r.empirical.error.message), unit: "capture" } : ({ value: r.empirical.value.mean, text: signedPct(r.empirical.value.mean), sub: `median ${signedPct(r.empirical.value.median)} · keeps ≥ ${Math.round(r.x * 100)}% in ${plainPct(r.empirical.value.oddsAtLeast(r.x))} of cycles`, unit: "capture" })
     }
   ]);
   // the prices that keep at least x: a band, a side (one edge open) or every price
@@ -152,9 +152,12 @@ const CAPTURE_VIEW = (() => {
   function describeGrowthCell(r) {
     if (!r.growth.ok) { return { value: NaN, text: "–", sub: esc(r.growth.error.message), unit: "capture" }; }
     const g = r.growth.value;
-    if (g.isRuinous) { return { value: NaN, text: "ends at zero", sub: `on its whole ${r.capitalWord} the capital is wiped out in ${plainPct(g.ruin, 2)} of cycles; without those: ${signedPct(g.survivorCapture)}`, unit: "capture", tone: "neg" }; }
+    if (g.isRuinous) { return { value: NaN, text: "ends at zero", alert: describeSurvival(r, g.survivalScale), sub: `at this size the ${r.capitalWord} is wiped out in ${plainPct(g.ruin, 2)} of cycles; without those: ${signedPct(g.survivorCapture)}`, unit: "capture", tone: "neg" }; }
     return { value: g.equivalentCapture, text: signedPct(g.equivalentCapture), sub: `${signedPct(g.perCycle, 2)} a cycle on ${r.capitalWord}`, unit: "capture" };
   }
+  // the next step after a wipe-out: the size that survives, said first and in the loss colour
+  const describeSurvival = (r, scale) => SURVIVAL.line({ scale, test: `with wipe-out odds under ${SURVIVAL.oddsWords(CAPTURE.CONFIG.ruinShown)}`,
+    capital: Number.isFinite(scale) && scale > 0 ? SURVIVAL.capital({ usd: r.capitalPerShare * 100 / +SURVIVAL.floor2(scale), tk: esc(r.b.tk), multiple: 1 / +SURVIVAL.floor2(scale), base: r.capitalWord }) : "" });
   /** @returns {PresetCell} */
   function describeManagedCell(r) {
     if (r.managed === null) { return { value: NaN, text: "computing…", unit: "capture" }; }
@@ -174,7 +177,7 @@ const CAPTURE_VIEW = (() => {
       const cells = live.map(r => preset.cell(r));
       const diff = cells.length === 2 && Number.isFinite(cells[0].value) && Number.isFinite(cells[1].value) && preset.id !== CAPTURE.Preset.Fixed ? pts(cells[0].value - cells[1].value) : "";
       const name = `<b>${esc(preset.name)}</b>${KNOBS.html({ id: `cap-${preset.id}`, title: preset.name, body: preset.knob })}<span class="cap">${esc(preset.line.replace(/\{x\}/g, `${vw.capX}%`))}</span>${preset.tex ? `<span class="ftex">${TEX.html(preset.tex)}</span>` : ""}`;
-      return `<tr data-preset="${preset.id}"><td>${name}</td>${cells.map(c => `<td><span class="cv ${c.tone || (c.unit === "capture" ? tone(c.value) : "")}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td>`).join("")}${live.length === 2 ? `<td class="cd">${diff}</td>` : ""}</tr>`;
+      return `<tr data-preset="${preset.id}"><td>${name}</td>${cells.map(c => `<td><span class="cv ${c.tone || (c.unit === "capture" ? tone(c.value) : "")}">${c.text}</span>${c.alert ? `<span class="cpa">${c.alert}</span>` : ""}${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td>`).join("")}${live.length === 2 ? `<td class="cd">${diff}</td>` : ""}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${rows}</tbody>`;
   }
@@ -263,7 +266,7 @@ const CAPTURE_VIEW = (() => {
   }
   function describeCustomOutput(readings, vw) {
     const live = readings.filter(r => !r.na);
-    const cells = live.map(r => `<span class="ccv">${keyHtml(r.side)}<b class="${tone(r.custom.value)}">${signedPct(r.custom.value)}</b><span class="muted"> · ${usd(r.custom.value * r.max * 100)} a contract · ≥ x ${plainPct(r.custom.measured.oddsAtLeast(r.x))}${vw.ccSrc !== CAPTURE.VolSourceChoice.PeriodVol ? ` · vol ${plainPct(r.custom.vol)}` : ""}${vw.ccExit === CAPTURE.Exit.DaysLeft ? ` · closed with ${r.custom.daysLeft} of ${r.b.dte} days left` : ""}</span></span>`).join("");
+    const cells = live.map(r => `<span class="ccv">${keyHtml(r.side)}<b class="${tone(r.custom.value)}">${signedPct(r.custom.value)}</b><span class="muted"> · ${usd(r.custom.value * r.max * 100)} a ${esc(r.b.tk)} contract · keeps ≥ ${vw.capX}% in ${plainPct(r.custom.measured.oddsAtLeast(r.x))} of cycles${vw.ccSrc !== CAPTURE.VolSourceChoice.PeriodVol ? ` · vol ${plainPct(r.custom.vol)}` : ""}${vw.ccExit === CAPTURE.Exit.DaysLeft ? ` · closed with ${r.custom.daysLeft} of ${r.b.dte} days left` : ""}</span></span>`).join("");
     const note = isVariantDefault(vw) ? " At these settings it is the Expected preset; change a setting to see it as a dashed curve." : " Dashed on the curve.";
     return `${cells}<span class="cap">${esc(describeCustomSetup(vw))}.${note}</span>`;
   }
@@ -296,7 +299,7 @@ const CAPTURE_VIEW = (() => {
   // ---------------------------------------------------------- markup, wiring, render
   const MARKUP = `
   <section class="panel" id="cap-head">
-    <div class="ph"><span class="tools"><button type="button" class="xbtn phx" id="cap-det"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
+    <div class="ph phc"><span class="tools"><button type="button" class="xbtn phx" id="cap-det"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="cap-x" min="-300" max="100" step="5" style="width:58px" aria-label="Share x of the maximum payoff, %"> % of the maximum</span></span><h2>Capture</h2><span class="sub">the share of its maximum payoff a position keeps, weighed by the odds</span></div>
     <span class="capmax" id="cap-max"></span>
     <table class="cmp cpt" id="cap-table"></table>
     <details class="capem" id="cap-emp"><summary>Price history for the empirical preset</summary><span class="cap">Paste daily closes per ticker, oldest first, for this session; the data feed can bring them later.</span><span id="cap-closes"></span></details>
@@ -306,11 +309,11 @@ const CAPTURE_VIEW = (() => {
     <div class="captwo"><span class="capc"><span class="capct">Odds of keeping at least each share of the maximum, held to expiry</span><span id="cap-curve"></span></span><span class="capc"><span class="capct">Kept with no move, by day (time decay alone)</span><span id="cap-time"></span></span></div>
   </section>
   <section class="panel" id="cap-custom">
-    <div class="ph"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
+    <div class="ph phc"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
     <span class="ccrow">
       <span class="ctl"><span class="lbl">Odds from</span><span class="seg" id="cc-src"></span> <span class="ccu" id="cc-volw"><input type="number" id="cc-vol" min="1" max="400" step="1" style="width:52px" aria-label="Typed vol, %">%</span></span>
       <span class="ctl"><span class="lbl">Gap</span><input type="number" id="cc-gapp" min="0" max="100" step="1" style="width:46px" aria-label="Gap chance a cycle, %">% a cycle of <input type="number" id="cc-gaps" min="0" max="95" step="5" style="width:46px" aria-label="Gap size, %">% <span class="seg" id="cc-gapside"></span></span>
-      <span class="ctl"><span class="lbl">Reading</span><span class="seg" id="cc-read"></span> <span class="ccu" id="cc-pctw"><input type="number" id="cc-pct" min="1" max="99" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
+      <span class="ctl"><span class="lbl">Read as</span><span class="seg" id="cc-read"></span> <span class="ccu" id="cc-pctw"><input type="number" id="cc-pct" min="1" max="99" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
       <span class="ctl"><span class="lbl">Exit</span><span class="seg" id="cc-exit"></span> <span class="ccu" id="cc-leftw"><input type="number" id="cc-left" min="0" max="400" step="1" style="width:46px" aria-label="Days left at the exit"> days left</span></span>
     </span>
     <span class="ccout" id="cc-out"></span>
@@ -348,9 +351,9 @@ const CAPTURE_VIEW = (() => {
     const vw = V(), readings = SIDES.map(side => readSide({ side, b: side === "A" ? C.A : C.B, vw }));
     q("#cap-max").innerHTML = describeHeader(readings);
     q("#cap-head").classList.toggle("nodetail", !vw.capDetails);
-    q("#cap-det").textContent = vw.capDetails ? "hide details ▾" : "show details ▸";
+    q("#cap-det").textContent = vw.capDetails ? "hide formulas and details ▾" : "show formulas and details ▸";
     q("#cap-table").innerHTML = describeTable(readings);
-    q("#cap-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A</span> <span><i style="background:var(--b)"></i>B</span> <span class="muted">solid: period vol · dashed: your variant · x = ${vw.capX}%</span>`;
+    q("#cap-lgd").innerHTML = `<span class="lg1"><span><i style="background:var(--a)"></i>A</span> <span><i style="background:var(--b)"></i>B</span> <span class="muted">solid: period vol · dashed: your variant · x = ${vw.capX}%</span></span>`;
     renderCurve(readings); renderTimePath(readings);
     q("#cc-out").innerHTML = describeCustomOutput(readings, vw);
     const closesHost = q("#cap-closes"), idsKey = readings.filter(r => !r.na).map(r => r.b.tk).join("|");
@@ -360,7 +363,8 @@ const CAPTURE_VIEW = (() => {
     scheduleManaged(readings, vw);
   }
   // ---------------------------------------------------------- export: the presets as a plain table
-  const plainText = html => String(html || "").replace(/<br\s*\/?>/g, "; ").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+  // plain text of the page's html; a side key ("A", "B") becomes "A: " so it does not run into the name
+  const plainText = html => String(html || "").replace(/<span class="key [ab]">([AB])<\/span>/g, "$1: ").replace(/<br\s*\/?>/g, "; ").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
   function exportTable(c) {
     C = c;
     const vw = V(), readings = SIDES.map(side => readSide({ side, b: side === "A" ? C.A : C.B, vw }));
@@ -371,7 +375,7 @@ const CAPTURE_VIEW = (() => {
     const rows = PRESETS.map(p => {
       const cells = live.map(r => p.cell(r));
       const diff = cells.length === 2 && Number.isFinite(cells[0].value) && Number.isFinite(cells[1].value) && p.id !== CAPTURE.Preset.Fixed ? pts(cells[0].value - cells[1].value) : "";
-      return [p.name, ...cells.map(c => plainText(c.sub ? `${c.text} (${c.sub})` : c.text)), ...(live.length === 2 ? [diff] : [])];
+      return [p.name, ...cells.map(c => plainText([c.text, /** @type {PresetCell} */ (c).alert, c.sub].filter(Boolean).join(" · "))), ...(live.length === 2 ? [diff] : [])];
     });
     return { intro: plainText(describeHeader(readings)) + `. Share x = ${vw.capX}%.`, head, rows, note: `Your variant: ${describeCustomSetup(vw)}.` };
   }

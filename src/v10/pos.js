@@ -301,5 +301,23 @@ const POS = (() => {
     return w;
   };
 
-  return Object.freeze({ build, price, val, payoff, legsAt, stats, worstIn, canon, bs0, NOSHOCK });
+  // the position's Greeks now, per contract (100 shares), at the model's mark with no shock: delta in shares, gamma as
+  // the change in delta (shares) for a 1% move, and both in $ of stock (× spot); theta in $ per calendar day (the
+  // model's day: T / days left), finite differences of val, so they carry the smile and the fill. Vega is the legs'
+  // Black-76 vega (b.vega: $ per IV point per contract), the same number the sizing and the comparison table use.
+  // NaN when the position is n/a or at expiry.
+  const greeks = function (b) {
+    const none = Object.freeze({ delta: NaN, dollarDelta: NaN, gamma1: NaN, dollarGamma1: NaN, theta: NaN, vega: NaN });
+    if (!b || b.na || !(b.T > 0) || !(b.S > 0)) return none;
+    const S = b.S, T = b.T, dS = S * 1e-4;
+    const mark = val, at = (x, tau) => mark(b, x, tau, NOSHOCK);
+    const deltaAt = x => (at(x + dS, T) - at(x - dS, T)) / (2 * dS);
+    const day = b.dte > 0 ? T / b.dte : 1 / 365, later = T - day;
+    // the last day lands on the expiry payoff, which has no exit cost: compare like with like
+    const tomorrow = later > 1e-9 ? at(S, later) : payoff(b, S) - b.exitCost;
+    const delta = deltaAt(S) * 100, gamma1 = (deltaAt(S * 1.01) - deltaAt(S * 0.99)) / 2 * 100;
+    return Object.freeze({ delta, dollarDelta: delta * S, gamma1, dollarGamma1: gamma1 * S, theta: (tomorrow - at(S, T)) * 100, vega: b.vega });
+  };
+
+  return Object.freeze({ build, price, val, payoff, legsAt, stats, worstIn, greeks, canon, bs0, NOSHOCK });
 })();

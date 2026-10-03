@@ -280,8 +280,47 @@ const PANELS = (() => {
     closed = new Set(stored.ok && stored.value ? String(stored.value).split(",").filter(Boolean) : []);
     return closed;
   }
+  // A panel head is three fixed tracks, never a wrapping row: lead (the title and its chips and knobs) | mid (a short
+  // caption: one line, cut with … and the full text in its tooltip) | tools. .ph2 gives the tools a second row and .phc
+  // the caption a second row, by design. A chart legend is not a caption: it leaves the head for its own two-line
+  // area under it (.phlg). Built once per head; the slots keep the original nodes, so ids and listeners stay.
+  const LEAD = "h2, .pcol, .pnotes, .phx, .info, .xbtn";
+  function layoutHead(head) {
+    if (head.dataset.laid) { return; }
+    head.dataset.laid = "1";
+    const slot = cls => { const span = document.createElement("span"); span.className = cls; return span; };
+    const lead = slot("phl"), mid = slot("phm"), tools = slot("pht"), legends = [];
+    for (const child of [...head.childNodes]) {
+      if (child.nodeType === 3 && !child.textContent.trim()) { child.remove(); continue; }
+      const node = /** @type {Element} */ (child);
+      if (node.nodeType === 1 && node.matches(".tools")) { tools.appendChild(node); }
+      else if (node.nodeType === 1 && node.matches(".lgd")) { node.classList.add("phlg"); legends.push(node); }
+      else if (node.nodeType === 1 && node.matches(LEAD)) { lead.appendChild(node); }
+      else { mid.appendChild(node); }
+    }
+    head.append(lead, mid, tools);
+    head.after(...legends);
+  }
+  // the mid track's tooltip follows its text (legends are rewritten on every render)
+  // any text cut by an ellipsis or a line clamp shows its full text on hover: the title is set when the pointer
+  // arrives and only while the text is cut; titles the page sets itself are left alone
+  const isCutter = (/** @type {Element} */ el) => { const cs = getComputedStyle(el); return cs.textOverflow === "ellipsis" || cs.webkitLineClamp !== "none"; };
+  const isCut = (/** @type {HTMLElement} */ el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2;
+  function titleCut(/** @type {HTMLElement} */ el) {
+    const auto = el.dataset.autotitle === "1";
+    if (el.title && !auto) { return; }
+    if (isCut(el)) { el.title = el.innerText.replace(/\s+/g, " ").trim(); el.dataset.autotitle = "1"; }
+    else if (auto) { el.removeAttribute("title"); delete el.dataset.autotitle; }
+  }
+  document.addEventListener("mouseover", ev => {
+    let el = /** @type {Element} */ (ev.target);
+    for (let up = 0; el && el !== document.body && up < 4; up++, el = el.parentElement) {
+      if (el instanceof HTMLElement && isCutter(el)) { titleCut(el); return; }
+    }
+  }, true);
   function decorate(root) {
     if (!root) { return; }
+    for (const head of root.querySelectorAll(".ph")) { layoutHead(/** @type {HTMLElement} */ (head)); }
     const set = readClosed();
     for (const node of root.querySelectorAll("section.panel[id]")) {
       const panel = /** @type {HTMLElement} */ (node), head = panel.querySelector(":scope > .ph"), title = head && head.querySelector("h2");

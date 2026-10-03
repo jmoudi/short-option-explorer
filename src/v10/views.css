@@ -5,18 +5,19 @@
 .v9views{display:block;--v9-stick:150px}
 .v9views .panel{display:block;scroll-margin-top:calc(var(--v9-stick) + 8px);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin-top:12px}
 /* a panel head: title · its chips · caption or legend, then the tools at the right; tools that do not fit wrap under */
-.v9views .ph{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-bottom:10px;line-height:26px;min-height:26px;white-space:normal}
+.v9views .ph{line-height:26px}
 .v9views .ph h2{font:600 15px/1.2 var(--f-cond);margin:0;white-space:nowrap}
-.v9views .ph .tools{order:9;margin-left:auto;white-space:nowrap;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
 .v9views .ph .tools>*{margin-left:0!important}
 .v9views .ph .tools>*{margin-left:8px;vertical-align:middle}
-.v9views .ph .sub{font-size:12px;color:var(--ink-2);white-space:normal;vertical-align:middle}
+.v9views .ph .sub{font-size:12px;color:var(--ink-2);white-space:nowrap;vertical-align:middle}
 .v9views .ph .info{vertical-align:middle}
 .v9views .lgd{font-size:12px;color:var(--ink-2);vertical-align:middle;margin-left:4px}
 .v9views .lgd>span{white-space:nowrap;margin-right:12px;display:inline-block}
+/* the two designed legend lines are blocks cut with … whatever the legend's inline-entry rule says */
+.v9views .lgd>span.lg1,.v9views .lgd>span.lg2{display:block;margin-right:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .v9views .lgd i{display:inline-block;width:16px;height:2px;border-radius:1px;vertical-align:middle;margin-right:5px}
 .v9views .vnote{display:inline-block;font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:4px;padding:0 6px;line-height:18px}
-.v9views .debit{font:600 11px var(--f-ui);color:var(--debit,var(--neg));white-space:nowrap}
+.v9views .debit{font:600 11px var(--f-ui);color:var(--debit,var(--neg-ink));white-space:nowrap}
 .v9views .warnc,.pop .warnc{color:var(--diff-warn,var(--warn))}
 .v9views .cap{font-size:11px;color:var(--ink-3)}
 .v9views h3{font:600 12.5px/1.2 var(--f-ui);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -34,7 +35,8 @@
 .v9views .ovlgd>span{margin-right:14px;white-space:nowrap;display:inline-block}
 .v9views .ovlgd svg{vertical-align:middle;margin-right:4px}
 .v9views .ovcap{display:block;font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.5}
-.v9views .ovgrid{display:block;font-size:0;margin-right:-20px}
+.v9views .ovgrid{display:block;font-size:0;margin-right:0;overflow:hidden}
+.v9views .ovgrid>*:nth-child(3n){margin-right:0}
 .v9views .ovc{display:inline-block;vertical-align:top;width:calc(33.333% - 20px);margin:0 20px 16px 0;font-size:12px}
 .v9views .ovc svg,.v9views .sw svg,.v9views .sm svg,.v9views .chart svg,.v9views #rec-ch svg{display:block;width:100%;height:auto;overflow:visible}
 .v9views .tblx{overflow-x:auto}
@@ -103,7 +105,7 @@
 .v9views .pins th{font:600 11px var(--f-cond);color:var(--ink-2)}
 .v9views .pins td:first-child,.v9views .pins th:first-child,.v9views .pins td:nth-child(2),.v9views .pins th:nth-child(2){text-align:left}
 .v9views .pins button.x{border:0;background:none;color:var(--ink-3);font-size:15px;padding:0 4px}
-.v9views .pins button.x:hover{color:var(--neg)}
+.v9views .pins button.x:hover{color:var(--neg-ink)}
 
 /* joint moves */
 .v9views .panel.slim{padding:9px 14px}
@@ -120,7 +122,6 @@
 .v9views .sw{display:inline-block;vertical-align:top;width:calc(33.333% - 16px);margin-right:16px;font-size:12px}
 .v9views .sw h3 .info,.v9views .ovc h3 .info{width:15px;height:15px;line-height:13px;vertical-align:top}
 .v9views .swcap{display:block;margin-top:6px}
-.v9views .swlgd{display:block;margin:-4px 0 8px}
 
 /* recovery: text block and chart side by side when wide, stacked when narrow; captions wrap, never overprint */
 .v9views .rec{display:block}
@@ -171,12 +172,13 @@
 /* Days to expiry + Replay: one container under the payoff's header */
 .tline{display:flex;align-items:center;gap:12px;margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:3px;background:var(--surface-2)}
 .tl-lbl{font:600 12px var(--f-ui);color:var(--ink);white-space:nowrap}
-.tl-track{position:relative;flex:1 1 auto;min-width:240px;height:26px}
+.tl-track{position:relative;flex:1 1 auto;min-width:150px;height:26px}
 .tl-track input[type=range]{position:absolute;inset:4px 0 0 0;width:100%;margin:0;accent-color:var(--ink)}
 .tl-marks{position:absolute;inset:0;pointer-events:none}
 .tl-mon{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--x)}
 .tl-exp{position:absolute;top:0;bottom:0;right:8px;width:0;border-left:2px solid var(--ink)}
-.tl-out{min-width:150px;font:12px var(--f-num);color:var(--ink-2);white-space:nowrap}
+/* the day readout keeps one width whatever the day says, so nothing beside it moves during a replay */
+.tl-out{width:172px;flex:none;overflow:hidden;text-overflow:ellipsis;font:12px var(--f-num);color:var(--ink-2);white-space:nowrap}
 .tl-out b{font:600 15px var(--f-num);color:var(--ink)}
 .tl-replay{display:flex;align-items:center;gap:2px;padding-left:12px;border-left:1px solid var(--line)}
 .tl-rl{font:600 12px var(--f-ui);color:var(--ink);margin-right:6px}
@@ -194,7 +196,7 @@
 .cpt td:first-child .cap{display:block;margin:1px 0 0}
 .cpt td{vertical-align:top;padding-top:6px;padding-bottom:6px}
 .cpt .cv{display:block;font:600 14px var(--f-num)}
-.cpt .cv.pos{color:var(--pos)}.cpt .cv.neg{color:var(--neg)}
+.cpt .cv.pos{color:var(--pos-ink)}.cpt .cv.neg{color:var(--neg-ink)}
 .cpt .cps{display:block;font:11px var(--f-ui);color:var(--ink-3);white-space:normal;margin-top:1px}
 .cpt .cd{font:12px var(--f-num);color:var(--ink-2)}
 .cpt th .key{font-size:10px}
@@ -213,7 +215,7 @@
 .ccout{display:block;margin-top:6px}
 .ccout .ccv{display:inline-block;margin-right:24px;font-size:12.5px}
 .ccout .ccv b{font:600 15px var(--f-num);margin:0 4px 0 6px}
-.ccout .ccv b.pos{color:var(--pos)}.ccout .ccv b.neg{color:var(--neg)}
+.ccout .ccv b.pos{color:var(--pos-ink)}.ccout .ccv b.neg{color:var(--neg-ink)}
 .ccout .cap{display:block;margin-top:4px}
 #cap-curve,#cap-time{display:block;width:100%}
 
@@ -228,8 +230,6 @@ math[display="block"]{text-align:left}
 .ytog.on,.ytog.on:hover:not(:disabled){background:var(--y);color:var(--surface)}
 .ytog:disabled{border-color:var(--line);color:var(--ink-3);cursor:not-allowed}
 .ybadge{display:inline-flex;align-items:center;border:1px solid var(--y);background:var(--y-bg);color:var(--y);border-radius:3px;padding:0 7px;font:600 11.5px/18px var(--f-ui)}
-.ybadge.wide{display:block;margin:6px 0 0;padding:3px 9px}
-#p-pay .ph .tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .lensread{display:flex;flex-direction:column;gap:3px;margin:4px 0 8px;font-size:12.5px;color:var(--ink-2)}
 .lensread:empty{display:none}
 .lensread .lbl{font-weight:600;color:var(--ink)}
@@ -245,16 +245,20 @@ math[display="block"]{text-align:left}
 .mvc-up{color:var(--up);font-weight:600}.mvc-down{color:var(--down);font-weight:600}.mvc-note{color:var(--note);font-weight:600}.mvc-flat{color:var(--flat)}
 .capem .mvrow{grid-column:2 / span 2;font-size:11.5px;color:var(--ink-2)}
 .capem .mvrow:empty{display:none}
-.mvstrip{display:flex;gap:1px;margin-top:0;flex-wrap:wrap}
+/* the daily-move strip: 60 cells a row, so 120 days are always two rows */
+.mvstrip{display:grid;grid-template-columns:repeat(60,5px);gap:1px;margin-top:0}
 .mvd{display:inline-block;width:5px;height:12px;border-radius:1px}
 .mvd-flat{background:var(--flat);opacity:.45}.mvd-note{background:var(--note)}.mvd-up{background:var(--up)}.mvd-down{background:var(--down)}
 .mvsum{display:block;font-size:11.5px;margin-top:2px}
 /* the lens bar: the lens, then the controls the lens reads (off ones dimmed) */
-.lensbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 6px;padding:5px 8px;border:1px solid var(--line);border-radius:3px;background:var(--surface-2)}
+/* the lens bar: label | lenses | (room) | the controls the lens reads; one row by construction */
+.lensbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto 26px;align-items:center;column-gap:10px;row-gap:4px;margin:8px 0 6px;padding:5px 8px;border:1px solid var(--line);border-radius:3px;background:var(--surface-2)}
+.lensbar>.tl-lbl{grid-row:1;grid-column:1}
+.lensbar>#c-lens{grid-row:1;grid-column:2 / 4;justify-self:start}
+.lensbar>.lb-desc{grid-row:2;grid-column:1 / 3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--ink-2)}
+.lensbar>.lb-tools{grid-row:2;grid-column:3}
 .lensbar .tl-lbl{font-weight:600;font-size:12.5px}
-.lensbar .lb-tools{display:flex;align-items:center;gap:12px;margin-left:auto}
-.lensbar .ctl.off{opacity:.45}
-.lensbar .ctl.off .seg{pointer-events:none}
+.lensbar .lb-tools{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;white-space:nowrap}
 .lensempty{padding:40px 12px;text-align:center}
 #pay:focus-visible{outline:2px solid var(--x);outline-offset:2px}
 .fskews{display:flex;flex-direction:column;gap:2px;margin:8px 0 2px;font-size:12px;color:var(--ink-2)}
@@ -268,3 +272,33 @@ math[display="block"]{text-align:left}
 /* a dock row whose control stacks (Fill: the mode, then the per-leg prices chip) keeps its label on the first line */
 .prow[data-row="fill"]{align-items:start}
 .prow[data-row="fill"]>:first-child{padding-top:5px}
+/* the overview table's best cell per column; the Greeks table */
+#full td.best{background:var(--up-bg);font-weight:700}
+.grk td.gpair{font-weight:600}
+.grk .gname{font-weight:600}
+.grk td.l .muted{font-size:11.5px}
+/* the sizing sentence: its own line at the end of a legend, the same in every lens */
+.v9views .lgd .szn::before{content:"· "}
+.v9views .lgd .szn{color:var(--ink-2);margin-left:4px}
+/* Greeks: the unit is a designed second line under the name, so the label column never pushes the table wide */
+.v9views .cmp.grk td.l{white-space:nowrap}
+.grk td.l .muted{display:block;line-height:1.2}
+/* the loss fill of the A − B strip: the dark --neg is the deeper red, so it gets more opacity to read as strongly */
+.dneg{fill-opacity:.22}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dneg{fill-opacity:.4}}
+:root[data-theme="dark"] .dneg{fill-opacity:.4}
+/* the overview table's headers wrap inside their column; the last column keeps its distance */
+#full th{max-width:110px}
+#full th:last-child,#full td:last-child{padding-left:12px}
+/* a toolbar with two rows by design (.tools2: Recovery's hit | growth after it and the basis menu) */
+.ph.ph2>.pht:has(.tools2){justify-self:stretch}
+.ph .tools.tools2{width:100%;display:grid;grid-template-columns:240px 240px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:10px;row-gap:6px;align-items:center}
+.ph .tools.tools2>:nth-child(1){grid-row:1;grid-column:1}
+.ph .tools.tools2>:nth-child(2){grid-row:1;grid-column:2}
+.ph .tools.tools2>:nth-child(3){grid-row:2;grid-column:1 / 3}
+.ph .tools.tools2>:nth-child(4){grid-row:2;grid-column:4}
+.lensbar>.lb-desc.hint{color:var(--y);font-weight:600}
+/* Manage's column heads: the position, then its basis on a designed second line */
+.v9views .mg table.mgt th.mgh .muted{display:block;font-weight:400}
+/* the payoff head's lead is a fixed track (its date changes at every replay stop), so the caption beside it stays put */
+#p-pay>.ph{grid-template-columns:minmax(0,400px) minmax(0,1fr) auto}

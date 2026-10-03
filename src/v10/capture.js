@@ -195,7 +195,21 @@ const CAPTURE = (() => {
     // floor: the growth of the cycles without one is reported apart (survivorPerCycle), the headline is not finite
     const perCycle = Math.exp(logMean) - 1, survivorPerCycle = ruin < 1 ? Math.exp(survivorLog / (1 - ruin)) - 1 : NaN;
     const isRuinous = ruin > CAPTURE_CONFIG.ruinShown;
-    return Result.ok({ logMean, perCycle, ruin, isRuinous, survivorPerCycle, equivalentCapture: perCycle * capitalPerShare / maxPayoff, survivorCapture: survivorPerCycle * capitalPerShare / maxPayoff });
+    const survivalScale = readSurvivalScale({ pnl, scenario, capitalPerShare });
+    return Result.ok({ logMean, perCycle, ruin, isRuinous, survivorPerCycle, survivalScale, equivalentCapture: perCycle * capitalPerShare / maxPayoff, survivorCapture: survivorPerCycle * capitalPerShare / maxPayoff });
+  }
+  // the size that survives: the largest multiple of this size whose wipe-out chance a cycle stays at or under
+  // ruinShown. With the outcomes from worst up, the first one that tips the odds past ruinShown must not reach the
+  // capital: multiple < capital / its loss (Infinity when it is no loss)
+  /** @param {{ pnl: (S: number) => number, scenario: Scenario, capitalPerShare: number }} input */
+  function readSurvivalScale({ pnl, scenario, capitalPerShare }) {
+    const cells = Array.from(scenario.S, (S, i) => ({ v: pnl(S), w: scenario.w[i] })).sort((a, b) => a.v - b.v);
+    let mass = 0;
+    for (const c of cells) {
+      mass += c.w;
+      if (mass > CAPTURE_CONFIG.ruinShown) { return c.v < 0 ? capitalPerShare / -c.v : Infinity; }
+    }
+    return Infinity;
   }
 
   // ---------------------------------------------------------- a take-profit / stop rule on seeded daily paths

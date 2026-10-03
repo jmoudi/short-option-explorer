@@ -317,6 +317,18 @@ const COMPOUND_ENGINE = (() => {
     return { main, exact };
   }
 
-  return { runHorizon, runAll, cycles, weekDate, pathMult, pickStrike, bs: bsY, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv: NinvY, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
+  // the run's definition in words, one source for the Compounding page and the export
+  const WORDS = (() => {
+    const fam = r => r.fam === "cc" ? (r.puts ? "covered strangle" : r.cd >= 50 ? "ITM covered calls" : "covered calls") : (r.pd > 50 && r.cd > 50 ? "short guts" : r.cd === 50 && r.pd === 50 ? "straddle" : "strangle") + (r.wcd || r.wpd ? " + wings" : "");
+    const cad = r => r.cad === "wk" ? "weekly" : "monthly";
+    const credit = c => ({ reinvest: "reinvest", rebal: "rebalance", cash: "keep as cash" })[c];
+    const modus = m => `${credit(m.credit)} · ${m.call === "ibkr" ? "IBKR minimum" : `back to ${(+m.target).toFixed(2)}×`} · ${m.move === "keep" ? "keeps trading" : "stops"}`;
+    const wings = r => r.wcd || r.wpd ? ` · wings ${[r.wpd ? r.wpd + "Δ put" : "", r.wcd ? r.wcd + "Δ call" : ""].filter(Boolean).join(" / ")}` : "";
+    const size = r => r.fam === "cc" ? `call ${r.cd}Δ${r.puts ? `, put ${r.pd}Δ` : ""} · ${r.lev.toFixed(2)}× leverage` : `put ${r.pd}Δ / call ${r.cd}Δ · ${Math.round(r.use * 100)}% of margin`;
+    const def = r => `${r.tk} · ${cad(r)} · ${fam(r)} · ${size(r)}${wings(r)}`;
+    return { fam, cad, credit, modus, def, name: r => `${r.tk} ${cad(r)} ${fam(r)}` };
+  })();
+
+  return { WORDS, runHorizon, runAll, cycles, weekDate, pathMult, pickStrike, bs: bsY, deltaOf, kForDelta, naked, reqStr, interest, loanRate, touch1, surv2, jointMinEnd, nodes, Nc, Ninv: NinvY, mOf, LEV, START, iso, MODUS, COSTS, RATES, HOL };
 })();
 if (typeof module !== "undefined") module.exports = COMPOUND_ENGINE;

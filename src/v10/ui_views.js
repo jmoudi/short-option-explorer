@@ -21,7 +21,15 @@ const VIEWS = (() => {
 
   // ---------------------------------------------------------- formatting on the current context
   const fU = (v, d) => C.fU(v, d), fUt = (t, s) => C.fUt(t, s), uLab = (u, unit, d) => STATE.uLab(u, unit, d);
-  const hTxt = () => C.hTxt(), hb = () => Math.abs(C.h - 1) > 0.005 ? ` ×${C.h.toFixed(2)}` : "";
+  const hTxt = () => C.hTxt(), isScaled = () => Math.abs(C.h - 1) > 0.005;
+  // a chart legend: two designed lines under the panel head, each one line cut with … (its full text in the tooltip):
+  // line 1 says which line is A and which is B, line 2 the sizing sentence and the chart's key
+  function setLegend(host, entries, notes) {
+    host.innerHTML = `<span class="lg1">${entries}</span><span class="lg2">${notes || ""}</span>`;
+    for (const line of host.children) { /** @type {HTMLElement} */ (line).title = /** @type {HTMLElement} */ (line).textContent.replace(/\s+/g, " ").trim(); }
+  }
+  // the one sizing statement beside a legend (two different positions only)
+  const sizeNote = () => { const words = C.sizeWords(); return !words || (C.same && C.diff.identical) ? "" : ` <span class="szn">${esc(words)}</span>`; };
   const trow = (label, v, cls) => `<span class="r"><span class="k">${cls ? `<i class="sw" style="background:var(--${cls})"></i>` : ""}${label}</span><span class="v ${pn(v)}">${fU(v)}</span></span>`;
   // the sign class follows the printed value: C.fU prints a value that rounds to zero as an unsigned, uncoloured 0
   const pn = (v, d) => { const t = fU(v, d); return t.charAt(0) === MINUS ? "neg" : t.charAt(0) === "+" ? "pos" : ""; };
@@ -109,8 +117,8 @@ const VIEWS = (() => {
     pop: { l: "Profit odds", f: (b, s) => s.pop, kind: "pct" },
     worst: { l: "Worst loss in range", f: (b, s) => s.worst / b.S, kind: "money", zero: true, tip: "Worst expiry P&L over the worst-loss range; a positive value means no loss anywhere in the range" },
     wingc: { l: "Wing cost", f: b => b.wingPx > 0 ? b.wingPx / b.S : NaN, kind: "money", tip: "Premium paid for the protective wings; positions with a wing only" },
-    wingp: { l: "Wing pays odds", f: (b, s) => b.cap ? s.pCap : b.capP ? s.pCapP : NaN, kind: "pct", tip: "Odds that spot ends beyond the wing strike plus its premium, where the wing has paid for itself (the call wing; the put wing when there is no call wing)" },
-    rom: { l: "Credit / margin", f: b => b.tv / b.margin, kind: "pct", tip: "" }
+    wingp: { l: "Wing pays back (odds)", f: (b, s) => b.cap ? s.pCap : b.capP ? s.pCapP : NaN, kind: "pct", tip: "Odds that spot ends beyond the wing strike plus its premium, where the wing has paid for itself (the call wing; the put wing when there is no call wing)" },
+    rom: { l: "Credit / margin", f: b => b.tv / b.margin, kind: "pct", d: 1, tip: "" }
   };
   const serStyle = (i, j) => { const c = i % 2 ? "var(--ink-3)" : "var(--ink)"; return { col: c, dash: j ? "5 4" : "", shape: i % 2 ? "s" : "c", fill: j ? "var(--surface)" : c, off: [-5, -1.7, 1.7, 5][(i * 2 + j) % 4] }; };
   // series name from the resolved kinds of its points, never from the targets
@@ -121,7 +129,7 @@ const VIEWS = (() => {
   function fOwn(v, b, M, plain) {
     if (!Number.isFinite(v)) return "–";
     if (M.kind === "ratio") return M.fmt(v);
-    if (M.kind === "pct") return fP0(v, 0);
+    if (M.kind === "pct") return fP0(v, M.d ?? 0);
     const x = v * b.S * 100, xd = Math.abs(x).toFixed(Math.abs(x) < 10 ? 2 : 0), usd = ` <span class="muted">${x < 0 && +xd !== 0 ? MINUS : ""}$${xd}</span>`;
     return (M.zero ? fS : fP0)(v, M.d ?? 1) + (plain ? "" : usd);
   }
@@ -212,10 +220,26 @@ const VIEWS = (() => {
       });
     }
   }
+  // the overview table's columns that have a best (key, reading of a cell)
+  /** @type {ReadonlyArray<[string, (c: any, Cx: any) => number]>} */
+  const OV_BEST = Object.freeze([["cr", c => c.b.tv / c.b.S], ["crs", c => c.b.tv / (c.b.S * c.b.sig)], ["crd", c => c.b.tv / c.b.S / c.b.dte],
+    ["ev", (c, Cx) => { const s = Cx.statsAtPeriodVol(c.b); return s ? s.ev / c.b.S : NaN; }], ["pop", c => c.sx.pop], ["worst", c => c.sx.worst / c.b.S], ["rom", c => c.b.tv / c.b.margin]]);
   // overview Breakevens cell: one price per line, low first ("none" when the position never profits at expiry)
   const besTxt = bes => bes && bes.length ? bes.map(fPx2).join("<br>") : "none";
   function renderOvTable(isA, isB) {
-    const cols = [OV.some(c => !c.b.na && c.b.intr > 0) ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"];
+    const cols = [OV.some(c => !c.b.na && c.b.intr > 0) ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays back (odds)", "Credit / margin", "Breakevens"];
+    // the best of each column within each expiry, lit (higher is better; for the worst loss, the least negative). Across
+    // expiries the readings mostly measure the time on the clock, so the comparison stays inside an expiry. A wing that is
+    // n/a repeats its no-wing twin and takes no part; a row keeps its part while any wing it asks for is there.
+    const wingsAsked = c => ["call", "put"].filter(side => c.wings && c.wings[side] && c.wings[side].on);
+    const isTwin = c => { const na = c.b.na ? [] : c.b.flags.filter(f => f.code === "WING_NA").map(f => f.leg), asked = wingsAsked(c);
+      return asked.length > 0 && asked.every(side => na.includes(side === "call" ? "wingCall" : "wingPut")); };
+    const byExpiry = new Map();
+    for (const c of OV.filter(x => !x.b.na && x.sx && !isTwin(x))) { byExpiry.set(c.dte, [...(byExpiry.get(c.dte) || []), c]); }
+    const bestOf = (dte, key) => { const group = byExpiry.get(dte) || [], read = OV_BEST.find(([k]) => k === key)[1]; return { n: group.length, v: Math.max(...group.map(c => read(c, C)).filter(Number.isFinite)) }; };
+    // a tie at the printed precision lights every cell that prints the best value
+    const printed = (key, v, b) => fOwn(v, b, OVM[key], true);
+    const tdFor = c => (key, v, html) => { const best = isTwin(c) ? null : bestOf(c.dte, key); return `<td${best && best.n > 1 && Number.isFinite(v) && Number.isFinite(best.v) && printed(key, v, c.b) === printed(key, best.v, c.b) ? ` class="best" title="best of the ${best.n} at this expiry"` : ""}>${html}</td>`; };
     let h = `<thead><tr><th class="st l">Set</th><th class="st2 l">Position</th>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
     const order = OV.map((c, i) => Object.assign({ idx: i }, c)).sort((a, b) => a.dte - b.dte || a.j - b.j || a.i - b.i);
     let lastD = null;
@@ -225,13 +249,39 @@ const VIEWS = (() => {
       const btns = `<button type="button" data-i="${c.idx}" data-set="A"${a ? " disabled" : ""} title="Set as A">A</button> <button type="button" data-i="${c.idx}" data-set="B"${bb ? " disabled" : ""} title="Set as B">B</button>`;
       const wf = wingFlag(b), name = `<span title="${esc(b.label.full)}">${esc(b.label.short)}</span><small>${esc(b.na ? "n/a" : b.label.tab.slice(b.tk.length + 1))}${wf ? `<span class="warnc wn" title="${esc(wf.text)}">! ${wf.leg === "wingPut" ? "put" : "call"} wing n/a</span>` : ""}</small>`;
       if (b.na || !x) { h += `<tr class="${cls}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td class="l" colspan="${cols.length}">n/a: ${esc(b.naReason)}</td></tr>`; continue; }
-      const o = (k, v) => fOwn(v, b, OVM[k], true), hv = C.statsAtPeriodVol(b);
+      const o = (k, v) => fOwn(v, b, OVM[k], true), hv = C.statsAtPeriodVol(b), td = tdFor(c);
       // the cash credit sits under the time value, as the Position cell stacks its parts (keeps the table narrow)
       const cash = b.intr > 0 ? `<small class="cash">cash ${o("cr", b.cr / b.S)}</small>` : "";
       const wp = OVM.wingp.f(b, x);
-      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV ${C.volOddsText({ ids: [b.tk] })} $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td><td>${o("cr", b.tv / b.S)}${cash}</td><td>${fN0(b.tv / (b.S * b.sig), 3)}</td><td>${o("crd", b.tv / b.S / b.dte)}</td><td>${hv ? o("ev", hv.ev / b.S) : "–"}</td><td>${fP(x.pop, 0)}</td><td>${o("worst", x.worst / b.S)}</td><td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)}<small class="cash">pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}</small>` : "–"}</td><td>${fP0(b.tv / b.margin, 1)}</td><td>${besTxt(x.bes)}</td></tr>`;
+      h += `<tr class="${cls}" title="${esc(b.label.full)} · $ per contract: ${b.cr < 0 ? "net debit" : "credit"} $${Math.abs(b.cr * 100).toFixed(0)}${b.intr > 0 ? `, time value $${(b.tv * 100).toFixed(0)}` : ""}, EV ${C.volOddsText({ ids: [b.tk] })} $${hv ? (hv.ev * 100).toFixed(0) : "–"}, worst $${(x.worst * 100).toFixed(0)}"><td class="st">${btns}</td><td class="st2 l">${name}</td>${td("cr", b.tv / b.S, o("cr", b.tv / b.S) + cash)}${td("crs", b.tv / (b.S * b.sig), fN0(b.tv / (b.S * b.sig), 3))}${td("crd", b.tv / b.S / b.dte, o("crd", b.tv / b.S / b.dte))}${td("ev", hv ? hv.ev / b.S : NaN, hv ? o("ev", hv.ev / b.S) : "–")}${td("pop", x.pop, o("pop", x.pop))}${td("worst", x.worst / b.S, o("worst", x.worst / b.S))}<td>${b.wingPx > 0 ? `${o("wingc", b.wingPx / b.S)}<small class="cash">${Number.isFinite(wp) ? `${fP(wp, 0)} odds it pays back` : "–"}</small>` : "–"}</td>${td("rom", b.tv / b.margin, o("rom", b.tv / b.margin))}<td>${besTxt(x.bes)}</td></tr>`;
     }
     q("#full").innerHTML = h + "</tbody>";
+  }
+
+  // ============================================================ Greeks now
+  // per contract of each side, at the model's mark today with no shock (POS.greeks); B also at its size against one A
+  // contract, and A − B at that size, the way every other reading sets them against each other
+  const GREEK_ROWS = Object.freeze([
+    { key: "delta", label: "Delta", unit: "shares of the stock", tip: "The shares of the underlying the position acts like: + gains on a rise, − on a fall", digits: 1, suffix: " sh", isShares: true },
+    { key: "dollarDelta", label: "Dollar delta", unit: "$ of stock it acts like", tip: "Delta × spot: the dollars of stock the position behaves like (+ long, − short); a 1% move makes or loses about 1% of it", digits: 0, prefix: "$" },
+    { key: "gamma1", label: "Gamma", unit: "shares per 1% move", tip: "How many shares the delta changes by on a 1% move; − means the delta works against you as the price runs (short options)", digits: 2, suffix: " sh", isShares: true },
+    { key: "dollarGamma1", label: "Dollar gamma", unit: "$ of stock per 1% move", tip: "Gamma × spot: how many dollars of stock the delta changes by on a 1% move", digits: 0, prefix: "$" },
+    { key: "theta", label: "Theta", unit: "$ a calendar day", tip: "What one more day earns at an unchanged price and IV: + for a short position", digits: 2, prefix: "$" },
+    { key: "vega", label: "Vega", unit: "$ per IV point", tip: "What one point more of implied vol costs or earns: − for a short position (the same vega the sizing and the comparison table use)", digits: 2, prefix: "$" }
+  ]);
+  // Greeks are exposures, not gains or losses: printed with their sign, in plain ink. Shares of two different stocks
+  // do not add up, so across tickers the A − B column keeps only the dollar rows (as the comparison table does)
+  function renderGreeks() {
+    const gA = POS.greeks(C.A), gB = POS.greeks(C.B), k = C.k, showB = !C.B.na && !(C.same && C.diff.identical);
+    const showSized = showB && !!C.sizeWords(), crossTicker = C.A.tk !== C.B.tk;
+    const sized = key => Number.isFinite(k) ? k * gB[key] : NaN;
+    const text = (v, row) => Number.isFinite(v) ? formatSigned({ value: v, digits: row.digits, prefix: row.prefix || "", suffix: row.suffix || "" }) : "–";
+    const cell = (v, row) => `<td>${text(v, row)}</td>`;
+    const pairCell = row => row.isShares && crossTicker ? `<td class="gpair muted" title="${esc(C.A.tk)} and ${esc(C.B.tk)} shares do not add up: see the dollar rows">–</td>` : `<td class="gpair">${text(gA[row.key] - (showSized ? sized(row.key) : gB[row.key]), row)}</td>`;
+    const head = `<thead><tr><th></th><th>${key("A")} 1 ${esc(C.A.tk)} contract</th>${showB ? `<th><span class="key b">B</span> 1 ${esc(C.B.tk)} contract</th>${showSized ? `<th><span class="key b">B</span> at ${k.toFixed(2)} per A</th>` : ""}<th><span class="key d">A − B</span>${showSized ? " at that size" : ""}</th>` : ""}</tr></thead>`;
+    const body = GREEK_ROWS.map(row => `<tr><td class="l"><span class="gname">${row.label}</span><span class="info" tabindex="0" data-tip="${esc(row.tip)}">i</span> <span class="muted">${row.unit}</span></td>${cell(gA[row.key], row)}${showB ? cell(gB[row.key], row) + (showSized ? cell(sized(row.key), row) : "") + pairCell(row) : ""}</tr>`).join("");
+    q("#grk").innerHTML = head + `<tbody>${body}</tbody>`;
+    q("#grk-sub").textContent = `per contract, now, at the model's mark (no shocks)${C.A.na ? " · A is n/a" : ""}${showB && crossTicker ? ` · ${C.A.tk} and ${C.B.tk} shares do not add up, so A − B keeps the dollar rows` : ""}`;
   }
 
   // ============================================================ payoff at expiry + comparison numbers
@@ -262,10 +312,13 @@ const VIEWS = (() => {
   }
   // payoff y ticks [{v, step}]: nice ticks over [lo, hi]; when one side of zero spans more than 12% of the range but
   // got no tick (a lopsided range), the outermost tick of a finer nice set on that side is added, at least 14px from
-  // the zero line (px = chart height), labelled at its own step; on a short panel (the 92px A − h·B panel), where no
+  // the zero line (px = chart height), labelled at its own step; on a short panel (the 92px A − B panel), where no
   // finer set has a tick in that band, the roundest number between 12px from zero and the edge is used (12px keeps
   // two 10.5px labels apart and buys a rounder number than a 14px floor would), so every side 12px or taller has a tick
-  function payTicks(lo, hi, n, px) {
+  // ticks for a value axis: round in display units (scale = display units per internal unit, C.uScale for readings:
+  // $250 / $500 steps in dollars, not round % of A's notional relabelled), returned in internal units
+  function payTicks(lo, hi, n, px, scale = 1) {
+    if (scale !== 1 && scale > 0 && Number.isFinite(scale)) { return payTicks(lo * scale, hi * scale, n, px).map(t => ({ v: t.v / scale, step: t.step / scale })); }
     const t = ticks(lo, hi, n), step = t.length > 1 ? t[1] - t[0] : (hi - lo) || 0.01, out = t.map(v => ({ v, step }));
     for (const sg of [1, -1]) {
       if (!(sg * (sg > 0 ? hi : lo) > 0.12 * (hi - lo)) || t.some(v => sg * v > 1e-12)) continue;
@@ -290,8 +343,8 @@ const VIEWS = (() => {
   // what the lenses in ui_lens.js may use: the render context, formatting, the day stops and the panel's slots
   function readLensKit() {
     return {
-      C, V, host: q("#pay"), setPref, stopReplay, tauAfter, dayLabel, payTicks, fU, fUt, pn, hb, esc,
-      title: text => { q("#pay-h").textContent = text; }, legend: html => { q("#pay-lgd").innerHTML = html; },
+      C, V, host: q("#pay"), setPref, stopReplay, tauAfter, dayLabel, payTicks, fU, fUt, pn, esc, sizeNote,
+      title: text => { q("#pay-h").textContent = text; }, legend: (entries, notes) => { setLegend(q("#pay-lgd"), entries, notes); },
       read: html => { q("#pay-read").innerHTML = html; }, keep: readings => { Object.assign(LAST, readings); }
     };
   }
@@ -320,7 +373,7 @@ const VIEWS = (() => {
     const X = u => m.l + (u - lo) / (hi - lo) * (W - m.l - m.r), Y = v => y1 + (yhi - v) / (yhi - ylo) * H1, Y2 = v => y2 + (dhi - v) / (dhi - dlo) * H2;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Payoff at expiry for A, B and the pair" }, host), ax = el("g", { class: "ax" }, svg);
     // both panels: a lopsided range still gets a tick on its short side (payTicks)
-    const t1 = payTicks(ylo, yhi, 6, H1), t2 = payTicks(dlo, dhi, 3, H2);
+    const t1 = payTicks(ylo, yhi, 6, H1, C.uScale), t2 = payTicks(dlo, dhi, 3, H2, C.uScale);
     LAST.payTicks = t1.map(t => t.v); LAST.payDiffTicks = t2.map(t => t.v); LAST.payDiffRange = [dlo, dhi];
     for (const { v: t, step } of t1) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 6, Y(t) + 3.5, fUt(t, step || 0.01), { "text-anchor": "end" }); }
     for (const { v: t, step } of t2) { el("line", { x1: m.l, x2: W - m.r, y1: Y2(t), y2: Y2(t) }, ax); txt(ax, m.l - 6, Y2(t) + 3.5, fUt(t, step || 0.01), { "text-anchor": "end" }); }
@@ -334,7 +387,7 @@ const VIEWS = (() => {
     if (vw.pss) sigmaMarks().forEach(([u, l, who]) => { el("line", { x1: X(u), x2: X(u), y1: y1, y2: y3 + H3, stroke: who === "b" ? "var(--b)" : "var(--ink-3)", "stroke-dasharray": "2 3", "stroke-opacity": who === "b" ? .7 : 1 }, svg); txt(svg, X(u), y1 - 4 - (who === "b" ? 12 : 0), l, { "text-anchor": "middle", fill: who === "b" ? "var(--b)" : "var(--ink-3)", "font-size": 10, ...halo }); });
     const z = Y2(0); let dPos = "", dNeg = "";
     for (let i = 0; i < df.length - 1; i++) { const [xa, va] = df[i], [xb, vb] = df[i + 1]; if (!Number.isFinite(va) || !Number.isFinite(vb)) continue; const s = `M${X(xa).toFixed(1)} ${z}L${X(xa).toFixed(1)} ${Y2(va).toFixed(1)}L${X(xb).toFixed(1)} ${Y2(vb).toFixed(1)}L${X(xb).toFixed(1)} ${z}Z`; if ((va + vb) / 2 >= 0) dPos += s; else dNeg += s; }
-    el("path", { d: dPos, fill: "var(--pos)", "fill-opacity": .22 }, svg); el("path", { d: dNeg, fill: "var(--neg)", "fill-opacity": .22 }, svg);
+    el("path", { d: dPos, fill: "var(--pos)", "fill-opacity": .22 }, svg); el("path", { d: dNeg, fill: "var(--neg)", class: "dneg" }, svg);
     el("path", { d: pathOf(df, X, Y2), fill: "none", stroke: "var(--ink)", "stroke-width": 1.5 }, svg);
     // odds strips: each position's own distribution, to its own expiry
     const horizon = (b, y) => { if (diffExp()) txt(svg, W - m.r - 4, y + 17, "to " + fmtE(b.exp), { "text-anchor": "end", fill: "var(--ink-3)", "font-size": 10, ...halo }); };
@@ -353,10 +406,10 @@ const VIEWS = (() => {
     const dl = df.filter(p => Number.isFinite(p[1])), leftHigh = dl.length && dl[0][1] > (dlo + dhi) / 2;
     txt(svg, m.l + 6, leftHigh ? y2 + H2 - 6 : y2 + 13, `A − ${hTxt()}`, { fill: "var(--ink)", "font-size": 11.5, "font-weight": 600, ...halo });
     const endLab = (pts, s, col, other) => { const p = pts[pts.length - 1], o = other[other.length - 1]; if (!p || !Number.isFinite(p[1])) return; const above = !Number.isFinite(o[1]) || p[1] >= o[1]; txt(svg, W - m.r + 5, Y(p[1]) + (above ? -2 : 10) + 4, s, { "text-anchor": "start", fill: `var(--${col})`, "font-size": 11.5, "font-weight": 600, ...halo }); };
-    if (C.diff.identical && !hb()) endLab(a, "A = B", "ink", a); else { endLab(a, "A", "a", b); endLab(b, "B" + hb(), "b", a); }
+    if (C.diff.identical && !isScaled()) endLab(a, "A = B", "ink", a); else { endLab(a, "A", "a", b); endLab(b, "B", "b", a); }
     const naSides = [["A", A], ["B", B]].filter(([, x]) => x.na);
-    if (naSides.length) txt(svg, m.l + 10, y1 + 18, naSides.map(([t, x]) => `${t} is n/a: ${x.naReason}`).join(" · "), { fill: "var(--neg)", "font-size": 12, "font-weight": 600, ...halo });
-    q("#pay-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.full)}</span>${ghosts.length ? ` <span class="muted">· faint: the same at expiry</span>` : ""}${at.ext ? ` <span class="ybadge">extrapolated (dashed): ${esc(at.extWords)}</span>` : ""}${ivBands.length ? ` <span class="muted">· shaded: IV ±${ivPts} points</span>` : V().payIv && lens === PayLens.Pnl ? ` <span class="muted">· IV band: none at expiry (no time value left)</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`;
+    if (naSides.length) txt(svg, m.l + 10, y1 + 18, naSides.map(([t, x]) => `${t} is n/a: ${x.naReason}`).join(" · "), { fill: "var(--neg-ink)", "font-size": 12, "font-weight": 600, ...halo });
+    setLegend(q("#pay-lgd"), `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.full)}</span> <span><i style="background:var(--b)"></i>B ${esc(C.labels.B.full)}</span>`, `${sizeNote()}${ghosts.length ? ` <span class="muted">· faint: the same at expiry</span>` : ""}${at.ext ? ` <span class="ybadge">extrapolated (dashed): ${esc(at.extWords)}</span>` : ""}${ivBands.length ? ` <span class="muted">· shaded: IV ±${ivPts} points</span>` : V().payIv && lens === PayLens.Pnl ? ` <span class="muted">· IV band: none at expiry (no time value left)</span>` : ""}${C.diff.identical ? ` <span class="vnote">A and B are the same trade</span>` : ""}${C.unitsNote ? ` <span class="badge">${esc(C.unitsNote)}</span>` : ""}`);
     const cross = el("line", { y1: y1, y2: y3 + H3, stroke: "var(--ink-2)", visibility: "hidden" }, svg);
     const dots = ["a", "b", "ink"].map(c => el("circle", { r: 4, fill: `var(--${c})`, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg));
     const hit = el("rect", { x: m.l, y: y1, width: W - m.l - m.r, height: y3 + H3 - y1, fill: "transparent" }, svg);
@@ -364,9 +417,9 @@ const VIEWS = (() => {
       const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width, u = clamp(lo + (px - m.l) / (W - m.l - m.r) * (hi - lo), lo, hi);
       cross.setAttribute("x1", X(u)); cross.setAttribute("x2", X(u)); cross.setAttribute("visibility", "visible");
       const va = at.a(u), vb = at.b(u), vd = va - vb;
-      const lensRows = (lens === PayLens.Day ? `<span class="s">${esc(at.since)}</span>` : "") + (at.ext ? `<span class="s" style="color:var(--y)">extrapolated to expiry</span>${C.A.na ? "" : trow("A", at.ext.a(u), "y")}${C.B.na ? "" : trow("B" + hb(), at.ext.b(u), "y")}` : "") + moveZoneRow({ u, elapsed: time.elapsed }) + describeIvRows({ time, ivPts, u });
+      const lensRows = (lens === PayLens.Day ? `<span class="s">${esc(at.since)}</span>` : "") + (at.ext ? `<span class="s" style="color:var(--y)">extrapolated to expiry</span>${C.A.na ? "" : trow("A", at.ext.a(u), "y")}${C.B.na ? "" : trow("B", at.ext.b(u), "y")}` : "") + moveZoneRow({ u, elapsed: time.elapsed }) + describeIvRows({ time, ivPts, u });
       [[va, Y], [vb, Y], [vd, Y2]].forEach(([v, f], i) => { if (Number.isFinite(v)) { dots[i].setAttribute("cx", X(u)); dots[i].setAttribute("cy", f(v)); dots[i].setAttribute("visibility", "visible"); } else dots[i].setAttribute("visibility", "hidden"); });
-      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${lensRows}${time.isExpiry || lens === PayLens.Day ? "" : describeExpiryRows(u)}`, ev.clientX, ev.clientY);
+      showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}${trow("A", va, "a")}${trow("B", vb, "b")}${trow("A − " + hTxt(), vd, "ink")}${lensRows}${time.isExpiry || lens === PayLens.Day ? "" : describeExpiryRows(u)}`, ev.clientX, ev.clientY);
     });
     hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); });
     // the axes answer questions too: a price below, a P&L on the left of each panel
@@ -393,7 +446,7 @@ const VIEWS = (() => {
       const hit = { basis: V().rdHit, k: V().rdK, side: V().rdDir, fraction: V().rdL / 100 };
       const rec = RECOVERY.computeRecovery({ built: b, vol: vol.pct / 100, hit, capital: Capital.Margin, growth: GrowthRate.IfNoSuchHit, typedRate: 0 });
       const hitLine = rec.status === "ok" ? krow(`loss ≥ ${(rec.Lmargin * 100).toFixed(1)}% of margin (the recovery hit)`, `${(rec.q * 100).toFixed(1)}% a cycle`) : "";
-      const rateLine = rec.status === "ok" ? krow("growth a cycle · best case", growthTxt(rec.rates.best)) + krow("growth a cycle · if no such hit", growthTxt(rec.rates.noHit)) + krow("growth a cycle · average", growthTxt(rec.rates.average)) : "";
+      const rateLine = rec.status === "ok" ? krow(`growth a cycle · ${RATE_WORD[GrowthRate.BestCase]}`, growthTxt(rec.rates.best)) + krow(`growth a cycle · ${RATE_WORD[GrowthRate.IfNoSuchHit]}`, growthTxt(rec.rates.noHit)) + krow("growth a cycle · average", growthTxt(rec.rates.average)) : "";
       return `<span class="s">${side} · ${esc(b.label.full)}</span>` +
         (isImpliedRow ? krow("this row (implied odds): fill vs mid", usdSigned(impliedEv)) : "") +
         krow("credit", `${usdSigned(credit)} a contract`) + krow(`expected settlement at ${esc(vol.label)}`, usdSigned(settlement)) +
@@ -421,9 +474,12 @@ const VIEWS = (() => {
   // signed with the typographic minus; a value that rounds to zero prints unsigned
   /** @param {{ value: number, digits: number, prefix?: string, suffix?: string }} input */
   function formatSigned({ value, digits, prefix = "", suffix = "" }) {
+    // a zero at the printed precision is a plain 0 ("$0", "0 sh"), as the reading units print it
+    // thousands are separated ($1,117), as the reading units print them
     const text = Math.abs(value).toFixed(digits);
-    const sign = +text === 0 ? "" : value < 0 ? MINUS : "+";
-    return `${sign}${prefix}${text}${suffix}`;
+    if (+text === 0) { return `${prefix}0${suffix}`; }
+    const shown = +text >= 1000 ? (+text).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : text;
+    return `${value < 0 ? MINUS : "+"}${prefix}${shown}${suffix}`;
   }
   // one value in every reading unit at once
   function describeUnitRows(v) {
@@ -559,7 +615,7 @@ const VIEWS = (() => {
   /** @param {{ time: any, ivPts: number, u: number }} input */
   function describeIvRows({ time, ivPts, u }) {
     if (!ivPts) { return ""; }
-    const rows = [["A", C.A, C.toSA, 1, "a"], ["B" + hb(), C.B, C.toSB, C.h, "b"]].map(([name, b, toS, scale, cls]) => {
+    const rows = [["A", C.A, C.toSA, 1, "a"], ["B", C.B, C.toSB, C.h, "b"]].map(([name, b, toS, scale, cls]) => {
       const tau = b.na ? 0 : tauAfter({ b, elapsed: time.elapsed });
       if (!(tau > 0)) { return ""; }
       const at = sign => scale * POS.val(b, toS(u), tau, Object.assign({}, C.shock, { ivs: (C.shock.ivs || 0) + sign * ivPts })) / b.S;
@@ -567,6 +623,15 @@ const VIEWS = (() => {
     }).join("");
     return rows ? `<span class="s">IV band</span>${rows}` : "";
   }
+  // each lens in plain words: the lens bar's second row says what the chart now shows
+  const LENS_WORDS = Object.freeze({
+    [PayLens.Pnl]: "Each position's P&L at the chosen day, at every price",
+    [PayLens.Day]: "What each position made since the trading day before, at every price; A − B below",
+    [PayLens.Decay]: "The cost to buy each position back at an unchanged price (or the set move), day by day, against a straight line; below, the daily decay",
+    [PayLens.Move]: "How far the price may move in a day before that day's decay is gone, against a normal day",
+    [PayLens.Zone]: "The break-even prices from today to expiry, inside the price cone",
+    [PayLens.Ev]: "Where the expected P&L comes from across prices, on the chosen day"
+  });
   // the lens controls follow the lens and the stop: extrapolation needs a day before and days left
   function describeLensControls(time) {
     const lens = V().payLens, last = time.stops.length - 1, on = !!V().payExtra;
@@ -577,14 +642,17 @@ const VIEWS = (() => {
     const why = time.index === 0 ? "step at least one trading day on from today" : "at expiry no days are left";
     btn.title = !extends_ ? "Extrapolation reads in the P&L and Time decay lenses" : canExtend ? "Repeat the last day's change over the trading days left (dashed, in the accent colour)" : `Extrapolation repeats the last day's change: ${why}`;
     q("#c-payatw").hidden = lens !== PayLens.Decay && lens !== PayLens.Move;
-    q("#c-ivw").classList.toggle("off", lens !== PayLens.Pnl);
+    const desc = on && extends_ && !(time.index > 0 && time.index < last) ? `Extrapolation is on but shows nothing here: ${time.index === 0 ? "step at least one trading day on from today" : "at expiry no days are left"}` : LENS_WORDS[lens] || "";
+    if (q("#c-lensdesc").textContent !== desc) { q("#c-lensdesc").textContent = desc; q("#c-lensdesc").title = desc; }
+    q("#c-ivw").hidden = lens !== PayLens.Pnl;
     q("#c-ivw").title = lens === PayLens.Pnl ? "The P&L at the implied vols shifted by ± these points (before expiry)" : "The IV band reads in the P&L lens";
     const atInput = /** @type {HTMLInputElement} */ (q("#c-payat"));
     if (document.activeElement !== atInput) { atInput.value = String(V().payAt); }
     const onPriceAxis = lens === PayLens.Pnl || lens === PayLens.Day;
     for (const id of ["#c-pso", "#c-pss"]) { /** @type {HTMLElement} */ (q(id).closest("label")).hidden = !onPriceAxis; }
-    q("#pay-xhint").hidden = !(on && extends_ && !canExtend);
-    q("#pay-xhint").textContent = `Extrapolation is on but shows nothing here: ${why}.`;
+    // when extrapolation is on but cannot draw, the lens bar's description row says why (no row appears for it)
+    const isHint = on && extends_ && !canExtend;
+    q("#c-lensdesc").classList.toggle("hint", isHint);
     q("#pay-read").innerHTML = lens === PayLens.Day ? describeDayReadout(time) : "";
   }
   // the day lens in words, at an unchanged price: each position's change on the day against the day before
@@ -598,7 +666,7 @@ const VIEWS = (() => {
       if (b.na) { return ""; }
       const v = now[side](u), w = before ? before[side](u) : NaN;
       const ratio = Number.isFinite(w) && Math.abs(w) > 1e-9 ? ` · ${(v / w).toFixed(1)}× the day before (${fU(w)})` : "";
-      return `<span class="dr"><i class="lsw" style="background:var(--${cls})"></i>${side === "a" ? "A" : "B" + hb()} <b class="${pn(v)}">${fU(v)}</b>${ratio}</span>`;
+      return `<span class="dr"><i class="lsw" style="background:var(--${cls})"></i>${side === "a" ? "A" : "B"} <b class="${pn(v)}">${fU(v)}</b>${ratio}</span>`;
     };
     const pair = now.a(u) - now.b(u);
     return `<span class="lbl">At an unchanged price, ${esc(dayLabel(time.stops[time.index].date))}${weekend}</span>${sideText("a", C.A, "a")}${C.same && C.diff.identical ? "" : sideText("b", C.B, "b")}${C.A.na || C.B.na ? "" : `<span class="dr">A − ${hTxt()} <b class="${pn(pair)}">${fU(pair)}</b></span>`}`;
@@ -681,8 +749,8 @@ const VIEWS = (() => {
     let blo = Math.min(0, ...bars), bhi = Math.max(0, ...bars); const bp = (bhi - blo) * 0.12 || 0.0005; blo -= bp; bhi += bp;
     const Y = v => y1 + (yhi - v) / (yhi - ylo) * H1, Y2 = v => y2 + (bhi - v) / (bhi - blo) * H2;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Price to close by trading day, and the decay each day" }, host), ax = el("g", { class: "ax" }, svg);
-    for (const { v, step } of payTicks(ylo, yhi, 5, H1)) { el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, ax); txt(ax, m.l - 6, Y(v) + 3.5, fUt(v, step || 0.01), { "text-anchor": "end" }); }
-    for (const { v, step } of payTicks(blo, bhi, 3, H2)) { el("line", { x1: m.l, x2: W - m.r, y1: Y2(v), y2: Y2(v) }, ax); txt(ax, m.l - 6, Y2(v) + 3.5, fUt(v, step || 0.01), { "text-anchor": "end" }); }
+    for (const { v, step } of payTicks(ylo, yhi, 5, H1, C.uScale)) { el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, ax); txt(ax, m.l - 6, Y(v) + 3.5, fUt(v, step || 0.01), { "text-anchor": "end" }); }
+    for (const { v, step } of payTicks(blo, bhi, 3, H2, C.uScale)) { el("line", { x1: m.l, x2: W - m.r, y1: Y2(v), y2: Y2(v) }, ax); txt(ax, m.l - 6, Y2(v) + 3.5, fUt(v, step || 0.01), { "text-anchor": "end" }); }
     const yb = y2 + H2 + 14;
     stops.forEach((stop, i) => {
       const isEdge = i === 0 || i === last;
@@ -717,9 +785,9 @@ const VIEWS = (() => {
     }
     exts.forEach((e, k) => el("path", { d: pathOf(pts(e), X, Y), fill: "none", stroke: "var(--y)", "stroke-width": k === 0 ? 2.2 : 1.6, "stroke-dasharray": k === 0 ? "7 4" : "2 3" }, svg));
     if (isExtended) { txt(svg, m.l + 8, y1 + 14, `EXTRAPOLATED · the decay pace of ${dayLabel(stops[index].date)} (per calendar day) carried to expiry`, { fill: "var(--y)", "font-size": 11.5, "font-weight": 700, ...halo }); }
-    const label = s => s.side === "a" ? "A" : "B" + hb();
-    q("#pay-lgd").innerHTML = series.map(s => `<span><i style="background:var(--${s.side})"></i>${label(s)} ${esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" ") +
-      ` <span class="muted">· dashed thin: a straight line from today to expiry</span>${isExtended ? ` <span class="ybadge">extrapolated (dashed): the last day's decay pace carried on</span>` : ""}`;
+    const label = s => s.side === "a" ? "A" : "B";
+    setLegend(q("#pay-lgd"), series.map(s => `<span><i style="background:var(--${s.side})"></i>${label(s)} ${esc(C.labels[s.side.toUpperCase()].full)}</span>`).join(" "), (series.length > 1 ? sizeNote() : "") +
+      ` <span class="muted">· dashed thin: a straight line from today to expiry</span>${isExtended ? ` <span class="ybadge">extrapolated (dashed): the last day's decay pace carried on</span>` : ""}`);
     LAST.decay = series.map(s => ({ side: s.side, close: s.close.slice(), straight: s.straight.slice(), burn: s.burn.slice() }));
     q("#pay-read").innerHTML = series.map(s => describeDecayReadout({ s, time, label: label(s) })).join("");
     // hover: the nearest stop; a click picks it
@@ -799,7 +867,7 @@ const VIEWS = (() => {
   }
   // the hover's reference rows when the chart shows a time before expiry: A and B at expiry, at this price
   function describeExpiryRows(u) {
-    return `<span class="s">at expiry</span>${C.A.na ? "" : trow("A", C.pA(u), "a")}${C.B.na ? "" : trow("B" + hb(), C.pB(u), "b")}`;
+    return `<span class="s">at expiry</span>${C.A.na ? "" : trow("A", C.pA(u), "a")}${C.B.na ? "" : trow("B", C.pB(u), "b")}`;
   }
   // pair worst loss over the worst-loss range when one price drives both (same instrument and expiry)
   function pairWorst(Cx, a, b, h) {
@@ -829,7 +897,7 @@ const VIEWS = (() => {
     creditDay: ["Credit per day", "Time value divided by the days to expiry: the decay a day if nothing moves. Longer expiries collect more in total but less a day."],
     odds: ["Profit odds", "The chance the P&L at expiry is above zero, under the odds switch (implied, or the period vol). It says nothing about the size of the losses."],
     worst: ["Worst loss", "The lowest P&L at expiry anywhere inside the range shown, in the page unit. Beyond the range it can be worse (unbounded for naked legs)."],
-    vega: ["Vega per vol point", "The change in value now if every IV moves one point, in the page unit: negative for a short position. What a vol spike costs before any price move."],
+    vega: ["Vega per IV point", "The change in value now if every IV moves one point, in the page unit: negative for a short position. What a vol spike costs before any price move."],
     margin: ["Margin", "Approximate Reg T margin at entry: 20% of spot × the ETF's leverage (capped at 100%) on the worse side plus the premium. Brokers' house rates for leveraged ETFs are higher (the Compounding tab uses them)."],
     creditMargin: ["Credit / margin", "Time value divided by the margin: the return on capital if the position expires worthless. The best case of the recovery panel."]
   });
@@ -882,30 +950,33 @@ const VIEWS = (() => {
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const worstWinner = pickBetterSide({ a: nA || !sa ? NaN : sa.worst / A.S, b: nB || !sb ? NaN : sB(sb.worst / B.S), better: Better.High });
     rows.push(`<tr class="grp"><td>Worst loss${rowKnob("worst")} within ${sel}${own}<span class="cap" style="display:block;margin:0">${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}${sigWord()}: ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${tkOf("B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}</span></td><td${winClass(worstWinner, "A")}>${nA || !sa ? "–" : fU(sa.worst / A.S)}</td><td${winClass(worstWinner, "B")}>${nB || !sb ? "–" : fU(sB(sb.worst / B.S))}</td><td>${pair ? fU(pw) : ""}</td><td>${nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)}</td></tr>`);
-    addRow({ label: `Vega per vol point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2), rowClass: "xmore" });
+    addRow({ label: `Vega per IV point${rowKnob("vega")}`, a: a(A.vega / 100 / A.S, nA), b: a(sB(B.vega / 100 / B.S), nB), format: v => fU(v, 2), rowClass: "xmore" });
     addRow({ label: `Margin${rowKnob("margin")}<span class="cap">approx.: 20% × leverage (${levTxt()}), Reg-T style</span>`, a: a(A.margin / A.S, nA), b: a(sB(B.margin / B.S), nB), format: v => fU(v).replace("+", ""), showDiff: false });
     addRow({ label: `Credit / margin${rowKnob("creditMargin")}${tvC}`, a: a(A.tv / A.margin, nA), b: a(B.tv / B.margin, nB), format: v => fP0(v, 1), showDiff: false, rowClass: "grp xmore", better: Better.High });
     if (A.wingPx > 0 || B.wingPx > 0) {
       addRow({ rowClass: "xmore", label: "Wing cost", a: A.wingPx > 0 ? A.wingPx / A.S : NaN, b: B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, format: v => fU(v) });
       const cw = (b, s) => b.cap && s ? `${fPx2(s.capBE)} · ${fP(s.pCap, 1)}` : "–", pwg = (b, s) => b.capP && s ? `${fPx2(s.capPBE)} · ${fP(s.pCapP, 1)}` : "–";
-      if (A.cap || B.cap) rows.push(`<tr class="xmore"><td>Call wing pays above · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${cw(A, sa)}</td><td>${cw(B, sb)}</td><td></td><td></td></tr>`);
-      if (A.capP || B.capP) rows.push(`<tr class="xmore"><td>Put wing pays below · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${pwg(A, sa)}</td><td>${pwg(B, sb)}</td><td></td><td></td></tr>`);
+      if (A.cap || B.cap) rows.push(`<tr class="xmore"><td>Call wing pays back above · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${cw(A, sa)}</td><td>${cw(B, sb)}</td><td></td><td></td></tr>`);
+      if (A.capP || B.capP) rows.push(`<tr class="xmore"><td>Put wing pays back below · odds<span class="cap">spot where the wing has paid for itself</span></td><td>${pwg(A, sa)}</td><td>${pwg(B, sb)}</td><td></td><td></td></tr>`);
     }
     // the core rows always; the rest behind one chip
     const hidden = rows.filter(r => r.includes('class="xmore"') || r.includes(' xmore"')).length, isMore = !!V().cmpMore;
     if (hidden) { rows.push(`<tr class="xtoggle"><td colspan="5"><button type="button" class="xbtn" data-xmore="1" aria-expanded="${isMore}">${isMore ? `fewer rows ▾` : `show ${hidden} more rows ▸`}</button> <span class="cap">${isMore ? "" : "legs, credit per σ and per day, vega, credit / margin, wings"}</span></td></tr>`); }
     q("#cmp").classList.toggle("showmore", isMore);
-    q("#cmp").innerHTML = `<thead><tr><th></th><th>${key("A")}</th><th><span class="key b">B${hb()}</span></th><th><span class="key d">A − ${hTxt()}</span></th><th>A / B</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+    q("#cmp").innerHTML = `<thead><tr><th></th><th>${key("A")}</th><th><span class="key b">B</span></th><th><span class="key d">A − ${hTxt()}</span></th><th>A / B</th></tr></thead><tbody>${rows.join("")}</tbody>`;
   }
 
   // ============================================================ P&L through time (move across, time down)
   const GRID = { cells: {}, data: null, hov: null, csv: "" };
   // calendar alignment reads each position's odds at min(day, its own days): an expired position keeps its expiry odds
+  // the grid's time rows; a side that is n/a has no clock, so the rows follow the live side (none when both are n/a)
   function gridRows(Cx) {
-    const { A, B } = Cx;
-    if (Cx.cal) { const Hd = Cx.Hd, n = Math.min(Hd, 100); return Array.from({ length: n + 1 }, (_, i) => { const d = Hd * i / n, dA = Math.min(d, A.dte), dB = Math.min(d, B.dte); return { d, dA, dB, tA: dA / 365, tB: dB / 365 }; }); }
-    const n = Math.min(Math.max(A.dte, B.dte), 100);
-    return Array.from({ length: n + 1 }, (_, i) => { const f = i / n; return { f, dA: f * A.dte, dB: f * B.dte, tA: f * A.T, tB: f * B.T }; });
+    const { A, B } = Cx, live = b => !b.na && Number.isFinite(b.dte);
+    if (!live(A) && !live(B)) { return []; }
+    const dteA = live(A) ? A.dte : B.dte, dteB = live(B) ? B.dte : A.dte, TA = live(A) ? A.T : B.T, TB = live(B) ? B.T : A.T;
+    if (Cx.cal) { const Hd = Cx.Hd, n = Math.max(1, Math.min(Hd, 100)); return Array.from({ length: n + 1 }, (_, i) => { const d = Hd * i / n, dA = Math.min(d, dteA), dB = Math.min(d, dteB); return { d, dA, dB, tA: dA / 365, tB: dB / 365 }; }); }
+    const n = Math.max(1, Math.min(Math.max(dteA, dteB), 100));
+    return Array.from({ length: n + 1 }, (_, i) => { const f = i / n; return { f, dA: f * dteA, dB: f * dteB, tA: f * TA, tB: f * TB }; });
   }
   function gridData(nX) {
     const { A, B, lo, hi } = C, rows = gridRows(C), nT = rows.length;
@@ -950,7 +1021,7 @@ const VIEWS = (() => {
   }
   function gridTip(hh, cx, cy) {
     const G = GRID.data, w = G.rows[hh.r], u = G.us[hh.i], { A, B } = C, pm = G.mass[hh.g][hh.r][hh.i];
-    showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}<span class="s">${rowTxt(w)}</span>${trow("A", G.Z.A[hh.r][hh.i], "a")}${trow("B" + hb(), G.Z.B[hh.r][hh.i], "b")}${trow("A − " + hTxt(), G.Z.D[hh.r][hh.i], "ink")}<span class="s" style="margin:4px 0 0">${C.same ? A.tk : tkOf(hh.g === "B" ? "B" : "A")} column odds ${fP(pm, 2)}${V().gval === "contrib" ? ` · weighted ${fU(G.Z[hh.g][hh.r][hh.i] * pm, 3)}` : ""} · click to pin</span>`, cx, cy);
+    showTip(`<span class="h">${uLab(u, C.unit, 2)} · ${C.same ? A.tk : tkOf("A")} ${fPx2(C.toSA(u))} <span class="muted">${fS(C.toSA(u) / A.S - 1, 1)}</span></span>${C.same ? "" : `<span class="s">${tkOf("B")} ${fPx2(C.toSB(u))} (${fS(C.toSB(u) / B.S - 1, 1)})</span>`}<span class="s">${rowTxt(w)}</span>${trow("A", G.Z.A[hh.r][hh.i], "a")}${trow("B", G.Z.B[hh.r][hh.i], "b")}${trow("A − " + hTxt(), G.Z.D[hh.r][hh.i], "ink")}<span class="s" style="margin:4px 0 0">${C.same ? A.tk : tkOf(hh.g === "B" ? "B" : "A")} column odds ${fP(pm, 2)}${V().gval === "contrib" ? ` · weighted ${fU(G.Z[hh.g][hh.r][hh.i] * pm, 3)}` : ""} · click to pin</span>`, cx, cy);
   }
   function colorFn(L) {
     const MID = rgbOf("--mid"), POSC = rgbOf("--pos"), NEG = rgbOf("--neg"), soft = L / 7, lin = V().cs === "lin";
@@ -983,7 +1054,7 @@ const VIEWS = (() => {
       const c = GRID.cells[g]; c.geo = null;
       const bad = (g === "A" && C.A.na) || (g === "B" && C.B.na) || (g === "D" && (C.A.na || C.B.na));
       const lab = b => `<span class="t" title="${esc(b.label.full)}">${esc(b.label.tab)}</span>`;
-      c.gh.innerHTML = (g === "A" ? `${key("A")}${lab(C.A)}` : g === "B" ? `<span class="key b">B${hb()}</span>${lab(C.B)}` : `<span class="key d">A − ${hTxt()}</span><span class="t">the pair</span>`) + (!vw.shared || vw.cr === "fix" ? `<span class="rng2">±${fU(lim[g]).replace("+", "")}</span>` : "");
+      c.gh.innerHTML = (g === "A" ? `${key("A")}${lab(C.A)}` : g === "B" ? `<span class="key b">B</span>${lab(C.B)}${Number.isFinite(C.k) && C.sizeWords() ? `<span class="t muted">at ${C.k.toFixed(2)} per A</span>` : ""}` : `<span class="key d">A − ${hTxt()}</span><span class="t">the pair</span>`) + (!vw.shared || vw.cr === "fix" ? `<span class="rng2">±${fU(lim[g]).replace("+", "")}</span>` : "");
       c.gc.hidden = bad; c.na.hidden = !bad;
       if (bad) { c.na.textContent = `n/a: ${(C.A.na ? C.A : C.B).naReason}`; continue; }
       drawHeat(g, c, Vv[g], lim[g]); geo0 = geo0 || c.geo;
@@ -1020,6 +1091,7 @@ const VIEWS = (() => {
   }
   function drawHeat(g, c, Vg, L) {
     const G = GRID.data, vw = V(), W = c.gc.clientWidth || 300, H = GH, dpr = window.devicePixelRatio || 1;
+    if (!G.nT || !G.nX) { return; }
     const o = gridGeo(W); o.cw = o.pw / G.nX; o.ch = o.ph / G.nT; c.geo = o;
     for (const cv of [c.hm, c.ov]) { cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + "px"; cv.style.height = H + "px"; }
     const ctx = c.hm.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -1113,7 +1185,7 @@ const VIEWS = (() => {
     const pxRows = g === "B" ? [[tkOf("B"), C.toSB]] : g === "D" && !C.same ? [[tkOf("A"), C.toSA], [tkOf("B"), C.toSB]] : [[A.tk, C.toSA]];
     q("#ntab").innerHTML = `<thead><tr><th>${C.cal ? "Day" : "A day"}</th>${cols.map(u => `<th>${uLab(u, C.unit)}${pxRows.map(([tk, f]) => `<small>${pxRows.length > 1 ? tk + " " : ""}${fPx2(f(u))}</small>`).join("")}</th>`).join("")}</tr></thead><tbody>${days.map(d => `<tr><td>${d}</td>${cols.map(u => { const v = cell(u, d); return `<td class="${pn(v, 2)}">${fU(v, 2)}</td>`; }).join("")}</tr>`).join("")}</tbody>`;
     const conv = v => vw.units === "usd" ? (v * A.S * 100).toFixed(2) : vw.units === "cr" && A.tv > 0 ? (v / (A.tv / A.S)).toFixed(4) : (v * 100).toFixed(4);
-    const name = g === "A" ? `A: ${A.label.full}` : g === "B" ? `B: ${B.label.full} x h=${C.h.toFixed(3)}` : `Pair A - ${C.h.toFixed(3)}*B: A ${A.label.full}; B ${B.label.full}`;
+    const name = g === "A" ? `A: ${A.label.full}` : g === "B" ? `B: ${B.label.full}${Number.isFinite(C.k) ? ` at ${C.k.toFixed(2)} contracts per A contract` : ""}` : `Pair A - B: A ${A.label.full}; B ${B.label.full}${C.sizeWords() ? `; ${C.sizeWords()}` : ""}`;
     GRID.csv = [`# ${name}`, `# values: ${C.unitName()}; mark-to-model before expiry, payoff at expiry; move unit ${STATE.UNAME[C.unit]}${shockOn() ? "; shocks " + shockTxt() : ""}`,
       [C.cal ? "day" : "A day", ...cols.map(u => uLab(u, C.unit).replace(MINUS, "-"))].join(","),
       ...pxRows.map(([tk, f]) => [`${tk} price`, ...cols.map(u => fPx2(f(u)))].join(",")),
@@ -1123,7 +1195,7 @@ const VIEWS = (() => {
     const host = q("#pins"), pins = V().pins || [];
     if (!pins.length || !GRID.data) { host.innerHTML = ""; return; }
     const { A, B } = C, cl = pn;
-    let h = `<table><thead><tr><th>Pin</th><th>Scenario</th><th>When</th><th>${key("A")}</th><th><span class="key b">B${hb()}</span></th><th><span class="key d">A − ${hTxt()}</span></th><th></th></tr></thead><tbody>`;
+    let h = `<table><thead><tr><th>Pin</th><th>Scenario</th><th>When</th><th>${key("A")}</th><th><span class="key b">B</span></th><th><span class="key d">A − ${hTxt()}</span></th><th></th></tr></thead><tbody>`;
     pins.forEach((p, k) => {
       const v = pinVals(p), out = !(C.uOfSA(v.SA) >= C.lo && C.uOfSA(v.SA) <= C.hi);
       h += `<tr><td>${k + 1}</td><td>${C.same ? A.tk : tkOf("A")} ${fPx2(v.SA)} ${fS(v.SA / A.S - 1, 1)}${C.same ? "" : ` · ${tkOf("B")} ${fPx2(v.SB)} ${fS(v.SB / B.S - 1, 1)}`}${out ? ' <span class="badge">outside the range</span>' : ""}</td><td>${Math.abs(p.dA - p.dB) < 0.05 ? `day ${+p.dA.toFixed(1)}` : `A day ${+p.dA.toFixed(1)}, B day ${+p.dB.toFixed(1)}`}${p.dA >= A.dte ? " · A at expiry" : ""}${p.dB >= B.dte && !(C.same && B.dte === A.dte) ? " · B at expiry" : ""}</td><td class="${cl(v.a)}">${fU(v.a)}</td><td class="${cl(v.b)}">${fU(v.b)}</td><td class="${cl(v.a - v.b)}">${fU(v.a - v.b)}</td><td><button type="button" class="x" data-k="${k}" aria-label="Remove pin ${k + 1}">×</button></td></tr>`;
@@ -1140,10 +1212,10 @@ const VIEWS = (() => {
     }
     P.className = "panel";
     const maxD = Math.min(A.dte, B.dte), day = vw.jday < 0 || vw.jday > maxD ? maxD : vw.jday;
-    if (!P.querySelector("#c-jday")) P.innerHTML = `<div class="ph"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Day</span><input type="range" id="c-jday" min="0" max="50" step="1" style="width:160px" aria-label="Day"> <output id="o-jday"></output></span></span><h2>Joint moves</h2> <span class="sub" id="j-note"></span></div><div id="joint"></div>`;
+    if (!P.querySelector("#c-jday")) P.innerHTML = `<div class="ph phc"><span class="tools"><span class="ctl" style="margin-right:0"><span class="lbl">Day</span><input type="range" id="c-jday" min="0" max="50" step="1" style="width:160px" aria-label="Day"> <output id="o-jday"></output></span></span><h2>Joint moves</h2> <span class="sub" id="j-note"></span></div><div id="joint"></div>`;
     const ji = P.querySelector("#c-jday"); ji.max = maxD; if (document.activeElement !== ji) ji.value = day;
     P.querySelector("#o-jday").textContent = `day ${day}` + (day === maxD ? ` (${A.dte === maxD ? "A" : "B"} expiry)` : "");
-    P.querySelector("#j-note").textContent = `A − ${hTxt()}, ${A.tk} and ${B.tk} moving independently`;
+    P.querySelector("#j-note").textContent = `A − ${hTxt()}, ${A.tk} and ${B.tk} moving independently${C.sizeWords() ? ` · ${C.sizeWords()}` : ""}`;
     const host = P.querySelector("#joint");
     if (A.na || B.na) { host.innerHTML = `<span class="gna">n/a: ${esc((A.na ? A : B).naReason)}</span>`; return; }
     const { lo, hi } = C, W = 520, Hh = 470, o = { l: 70, r: 10, t: 8, b: 44 }, pw = W - o.l - o.r, ph = Hh - o.t - o.b, n = 90;
@@ -1195,7 +1267,7 @@ const VIEWS = (() => {
       octx.clearRect(0, 0, W, Hh); if (i < 0 || j < 0 || i >= n || j >= n) { hideTip(); return; }
       octx.strokeStyle = ink; octx.globalAlpha = .55; octx.beginPath(); octx.moveTo(o.l, Y(j)); octx.lineTo(o.l + pw, Y(j)); octx.moveTo(X(i), o.t); octx.lineTo(X(i), o.t + ph); octx.stroke(); octx.globalAlpha = 1;
       const ua = us[i], ub = us[n - 1 - j], va = pa[i], vb = pb[n - 1 - j];
-      showTip(`<span class="h">${A.tk} ${uLab(ua, C.unit, 2)} → ${fPx2(C.toSA(ua))}</span><span class="h">${B.tk} ${uLab(ub, C.unit, 2)} → ${fPx2(C.toSB(ub))}</span><span class="s">day ${day}</span>${trow("A", va, "a")}${trow("B" + hb(), vb, "b")}${trow("A − " + hTxt(), va - vb, "ink")}`, ev.clientX, ev.clientY);
+      showTip(`<span class="h">${A.tk} ${uLab(ua, C.unit, 2)} → ${fPx2(C.toSA(ua))}</span><span class="h">${B.tk} ${uLab(ub, C.unit, 2)} → ${fPx2(C.toSB(ub))}</span><span class="s">day ${day}</span>${trow("A", va, "a")}${trow("B", vb, "b")}${trow("A − " + hTxt(), va - vb, "ink")}`, ev.clientX, ev.clientY);
     });
     ov.addEventListener("pointerleave", () => { octx.clearRect(0, 0, W, Hh); hideTip(); });
   }
@@ -1362,7 +1434,6 @@ const VIEWS = (() => {
     LAST.sweep = D9;
     const anyI = [...(sa || []), ...(sb || [])].some(p => !p.b.na && p.b.intr > 0);
     const sideTxt = s => { const x = sides[s]; if (!x) return `${s} n/a`; const legs = x.straddle ? "" : x.legsMode === "detached" ? ", legs detached" : ", legs together"; return `${s}: ${x.what}${legs}`; };
-    q("#sw-lgd").innerHTML = `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.tab)}</span> <span><i style="background:var(--b)"></i>B${hb()} ${esc(C.labels.B.tab)}</span> <span><i style="background:var(--ink);height:1.5px"></i>A − ${hTxt()}${pairOK ? "" : " (worst loss needs one instrument and expiry)"}</span>`;
     q("#sw-cap").textContent = `Varies on the ${basis === "delta" ? "Δ" : basis === "money" ? "% OTM" : "σ"} basis. ${sideTxt("A")} · ${sideTxt("B")}. Shaded: a short leg is in the money against the forward. Dashed lines: the positions as set.${[C.A, C.B].some(b => !b.na && b.typedCount > 0) ? " Every placement is priced at the fill mode; a ring marks the position as traded, at your typed fill." : ""}`;
     // ATM on the x axis: 0 on % and σ; on Δ the forward strike's Δ (none for the mean of a strangle's two legs)
     const atmX = s => { const x = sides[s]; if (!x || mode === "wingCall") return NaN; if (basis !== "delta") return 0; if (mode === "both" && !x.straddle) return NaN; const c = x.b.E.callDelta(x.b.E.Fpar) * 100; return mode === "put" ? 100 - c : c; };
@@ -1371,7 +1442,9 @@ const VIEWS = (() => {
     const smoothWindow = windowResult && windowResult.ok ? windowResult.value : NaN;
     const isSmoothed = Number.isFinite(smoothWindow);
     if (windowResult) { q("#sw-cap").textContent += describeSmoothing({ windowResult, basis }); }
-    if (isSmoothed) { q("#sw-lgd").insertAdjacentHTML("beforeend", ` <span class="swbadge" title="strike steps averaged out over this window; the raw lines stay faint">smoothed · ${esc(RULE.fmtV(smoothWindow, basis))} window</span>`); }
+    // the smoothing badge ends line 1 of the legend (A, B, A − B), the sizing sentence is line 2
+    const smoothBadge = isSmoothed ? ` <span class="swbadge" title="strike steps averaged out over this window; the raw lines stay faint">smoothed · ${esc(RULE.fmtV(smoothWindow, basis))} window</span>` : "";
+    setLegend(q("#sw-lgd"), `<span><i style="background:var(--a)"></i>A ${esc(C.labels.A.tab)}</span> <span><i style="background:var(--b)"></i>B ${esc(C.labels.B.tab)}</span> <span><i style="background:var(--ink);height:1.5px"></i>A − ${hTxt()}${pairOK ? "" : " (worst loss needs one instrument and expiry)"}</span>${smoothBadge}`, sizeNote());
     for (const [k, label] of [["cr", anyI ? "Credit, time value" : "Credit"], ["ev", `Expected value ${C.volOddsText({ isCompact: true })}`], ["worst", `Worst loss, ${uLab(C.wlo, C.unit)} to ${uLab(C.whi, C.unit)}`]]) {
       const evTip = `At expiry under a zero-drift lognormal at each ticker's period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}`;
       const box = document.createElement("span"); box.className = "sw"; box.innerHTML = `<h3>${label}${k === "cr" && anyI ? `<span class="info" tabindex="0" data-tip="Credit minus intrinsic value at entry. Out of the money it is the whole credit; in the money the cash credit also returns intrinsic value paid back at expiry.">i</span>` : ""}${k === "ev" ? `<span class="info" tabindex="0" data-tip="${esc(evTip)}">i</span>` : ""}</h3>`; host.appendChild(box);
@@ -1386,7 +1459,8 @@ const VIEWS = (() => {
       // in-the-money shading from the resolved strikes against the forward
       const xs = D9.xs, itm = xs.map((x, i) => (sa && sa[i].itm) || (sb && sb[i].itm));
       for (let i = 0; i < xs.length; i++) if (itm[i]) { let j = i; while (j + 1 < xs.length && itm[j + 1]) j++; const a = i ? (xs[i - 1] + xs[i]) / 2 : xs[i], b2 = j + 1 < xs.length ? (xs[j] + xs[j + 1]) / 2 : xs[j]; el("rect", { x: X(a), y: m.t, width: Math.max(1, X(b2) - X(a)), height: H - m.t - m.b, fill: "var(--itm-bg)" }, svg); if (X(b2) - X(a) > 70) txt(svg, (X(a) + X(b2)) / 2, H - m.b - 4, "ITM leg", { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 10 }); i = j; }
-      const yt = ticks(ylo, yhi, 4);
+      // round in the reading unit ($250 steps, not round % of notional relabelled)
+      const yt = ticks(ylo * C.uScale, yhi * C.uScale, 4).map(t => t / C.uScale);
       for (const t of yt) { el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }, ax); txt(ax, m.l - 5, Y(t) + 3.5, fUt(t, yt[1] - yt[0] || .01), { "text-anchor": "end" }); }
       const xt = ticks(lo, hi, Math.max(3, Math.floor(pw / 60)));
       for (const t of xt) txt(ax, X(t), H - 20, RULE.fmtV(t, basis), { "text-anchor": "middle" });
@@ -1417,7 +1491,7 @@ const VIEWS = (() => {
         let i = 0; for (let j = 1; j < xs.length; j++) if (Math.abs(xs[j] - x) < Math.abs(xs[i] - x)) i = j;
         cross.setAttribute("x1", X(xs[i])); cross.setAttribute("x2", X(xs[i])); cross.setAttribute("visibility", "visible");
         const f = (p, ps) => !p ? "n/a" : p.b.na ? "n/a" : `${isSmoothed && ps ? `${fU(ps[k])} smoothed · raw ${fU(p[k])}` : fU(p[k])} <span class="muted">${legsTxt(p.b)}${p.itm ? " · ITM" : ""}</span>`;
-        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i], smooth.A && smooth.A[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B${hb()}`, f(sb && sb[i], smooth.B && smooth.B[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
+        showTip(`<span class="h">${sweepAxisName(mode, basis, sides)} ${RULE.fmtV(xs[i], basis)}</span>${krow(`<i class="sw" style="background:var(--a)"></i>A`, f(sa && sa[i], smooth.A && smooth.A[i]))}${krow(`<i class="sw" style="background:var(--b)"></i>B`, f(sb && sb[i], smooth.B && smooth.B[i]))}${sd ? krow(`<i class="sw" style="background:var(--ink)"></i>A − ${hTxt()}`, fU(sd[i][k])) : ""}`, ev.clientX, ev.clientY);
       });
       hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); });
       const plotH = H - m.t - m.b;
@@ -1467,7 +1541,8 @@ const VIEWS = (() => {
     const cell = (r, f) => !r.ok ? `<td class="muted">${esc(r.error.message)}</td>` : `<td>${f(r.value)}</td>`;
     const row = (label, f, tip) => `<tr><td>${label}${tip ? KNOBS.html({ body: tip }) : ""}</td>${results.map(([, , r]) => cell(r, f)).join("")}</tr>`;
     const day = d => Number.isFinite(d) ? ` · day ${d.toFixed(1)}` : "";
-    const head = `<tr><th></th>${results.map(([side, b]) => `<th>${key(side)} <span class="muted">${esc(b.label.tab)}</span></th>`).join("")}</tr>`;
+    // Manage reads each position on its own: $ per contract of its own ticker, not B at its pair size
+    const head = `<tr><th></th>${results.map(([side, b]) => `<th class="mgh">${key(side)} ${esc(b.label.tab)}<span class="muted">$ per ${esc(b.tk)} contract</span></th>`).join("")}</tr>`;
     return `<table class="cmp mgt"><thead>${head}</thead><tbody>` +
       row("Take profit hit", v => `${fPct(v.takeProfit.share)}${day(v.takeProfit.meanDay)}`) +
       row("Stop hit", v => `${fPct(v.stop.share)}${day(v.stop.meanDay)}`) +
@@ -1509,14 +1584,14 @@ const VIEWS = (() => {
   }
   // growth a cycle, signed from its printed value: "+1.41%", "−1.41%", and "0.00%" for anything that rounds to zero
   const growthTxt = g => { if (!Number.isFinite(g)) return "–"; const t = Math.abs(g * 100).toFixed(2); return (+t === 0 ? "" : g > 0 ? "+" : MINUS) + t + "%"; };
-  const RATE_WORD = Object.freeze({ [GrowthRate.IfNoSuchHit]: "if no such hit", [GrowthRate.Average]: "average", [GrowthRate.BestCase]: "best case", [GrowthRate.Typed]: "typed" });
-  const rateKnob = () => KNOBS.html({ id: "rec-rates", title: "Three growth rates a cycle", body: "Best case: the most the position can make in one cycle, on its capital (the full credit if the price pins the strike). If no such hit: the compounded growth a cycle in the cycles where no loss as large as the hit happens; the smaller losses still compound in it, so it falls as the hit grows and can sit below the average. Average: the expected P&amp;L a cycle, plain; the expected NAV, but not a compounding rate at full margin. All at the ticker's period vol (zero-drift lognormal), at expiry." });
-  const honestyKnob = () => KNOBS.html({ id: "rec-honesty", title: "Chance of no such hit", body: "The if-no-such-hit rate assumes the hit does not happen again while recovering. q is the chance of a loss at least as large as the hit in one cycle; (1 − q)^N is the chance it does not happen in any of the N cycles the recovery takes. Amber below 50%: then the recovery more likely than not meets another such hit." });
+  const RATE_WORD = RECOVERY.RATE_WORDS;
+  const rateKnob = () => KNOBS.html({ id: "rec-rates", title: "Three growth rates a cycle", body: "Best case: the most the position can make in one cycle, on its capital (the full credit if the price pins the strike). If no repeat: the compounded growth a cycle in the cycles where no loss as large as the hit happens (the hit does not repeat); the smaller losses still compound in it, so it falls as the hit grows and can sit below the average. Average: the expected P&amp;L a cycle, plain; the expected NAV, but not a compounding rate at full margin. All at the ticker's period vol (zero-drift lognormal), at expiry." });
+  const honestyKnob = () => KNOBS.html({ id: "rec-honesty", title: "Chance of no such hit", body: "The if-no-repeat rate assumes the hit does not happen again while recovering. q is the chance of a loss at least as large as the hit in one cycle; (1 − q)^N is the chance it does not happen in any of the N cycles the recovery takes. Amber below 50%: then the recovery more likely than not meets another such hit." });
   /** @param {{ run: any, vw: any, base: string, dstr: (days: number) => string }} input */
   function describeRecoveryRun({ run, vw, base, dstr }) {
     const r = run.rec, head = `<span class="rh">${esc(run.b.label.full)} · ${run.days}-day cycles</span>`;
-    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">Hit</span><span class="v neg">wiped out</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
-    if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">Hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
+    if (r.status === "wiped") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc wide"><span class="l">The hit</span><span class="v neg">wiped out</span><span class="cpa">${describeRecoverySurvival(run)}</span><span class="d">${describeHitBases(r)} · the hit exceeds the capital</span></span></span>`; }
+    if (r.status === "none") { return `<span class="rrun">${key(run.who)}${head}<span class="rv hc"><span class="l">The hit</span><span class="v">no loss</span><span class="d">the move does not cost this position anything</span></span></span>`; }
     const recovery = recTime(recCycles(r.L, r.growth, "rec", base), run.days, r.L, dstr), buffer = recTime(recCycles(r.L, r.growth, "buf", base), run.days, base === "nav" ? r.L : 0, dstr);
     const where = run.xMove ? `at ${fPx2(run.xMove)} (${fS(run.xMove / run.b.S - 1, 1)})` : "a fixed share";
     const onMargin = vw.rdCap !== Capital.Notional, other = onMargin ? `${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional` : `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin`;
@@ -1524,11 +1599,19 @@ const VIEWS = (() => {
     const isSameTime = base === "nav";
     const timeCell = (label, t) => `<span class="rv"><span class="l">${label}</span><span class="v">${t.v}<small>${t.s ? ` (${t.s})` : ""}</small></span><span class="d">${t.d}</span></span>`;
     return `<span class="rrun">${key(run.who)}${head}` +
-      `<span class="rv hc"><span class="l">Hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${MINUS}${(r.L * 100).toFixed(1)}%<small> of ${onMargin ? "margin" : "notional"}</small></span><span class="d">${other} · ${where}</span></span>` +
+      `<span class="rv hc"><span class="l">The hit</span><span class="v ${r.L >= 1 ? "neg" : ""}">${MINUS}${(r.L * 100).toFixed(1)}%<small> of ${onMargin ? "margin" : "notional"}</small></span><span class="d">${other} · ${where}</span></span>` +
       (isSameTime ? timeCell("Recovery", recovery) : timeCell("Recovery (hit first)", recovery) + timeCell("Buffer (climb first)", buffer)) +
       `<span class="rrates">${describeRates({ rec: r, chosen: vw.rdG })}${rateKnob()}</span>` +
       (vw.rdG === GrowthRate.IfNoSuchHit ? `<span class="rhon${r.isAmber ? " w" : ""}">${describeHonesty(r)}${honestyKnob()}</span>` : "") + `</span>`;
   }
+  // the next step after a wipe-out: the size whose capital covers the hit (1 / L of this size), and the capital a
+  // contract that takes
+  const describeRecoverySurvival = run => {
+    const r = run.rec, vw = V(), lossPerContract = r.Lnotional * run.b.S * 100;
+    if (!(r.L > 0) || !Number.isFinite(lossPerContract)) { return ""; }
+    const test = vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`;
+    return SURVIVAL.line({ scale: 1 / r.L, test, capital: SURVIVAL.capital({ usd: lossPerContract, tk: esc(run.b.tk), multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" }) });
+  };
   const describeHitBases = r => `${MINUS}${(r.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.Lnotional * 100).toFixed(1)}% of notional`;
   // the three rates side by side, the chosen one bold, each with its cycles
   /** @param {{ rec: any, chosen: string }} input */
@@ -1757,7 +1840,7 @@ const VIEWS = (() => {
       "σ: the move axis uses each instrument's ATM vol at A's horizon (interpolated in total variance when B does not list A's date), so every panel sees the same scenarios. Strike placement on the σ basis, credit/σ and the recovery hit use the position's own σ to its own expiry; the grid's cones and odds strips use each position's own clock. Labels say which applies when the expiries differ.",
       "Credit and time value: an in-the-money leg's cash credit includes its intrinsic value against spot, paid back at expiry. Time value = credit − intrinsic. Credit/σ, credit per day, credit/margin, the overview, the sweep, × credit units and the equal-credit sizing rule use time value; × credit units fall back to % of notional, and say so, when A's time value is not positive.",
       `Margin (approximate): Reg-T style, 20% × leverage (${levTxt()}) on the naked side, at least 10% × leverage; a side with a wing is charged the smaller of the spread width and the naked charge. IBKR's real leveraged-ETF requirement may differ.`,
-      "Sizing: the pair is A − h·B in units of A's notional. Auto = equal notional on one instrument, equal vega across instruments.",
+      `Sizing: the pair is A − B. ${C ? `${C.sizeStatement().replace(/^./, ch => ch.toUpperCase())}${C.sizeWords() ? ", as the line under the cards states" : ""}. ` : ""}Auto = equal notional on one instrument, equal vega across instruments.`,
       "Not modelled: correlation between the instruments, early assignment (flagged only), dividends, borrow beyond what the forward implies, leveraged-ETF path decay beyond what the smile implies, vol-of-vol."
     ];
     const nl = q("#notes"); if (nl) nl.innerHTML = items.map(s => `<li>${esc(s)}</li>`).join("");
@@ -1765,6 +1848,10 @@ const VIEWS = (() => {
 
   // ============================================================ markup and wiring
   const MARKUP = `
+  <section class="panel" id="p-greeks">
+    <div class="ph phc"><h2>Greeks now</h2><span class="sub" id="grk-sub"></span></div>
+    <table class="cmp grk" id="grk"></table>
+  </section>
   <details class="panel" id="p-over">
     <summary><h2 id="ov-title">Overview</h2><span class="sub" id="ov-sub"></span></summary>
     <span class="ovtools"><span class="seg" id="c-ovv"></span><span class="ovlgd" id="ovlgd"></span><span class="ovcap" id="ovcap"></span></span>
@@ -1785,9 +1872,9 @@ const VIEWS = (() => {
     </div>
     <div class="lensbar" id="lensbar">
       <span class="tl-lbl">Lens</span><span class="seg" id="c-lens" aria-label="Lens"></span>
+      <span class="lb-desc" id="c-lensdesc"></span>
       <span class="lb-tools"><span class="ctl" id="c-payatw" hidden><span class="lbl">at a move of</span><input type="number" id="c-payat" min="-90" max="300" step="1" style="width:56px" aria-label="Price move for the lens, %">%</span><span class="ctl" id="c-ivw"><span class="lbl">IV band</span><span class="seg" id="c-iv"></span></span><button type="button" class="ytog" id="c-extra" aria-pressed="false"></button></span>
     </div>
-    <p class="ybadge wide" id="pay-xhint" hidden></p>
     <div class="chart" id="pay"></div>
     <div class="lensread" id="pay-read"></div>
     <table class="cmp" id="cmp"></table>
@@ -1810,8 +1897,8 @@ const VIEWS = (() => {
         <span class="mrow"><span class="lbl">Overlays</span><label class="chk"><input type="checkbox" id="c-ovk">Strikes</label> <label class="chk"><input type="checkbox" id="c-ovc">±1σ, ±2σ</label> <label class="chk"><input type="checkbox" id="c-ovb">Breakevens</label> <label class="chk"><input type="checkbox" id="c-ovs">Spot</label> <label class="chk"><input type="checkbox" id="c-ovo">Odds strip</label></span>
         <hr>
         <span class="mrow"><span class="lbl">Colour</span><span class="seg" id="c-cs"></span></span>
-        <span class="mrow"><span class="lbl">Range</span><span class="seg" id="c-cr"></span> <span id="crxW">± <input type="number" id="c-crx" min="0.5" max="200" step="0.5"> <span class="cap">% notional</span></span></span>
-        <span class="mrow"><label class="chk"><input type="checkbox" id="c-shared">One colour scale for A, B and A − h·B</label></span>
+        <span class="mrow"><span class="lbl">Range</span><span class="seg" id="c-cr"></span> <span id="crxW">± <input type="number" id="c-crx" min="0.5" max="200" step="0.5"> <span class="cap">% of A's notional</span></span></span>
+        <span class="mrow"><label class="chk"><input type="checkbox" id="c-shared">One colour scale for A, B and A − B</label></span>
       </span></details>
     </span><h2>P&amp;L through time</h2><span class="info" tabindex="0" id="gInfo">i</span></div>
     <span class="seg gtabs" id="c-gtab"></span>
@@ -1825,29 +1912,29 @@ const VIEWS = (() => {
     <div class="pins" id="pins"></div>
   </section>
   <section class="panel" id="p-manage">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Take profit at</span><input type="number" id="c-mgtp" min="0" max="95" step="5" style="width:52px"> % of the credit</span><span class="ctl" style="margin-right:0"><span class="lbl">Stop at a loss of</span><input type="number" id="c-mgsl" min="0" max="1000" step="25" style="width:58px"> % of the credit</span></span><h2>Manage the trade</h2><span id="mg-knob"></span></div>
+    <div class="ph ph2"><span class="tools"><span class="ctl"><span class="lbl">Take profit at</span><input type="number" id="c-mgtp" min="0" max="95" step="5" style="width:52px"> % of the credit</span><span class="ctl" style="margin-right:0"><span class="lbl">Stop at a loss of</span><input type="number" id="c-mgsl" min="0" max="1000" step="25" style="width:58px"> % of the credit</span></span><h2>Manage the trade</h2><span id="mg-knob"></span></div>
     <span class="cap mgcap pnote" id="mg-cap"></span>
     <div class="mg" id="mg"></div>
   </section>
   <section class="panel" id="p-joint"></section>
   <section class="panel" id="p-sweep">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes), on a logarithmic slider: the left half only rounds the corners, the right end averages over about two strikes. Far left = the raw stepped lines, which stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="20" step="1" style="width:110px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B scaled by the current h. Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
+    <div class="ph ph2"><span class="tools"><span class="ctl"><span class="lbl">Vary</span><span class="seg" id="c-sweep"></span></span><span class="ctl" style="margin-right:0" title="How hard to average out the steps the listed $1 strikes make: a Gaussian window of this many strike steps (the axis distance between strike changes), on a logarithmic slider: the left half only rounds the corners, the right end averages over about two strikes. Far left = the raw stepped lines, which stay faint behind a smoothed one."><span class="lbl">Smoothing</span><input type="range" id="c-swsmooth" min="0" max="20" step="1" style="width:110px;vertical-align:middle"><output id="c-swsmootho" style="display:inline-block;min-width:74px;margin-left:5px"></output></span></span><h2>Strike placement sweep</h2><span class="info" tabindex="0" data-tip="Each line re-picks strikes as the placement value moves on the current basis, everything else held. At expiry, in the page units, with B at its pair size (the line under the cards). Worst loss uses the worst-loss range from the payoff table. Dashed lines mark the positions as set; each sits on its own curve.">i</span></div>
     <span class="lgd swlgd" id="sw-lgd"></span>
     <div class="sweep" id="sweep"></div>
     <span class="cap swcap pnote" id="sw-cap"></span>
   </section>
   <section class="panel" id="p-rec">
-    <div class="ph"><span class="tools"><span class="ctl"><span class="lbl">Hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span><span class="ctl"><span class="lbl">Growth</span><span class="seg" id="c-rdg"></span></span>
-      <details class="menu" id="m-rd"><summary>Basis</summary><span class="mb" style="width:330px">
+    <div class="ph ph2"><span class="tools tools2"><span class="ctl"><span class="lbl">The hit</span><span class="seg" id="c-rdhit"></span></span><span class="ctl" id="rd-hitin"></span><span class="ctl"><span class="lbl">Growth after the hit</span><span class="seg" id="c-rdg"></span></span>
+      <details class="menu" id="m-rd"><summary>Measured on ▾</summary><span class="mb" style="width:330px">
         <span class="mt">How the hit and the growth are measured</span>
         <span class="mrow"><span class="lbl">The hit is a % of</span><span class="seg" id="c-rdbase"></span></span>
         <span class="mrow"><span class="lbl">Capital per position</span><span class="seg" id="c-rdcap"></span></span>
-        <span class="mrow"><span class="lbl">Typed growth</span><span id="rd-gc"><input type="number" id="c-rdgc" step="0.1" style="width:56px">% a cycle (when Growth says Typed)</span></span>
+        <span class="mrow"><span class="lbl">Typed growth</span><span id="rd-gc"><input type="number" id="c-rdgc" step="0.1" style="width:56px">% a cycle (when Growth after the hit says typed)</span></span>
         <span class="cap">With the hit as a % of NAV when it lands, recovery and buffer take the same number of cycles at a constant growth rate. Measured against the starting capital they split: recovery needs ln(1/(1−L)) of log-growth, the buffer only ln(1+L).</span></span></details></span><h2>Recovery dynamics</h2><span class="info" tabindex="0" data-tip="How many cycles of normal compounding one bad hit is worth. Recovery: the hit lands in the first cycle, then the account compounds back to its starting NAV. Buffer: the account compounds first, until the same hit would leave it at or above the starting NAV. A cycle is one roll of the same tenor; real time is whole cycles × days. A kσ hit uses each position's own σ to its own expiry.">i</span></div>
     <div class="rec" id="rec"></div>
   </section>
   <section class="panel" id="p-smile">
-    <div class="ph"><span class="lgd tools" id="sm-lgd"></span><h2>Smile and legs</h2><span class="sub">Click a quote to put a leg on exactly that strike.</span></div>
+    <div class="ph phc"><span class="lgd tools" id="sm-lgd"></span><h2>Smile and legs</h2><span class="sub">Click a quote to put a leg on exactly that strike.</span></div>
     <div class="smile" id="smile"></div>
   </section>
   <details class="panel notes" id="p-notes"><summary><h2>Method and caveats</h2></summary><ul id="notes"></ul></details>`;
@@ -1898,7 +1985,7 @@ const VIEWS = (() => {
     seg({ el: q("#c-align"), options: [["frac", "% of life", "Rows are the same share of each position's life"], ["cal", "Same date", "Rows are calendar days; an expired position keeps its expiry payoff"]], read: state => state.assumptions.align, command: assume("align") });
     seg({ el: q("#c-gval"), options: [["pnl", "P&L"], ["contrib", "× odds", "P&L weighted by the odds of each column: shows where the expected value comes from"]], read: state => state.prefs.gval, command: pref("gval") });
     seg({ el: q("#c-gview"), options: [["heat", "Heatmap"], ["num", "Numbers"]], read: state => state.prefs.gview, command: pref("gview") });
-    seg({ el: q("#c-gtab"), options: [["A", "A"], ["B", "B"], ["D", "A − h·B"]], read: state => state.prefs.gtab, command: pref("gtab") });
+    seg({ el: q("#c-gtab"), options: [["A", "A"], ["B", "B"], ["D", "A − B"]], read: state => state.prefs.gtab, command: pref("gtab") });
     bindRange({ input: "#c-ivs", output: "#o-ivs", read: state => state.assumptions.ivs, command: assume("ivs"), format: v => (v > 0 ? "+" : v < 0 ? MINUS : "±") + Math.abs(v) + " vol pts" });
     bindRange({ input: "#c-svs", output: "#o-svs", read: state => state.assumptions.svs, command: assume("svs"), format: v => v ? `+${v} pts per −10%` : "off" });
     bindChk({ input: "#c-svd", read: state => state.assumptions.svd, command: assume("svd") });
@@ -1926,10 +2013,10 @@ const VIEWS = (() => {
     bindRange({ input: q("#c-swsmooth"), output: q("#c-swsmootho"), read: state => smoothingPositionOf(state.prefs.sweepSmoothing), command: position => ({ type: Command.SetPref, patch: { sweepSmoothing: +smoothingAt(+position).toFixed(4) } }), format: position => describeSmoothingStrength(smoothingAt(position)) });
     seg({ el: q("#c-sweep"), options: [["both", "Short legs"], ["put", "Put"], ["call", "Call"], ["wingCall", "Protective call"]], read: state => state.prefs.sweep, command: pref("sweep") });
     // recovery
-    seg({ el: q("#c-rdhit"), options: [["move", "From a move"], ["fixed", "Fixed %"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
+    seg({ el: q("#c-rdhit"), options: [["move", "a price move"], ["fixed", "a fixed loss"]], read: state => state.prefs.rdHit, command: pref("rdHit") });
     seg({ el: q("#c-rdbase"), options: [["nav", "NAV when it lands"], ["start", "starting capital"]], read: state => state.prefs.rdBase, command: pref("rdBase") });
     seg({ el: q("#c-rdcap"), options: [["margin", "Margin"], ["notional", "Notional"]], read: state => state.prefs.rdCap, command: pref("rdCap") });
-    seg({ el: q("#c-rdg"), options: [[GrowthRate.IfNoSuchHit, "If no such hit", "Compounded growth in the cycles without a loss as large as the hit (the default)"], [GrowthRate.Average, "Average", "Expected P&L a cycle"], [GrowthRate.BestCase, "Best", "The most one cycle can make"], [GrowthRate.Typed, "Typed", "Your own rate (under Basis)"]], read: state => state.prefs.rdG, command: pref("rdG") });
+    seg({ el: q("#c-rdg"), options: [[GrowthRate.IfNoSuchHit, RECOVERY.RATE_WORDS[GrowthRate.IfNoSuchHit], "Compounded growth in the cycles without a loss as large as the hit (the default)"], [GrowthRate.Average, RECOVERY.RATE_WORDS[GrowthRate.Average], "Expected P&L a cycle"], [GrowthRate.BestCase, RECOVERY.RATE_WORDS[GrowthRate.BestCase], "The most one cycle can make"], [GrowthRate.Typed, RECOVERY.RATE_WORDS[GrowthRate.Typed], "Your own rate (under Measured on ▾)"]], read: state => state.prefs.rdG, command: pref("rdG") });
     q("#rd-hitin").innerHTML = `<span id="rd-mv"><input type="number" id="c-rdk" min="0.25" max="6" step="0.25" style="width:52px">σ <span class="seg" id="c-rddir"></span></span><span id="rd-fx"><input type="number" id="c-rdl" min="1" max="99" step="1" style="width:52px">%</span>`;
     seg({ el: q("#c-rddir"), options: [["worse", "worse side"], ["down", "down"], ["up", "up"]], read: state => state.prefs.rdDir, command: pref("rdDir") });
     const num = ({ id, key, lo, hi }) => {
@@ -1952,7 +2039,7 @@ const VIEWS = (() => {
     const view = V().cmpView;
     if (view === CompareView.Capture) { return; }
     if (view === CompareView.Facts) { safe(renderSmile, "smile"); return; }
-    safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "comparison table");
+    safe(renderGreeks, "greeks"); safe(renderOverview, "overview"); safe(renderPayoff, "payoff"); safe(renderCmp, "comparison table");
     safe(renderGrid, "grid"); safe(renderPins, "pins"); safe(renderJoint, "joint"); safe(renderManage, "manage"); safe(renderSweep, "sweep");
     safe(renderRecovery, "recovery"); safe(notes, "notes");
     requestAnimationFrame(setStick);

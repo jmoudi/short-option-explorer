@@ -106,7 +106,7 @@ const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
     let ivB = iv0; const ivAt = x => { const lm = Math.log(Math.max(x, 1e-9) / S0); return Math.min(Rl.ivCap, Math.max(0.05, ivB + Rl.ivShift + Rl.ivDown * Math.max(0, -lm) / 0.1 + Rl.ivUp * Math.max(0, lm) / 0.1)); };
     const navBefore = navAt(s, S0, iv0, snap0.el0 || 0), days = compile(scen, L);
     let x = S0, low = navBefore, high = navBefore, cyc0 = -(snap0.el0 || 0);
-    const ev = { call: null, sold: 0, slip: 0, wiped: false, deficit: 0, assigned: 0, closedAt: null, pnlSh: 0, n0: snap0.n };
+    const ev = { call: null, sold: 0, slip: 0, wiped: false, deficit: 0, assigned: 0, closedAt: null, pnlSh: 0, n0: snap0.n, kBack: 0 };
     const tl = scen.lite ? null : [{ el: 0, x, iv: iv0, nav: navBefore }]; let peak = navBefore, maxDD = 0, lastEl = 0;
     const modus = run_.modus || { call: "ibkr", target: 1, move: "keep" };
     for (const d of days) {
@@ -116,7 +116,7 @@ const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
       if (s.dump) { const k = Math.min(s.dump, s.n); s.cash += k * x * (1 - Rl.slipSh); s.n -= k; ev.slip += k * x * Rl.slipSh; s.dump = 0; } // assigned shares of a strangle sold at the open
       const mg = margin(s, x, iv, el, mS);
       if (mg.elv < mg.req - 1e-9) {
-        if (!ev.call) ev.call = { el: d.el, day: d.wk * 5 + d.dow + 1, x, short: mg.req - mg.elv };
+        if (!ev.call) ev.call = { el: d.el, day: d.wk * 5 + d.dow + 1, x, short: mg.req - mg.elv, intraday: true };
         const legPx = l => { const mk = markOf(l, x, iv, el); return mk + (l.q < 0 ? 1 : -1) * Rl.slipOptK * hsOf(mk); };
         let f;
         if (modus.call === "target" && s.n > 0) { // puts back, shares down to the target leverage, calls on sold lots back
@@ -128,6 +128,8 @@ const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
           const den = mg.req + D; f = den > 0 ? (mg.req - mg.elv) / den : 1; if (!(f > 0) || f > 1) f = 1;
           const units = Math.max(s.n, ...s.legs.map(l => Math.abs(l.q))); if (units > 0) f = Math.min(1, Math.ceil(f * units + 1e-9) / units);
         }
+        const shorts = s.legs.reduce((a, l) => a + (l.q < 0 ? -l.q : 0), 0), kBack = shorts * f; ev.kBack += kBack; // short contracts bought back
+        if (ev.call.intraday && ev.call.kHeld == null) { ev.call.kHeld = shorts; ev.call.kBack = kBack; }
         const nSold = s.n * f; ev.sold += nSold; ev.slip += nSold * x * Rl.slipSh; s.cash += nSold * x * (1 - Rl.slipSh); s.n -= nSold;
         for (const l of s.legs) { const px = legPx(l); s.cash += 100 * f * l.q * px; ev.slip += 100 * f * Math.abs(l.q) * Math.abs(px - markOf(l, x, iv, el)); l.q *= 1 - f; }
         if (f >= 1 - 1e-9 && !ev.closedAt) ev.closedAt = { el: d.el, x };
@@ -153,7 +155,7 @@ const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
           s.cash += 100 * l.q * itm; if (l.q < 0) { s.cash -= 100 * -l.q * (costs.commSh + 0.005); ev.assigned += -l.q; } }
         s.legs = []; cyc0 = d.el; s.nextOpen = d.el + cycDays;
         const mg2 = margin(s, x, iv, 0, mS);
-        if (mg2.elv < mg2.req - 1e-9 && s.n > 0) { const need = Math.ceil((mg2.req - mg2.elv) / ((mS - Rl.slipSh) * x)); const k = Math.min(s.n, need); s.cash += k * x * (1 - Rl.slipSh); s.n -= k; ev.sold += k; ev.slip += k * x * Rl.slipSh; if (!ev.call) ev.call = { el: d.el, day: d.wk * 5 + d.dow + 1, x, short: mg2.req - mg2.elv, afterAssign: true }; }
+        if (mg2.elv < mg2.req - 1e-9 && s.n > 0) { const need = Math.ceil((mg2.req - mg2.elv) / ((mS - Rl.slipSh) * x)); const k = Math.min(s.n, need); s.cash += k * x * (1 - Rl.slipSh); s.n -= k; ev.sold += k; ev.slip += k * x * Rl.slipSh; if (!ev.call) ev.call = { el: d.el, day: d.wk * 5 + d.dow + 1, x, short: mg2.req - mg2.elv, afterAssign: true, kHeld: 0, kBack: 0 }; }
         if (navAt(s, x, iv, 0) <= 0) { ev.wiped = true; ev.deficit = Math.max(ev.deficit, -navAt(s, x, iv, 0)); }
         const more = scen.shape === "list" ? d !== days[days.length - 1] : days.some(e => e.el > d.el);
         if (more && modus.move !== "stop" && !ev.wiped) openCycle(s, x, iv, costs, cycDays, mS);
@@ -196,6 +198,20 @@ const COMPOUND_STRESS = ((COMPOUND_ENGINE) => {
     return out;
   }
 
-  return { snapshot, margin, compile, run, givenUp, room, navAt, RULES, mcRun, mcDays };
+  // what the broker did on the margin call, in words: covered calls sell a share of the shares (and the calls on them);
+  // strangles buy contracts back and sell any assigned shares. fPrice formats the price of the call.
+  function callWords(r, cc, fPrice) {
+    const c = r.ev.call; if (!c) return "none";
+    const kHeld = Math.round(c.kHeld || 0), kBack = Math.round(r.ev.kBack), first = Math.round(c.kBack || 0), shares = Math.round(r.ev.sold);
+    const did = [];
+    if (cc) { if (r.ev.sold > 0) did.push(`sold ${Math.round(100 * r.ev.sold / Math.max(1, r.ev.n0))}% of the shares${kBack > 0 ? " and their calls" : ""}`); }
+    else {
+      if (kBack > 0) did.push(kBack === first && kHeld > 0 ? `bought back ${kBack} of ${kHeld} contracts` : `bought back ${kBack} contracts`);
+      if (shares > 0) did.push(`sold ${shares} assigned shares`);
+    }
+    return `day ${c.day} at ${fPrice(c.x)}${did.length ? ", " + did.join(", ") : ""}${r.ev.closedAt ? " · position closed" : ""}`;
+  }
+
+  return { snapshot, margin, compile, run, givenUp, room, navAt, RULES, mcRun, mcDays, callWords };
 })(COMPOUND_ENGINE);
 if (typeof module !== "undefined") module.exports = COMPOUND_STRESS;

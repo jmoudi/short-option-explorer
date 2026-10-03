@@ -61,8 +61,6 @@ const EXPORT9 = (() => {
   const LEGWORD = { put: "Short put", call: "Short call", wingCall: "Call wing (long)", wingPut: "Put wing (long)" };
   const BASISWORD = { delta: "Δ", money: "% OTM from the forward", sigma: "σ distance (own ATM σ√T)" };
   const sideTk = (C, side) => { const I = side === "A" ? C.instA : C.instB; return I ? I.name || I.id : (side === "A" ? C.A : C.B).tk; };
-  const contractsK = C => C.h * C.A.S / C.B.S;
-  const sizeName = C => (CTX.SIZES.find(s => s[0] === C.rule) || ["", C.rule])[1].toLowerCase();
 
   function placementTxt(P, b) {
     const bas = P.basis, f = v => RULE.fmtV(+v, bas);
@@ -96,7 +94,7 @@ const EXPORT9 = (() => {
     const n = b.net;
     let net = `**Net ${n.isDebit ? "debit" : "credit"} ${usd(n.perContract)} per contract** · ${Math.abs(n.pctOfSpot).toFixed(1)}% of spot`;
     if (b.intr > 0) net += ` · time value ${usd(b.tv * 100)} (intrinsic ${usd(b.intr * 100)} is paid back at expiry)`;
-    if (side === "B" && !C.A.na) net += ` · sized ×${contractsK(C).toFixed(2)} B contracts per A contract (${C.comparison.sizing.rule === "auto" ? "auto: " : ""}${sizeName(C)}; h = ${C.h.toFixed(3)} × A's notional)`;
+    if (side === "B" && !C.A.na && C.sizeWords()) net += ` · ${C.sizeWords()}`;
     const fl = b.flags.filter(f => f.code !== "WING_NA").map(flagLine);
     return para(head, intro, legs, naW.join(" "), net, fl.length ? "Flags:\n" + bullets(fl) : "");
   }
@@ -132,7 +130,7 @@ const EXPORT9 = (() => {
       `Period vol: ${[...new Set([C.A.tk, C.B.tk])].map(id => `${id} ${C.volOf(id).label}`).join(", ")}; one number per ticker for every expiry, annualized like IV. σ (the move axis, the worst-loss range, sizing) stays implied.`,
       `Move range ${rng}. Move unit ${unitW}. Worst loss is measured over ${wl}.`,
       C.unitsNote ? `Values: ${C.unitsNote}.` : "",
-      `Pair sizing: ${C.comparison.sizing.rule === "auto" ? `auto (${sizeName(C)})` : sizeName(C)}, h = ${C.h.toFixed(3)}: B's notional is ${C.h.toFixed(2)}× A's${C.A.na || C.B.na ? "" : `, i.e. ×${contractsK(C).toFixed(2)} B contracts per A contract`}${C.hNote ? ` (${C.hNote})` : ""}.`,
+      `Pair sizing${C.comparison.sizing.rule === "auto" ? " (auto)" : ""}: ${C.sizeStatement()}.`,
       shock ? `Shocks after entry (marks before expiry and the pins only): ${shock}.` : "",
       C.comparison.expMap === "same" ? "B uses A's expiry only when its chain lists it." : ""
     ];
@@ -174,7 +172,7 @@ const EXPORT9 = (() => {
     const pw = pair ? pairWorst(C, A, B, h) : NaN;
     const wr = `${C.uLab(C.wlo, C.unit)} to ${C.uLab(C.whi, C.unit)}: ${C.same ? A.tk : sideTk(C, "A")} ${fPx2(C.toSA(C.wlo))}–${fPx2(C.toSA(C.whi))}${C.same ? "" : `, ${sideTk(C, "B")} ${fPx2(C.toSB(C.wlo))}–${fPx2(C.toSB(C.whi))}`}`;
     rows.push([`Worst loss within ${sc.wl === WorstLossRange.View ? "the view range" : "its own range"} (${wr})`, nA || !sa ? "–" : fU(sa.worst / A.S), nB || !sb ? "–" : fU(sB(sb.worst / B.S)), pair ? fU(pw) : "", nA || nB || !sa || !sb ? "" : ratioTxt(sa.worst / A.S, sB(sb.worst / B.S), fU)]);
-    add("Vega per vol point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
+    add("Vega per IV point", a(A.vega / 100 / A.S, nA), a(sB(B.vega / 100 / B.S), nB), v => fU(v, 2));
     add(`Margin (approx.: 20% × leverage, ${levTxt()}, Reg-T style)`, a(A.margin / A.S, nA), a(sB(B.margin / B.S), nB), v => fU(v).replace("+", ""), false);
     add(`Credit / margin${tvC}`, a(A.tv / A.margin, nA), a(B.tv / B.margin, nB), v => fP0(v, 1), false);
     const be = (b, s) => b.na || !s ? "–" : s.bes.length ? s.bes.map(fPx2).join(" / ") : "none";
@@ -182,12 +180,11 @@ const EXPORT9 = (() => {
     if (A.wingPx > 0 || B.wingPx > 0) {
       add("Wing cost", A.wingPx > 0 ? A.wingPx / A.S : NaN, B.wingPx > 0 ? sB(B.wingPx / B.S) : NaN, v => fU(v));
       const cw = (b, s) => b.cap && s ? `${fPx2(s.capBE)} · ${fP(s.pCap, 1)}` : "–", pwg = (b, s) => b.capP && s ? `${fPx2(s.capPBE)} · ${fP(s.pCapP, 1)}` : "–";
-      if (A.cap || B.cap) rows.push(["Call wing pays above · odds (spot where the wing has paid for itself)", cw(A, sa), cw(B, sb), "", ""]);
-      if (A.capP || B.capP) rows.push(["Put wing pays below · odds (spot where the wing has paid for itself)", pwg(A, sa), pwg(B, sb), "", ""]);
+      if (A.cap || B.cap) rows.push(["Call wing pays back above · odds (spot where the wing has paid for itself)", cw(A, sa), cw(B, sb), "", ""]);
+      if (A.capP || B.capP) rows.push(["Put wing pays back below · odds (spot where the wing has paid for itself)", pwg(A, sa), pwg(B, sb), "", ""]);
     }
-    const hb = Math.abs(h - 1) > 0.005 ? ` ×${h.toFixed(2)}` : "";
-    const T = table(["", "A", "B" + hb, "A − " + C.hTxt(), "A / B"], rows);
-    return para("## Results", `Values are ${C.unitName()}; B is scaled by h = ${h.toFixed(3)}. Ratios use time value.`, notes.join(" "), T);
+    const T = table(["", "A", "B", "A − B", "A / B"], rows);
+    return para("## Results", `Values are ${C.unitName()}; ${C.sizeStatement()}. Ratios use time value.`, notes.join(" "), T);
   }
 
   // recovery dynamics: the same RECOVERY.computeRecovery the panel reads
@@ -198,11 +195,11 @@ const EXPORT9 = (() => {
     if (rec.status === "na") { return null; }
     return { b, who, rec, g: rec.status === "ok" ? rec.growth : NaN, L: rec.L, xMove: rec.price, days: b.dte };
   }
-  const RATE_WORDS = Object.freeze({ [GrowthRate.IfNoSuchHit]: "if no such hit", [GrowthRate.Average]: "average", [GrowthRate.BestCase]: "best case", [GrowthRate.Typed]: "typed" });
+  const RATE_WORDS = RECOVERY.RATE_WORDS;
   function exportRates(r) {
     if (r.rec.status !== "ok") { return "–"; }
     const x = r.rec.rates;
-    return `${growthTxt(x.noHit)} if no such hit · ${growthTxt(x.average)} average · ${growthTxt(x.best)} best case`;
+    return `${growthTxt(x.noHit)} ${RATE_WORDS[GrowthRate.IfNoSuchHit]} · ${growthTxt(x.average)} ${RATE_WORDS[GrowthRate.Average]} · ${growthTxt(x.best)} ${RATE_WORDS[GrowthRate.BestCase]}`;
   }
   function exportHonesty(r) {
     if (r.rec.status !== "ok") { return "–"; }
@@ -232,9 +229,11 @@ const EXPORT9 = (() => {
     const rows = [
       ["Position", ...col(r => r.b.label.full)],
       ["Cycle", ...col(r => `${r.days} days`)],
-      [`Growth per cycle used: ${RATE_WORDS[vw.rdG]} (${C.volOddsText({ isCompact: true })}, on ${vw.rdCap === Capital.Margin ? "margin" : "notional"})`, ...col(r => growthTxt(r.g))],
+      [`Growth after the hit: ${RATE_WORDS[vw.rdG]} (${C.volOddsText({ isCompact: true })}, on ${vw.rdCap === Capital.Margin ? "margin" : "notional"})`, ...col(r => growthTxt(r.g))],
       ["The three rates", ...col(exportRates)],
-      ["Hit", ...col(r => r.rec.status === "none" ? "no loss" : `${MINUS}${(r.rec.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.rec.Lnotional * 100).toFixed(1)}% of notional${r.xMove ? ` at ${fPx2(r.xMove)}` : ""}`)],
+      ["The hit", ...col(r => r.rec.status === "none" ? "no loss" : `${MINUS}${(r.rec.Lmargin * 100).toFixed(1)}% of margin · ${MINUS}${(r.rec.Lnotional * 100).toFixed(1)}% of notional${r.xMove ? ` at ${fPx2(r.xMove)}` : ""}`)],
+      ["Size that survives the hit", ...col(r => r.L >= 1 ? SURVIVAL.line({ scale: 1 / r.L, plain: true, test: vw.rdHit === HitBasis.Move ? `this ${vw.rdK}σ hit` : `this ${vw.rdL}% hit`,
+        capital: SURVIVAL.capital({ usd: r.rec.Lnotional * r.b.S * 100, tk: r.b.tk, multiple: r.L, base: vw.rdCap === Capital.Notional ? "notional" : "margin" }) }) : "this size")],
       ["Chance of no such hit while recovering", ...col(exportHonesty)],
       ["Recovery (hit first)", ...col(r => recTime(recCycles(r.L, r.g, "rec", base), r.days, r.L, t0))],
       ["Buffer (climb first)", ...col(r => recTime(recCycles(r.L, r.g, "buf", base), r.days, base === "nav" ? r.L : 0, t0))]
@@ -246,7 +245,7 @@ const EXPORT9 = (() => {
   function secPins(C) {
     const pins = C.prefs.pins || [];
     if (!pins.length) return "";
-    const { A, B } = C, hb = Math.abs(C.h - 1) > 0.005 ? ` ×${C.h.toFixed(2)}` : "";
+    const { A, B } = C;
     const rows = pins.map((p, k) => {
       const a = A.na ? NaN : POS.val(A, p.SA, Math.max(0, A.dte - p.dA) / 365, C.shock) / A.S, b = B.na ? NaN : C.h * POS.val(B, p.SB, Math.max(0, B.dte - p.dB) / 365, C.shock) / B.S;
       const out = !(C.uOfSA(p.SA) >= C.lo && C.uOfSA(p.SA) <= C.hi);
@@ -254,7 +253,7 @@ const EXPORT9 = (() => {
       const when = `${Math.abs(p.dA - p.dB) < 0.05 ? `day ${+p.dA.toFixed(1)}` : `A day ${+p.dA.toFixed(1)}, B day ${+p.dB.toFixed(1)}`}${p.dA >= A.dte ? " · A at expiry" : ""}${p.dB >= B.dte && !(C.same && B.dte === A.dte) ? " · B at expiry" : ""}`;
       return [String(k + 1), scen, when, C.fU(a), C.fU(b), C.fU(a - b)];
     });
-    return para("## Pinned scenarios", `Mark-to-model P&L at each pin, ${C.unitName()}.`, table(["Pin", "Scenario", "When", "A", "B" + hb, "A − " + C.hTxt()], rows, ["r", "l", "l", "r", "r", "r"]));
+    return para("## Pinned scenarios", `Mark-to-model P&L at each pin, ${C.unitName()}.`, table(["Pin", "Scenario", "When", "A", "B", "A − " + C.hTxt()], rows, ["r", "l", "l", "r", "r", "r"]));
   }
 
   // the overview table: every instrument × expiry with A's rule, with and without wings (renderOvTable)
@@ -271,11 +270,11 @@ const EXPORT9 = (() => {
       if (b.na || !sx) return [name, "n/a: " + b.naReason, "", "", "", "", "", "", "", ""];
       const own = (v, d, z) => (z ? fS : fP0)(v, d), hv = C.statsAtPeriodVol(b), wp = b.cap ? sx.pCap : b.capP ? sx.pCapP : NaN;
       return [name, own(b.tv / b.S, 1) + (b.intr > 0 ? ` (cash ${own(b.cr / b.S, 1)})` : ""), fN0(b.tv / (b.S * b.sig), 3), own(b.tv / b.S / b.dte, 3), hv ? own(hv.ev / b.S, 2, true) : "–", fP(sx.pop, 0), own(sx.worst / b.S, 1, true),
-        b.wingPx > 0 ? `${own(b.wingPx / b.S, 1)} · pays ${Number.isFinite(wp) ? fP(wp, 0) : "–"}` : "–", fP0(b.tv / b.margin, 1), sx.bes.length ? sx.bes.map(fPx2).join(" / ") : "none"];
+        b.wingPx > 0 ? `${own(b.wingPx / b.S, 1)} · ${Number.isFinite(wp) ? `${fP(wp, 0)} odds it pays back` : "–"}` : "–", fP0(b.tv / b.margin, 1), sx.bes.length ? sx.bes.map(fPx2).join(" / ") : "none"];
     });
     const P = C.Ap, place = P.structure === "straddle" ? (P.values.center === "atm" ? "the strike nearest the forward" : `center ${RULE.fmtV(+P.values.center, P.basis)}`) : `${RULE.fmtV(+P.values.put, P.basis)} put, ${RULE.fmtV(+P.values.call, P.basis)} call`;
     return para("## Overview", `A's ${P.structure} placed by A's rule (${place}), filled at ${P.fill === "mid" ? "mid" : "natural"}, on every listed expiry at listed spot and IV, with and without wings. Values are % of each position's own notional. Profit odds are ${C.assumptions.dist === Odds.Implied ? "implied" : "at each ticker's period vol"}; EV uses the period vol (${INST.ids().map(id => `${id} ${C.volOf(id).label}`).join(", ")}).`,
-      table(["Position", anyI ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays odds", "Credit / margin", "Breakevens"], rows));
+      table(["Position", anyI ? "Credit, time value" : "Credit", "Credit / σ", "Credit per day", `EV ${C.volOddsText({ ids: INST.ids(), isCompact: true })}`, "Profit odds", "Worst loss", "Wing cost · pays back (odds)", "Credit / margin", "Breakevens"], rows));
   }
 
   function secNotes(C, withFlags, withResults) {
@@ -289,6 +288,22 @@ const EXPORT9 = (() => {
     return para("## Notes", bullets(xs));
   }
 
+  // Greeks now, per contract (POS.greeks), the same table as the page: B also at its size per A contract; across
+  // tickers the A − B column keeps the dollar rows (shares of two stocks do not add up)
+  /** @type {ReadonlyArray<[string, string, number, string, string, boolean]>} */
+  const GREEK_EXPORT = Object.freeze([["Delta (shares of the stock)", "delta", 1, "", " sh", true], ["Dollar delta ($ of stock it acts like)", "dollarDelta", 0, "$", "", false],
+    ["Gamma (shares per 1% move)", "gamma1", 2, "", " sh", true], ["Dollar gamma ($ of stock per 1% move)", "dollarGamma1", 0, "$", "", false],
+    ["Theta ($ a calendar day)", "theta", 2, "$", "", false], ["Vega ($ per IV point)", "vega", 2, "$", "", false]]);
+  function secGreeks(C) {
+    const gA = POS.greeks(C.A), gB = POS.greeks(C.B), showB = !C.B.na && !(C.same && C.diff.identical), sizedOn = showB && !!C.sizeWords(), cross = C.A.tk !== C.B.tk;
+    const f = (v, d, pre, suf) => !Number.isFinite(v) ? "–" : +Math.abs(v).toFixed(d) === 0 ? `${pre}0${suf}` : `${v < 0 ? MINUS : "+"}${pre}${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}${suf}`;
+    const rows = GREEK_EXPORT.map(([label, k, d, pre, suf, shares]) => {
+      const sized = sizedOn ? C.k * gB[k] : gB[k];
+      return [label, f(gA[k], d, pre, suf), ...(showB ? [f(gB[k], d, pre, suf), ...(sizedOn ? [f(C.k * gB[k], d, pre, suf)] : []), shares && cross ? "–" : f(gA[k] - sized, d, pre, suf)] : [])];
+    });
+    const head = ["", `A: 1 ${C.A.tk} contract`, ...(showB ? [`B: 1 ${C.B.tk} contract`, ...(sizedOn ? [`B at ${C.k.toFixed(2)} per A`] : []), "A − B"] : [])];
+    return para("## Greeks now", `Per contract, now, at the model's mark with no shocks.${showB && cross ? ` ${C.A.tk} and ${C.B.tk} shares do not add up, so A − B keeps the dollar rows.` : ""}`, table(head, rows));
+  }
   // a readings table handed over by its view ({ intro, head, rows, note }), as plain text
   /** @param {string} title @param {{ intro: string, head: string[], rows: string[][], note: string }} t */
   const secReadingTable = (title, t) => para(title, t.intro, table(t.head, t.rows), t.note);
@@ -304,7 +319,7 @@ const EXPORT9 = (() => {
     }
     if (on.comparison) out.push(secComparison(C));
     if (on.assumptions) out.push(secAssumptions(C));
-    if (on.results) out.push(secResults(C));
+    if (on.results) out.push(secResults(C), secGreeks(C));
     if (on.recovery) out.push(secRecovery(C));
     if (on.lens && opts.lens) out.push(secLens(opts.lens));
     if (on.capture && opts.capture) out.push(secReadingTable("## Capture", opts.capture));
@@ -322,16 +337,14 @@ const EXPORT9 = (() => {
   const fKs = K => "$" + (+(+K).toFixed(2));
   const fInt = v => Math.round(v).toLocaleString("en-US");
   const hasCompoundEngine = () => typeof COMPOUND_ENGINE !== "undefined";
-  const famTxt = r => r.fam === "cc" ? (r.puts ? "covered strangle" : r.cd >= 50 ? "ITM covered calls" : "covered calls") : (r.pd > 50 && r.cd > 50 ? "short guts" : r.cd === 50 && r.pd === 50 ? "straddle" : "strangle") + (r.wcd || r.wpd ? " + wings" : "");
-  const cadTxt = r => r.cad === "wk" ? "weekly" : "monthly";
-  const modusTxt = m => `${{ reinvest: "reinvest", rebal: "rebalance", cash: "keep as cash" }[m.credit]} · ${m.call === "ibkr" ? "IBKR minimum" : `back to ${(+m.target).toFixed(2)}x`} · ${m.move === "keep" ? "keeps trading" : "stops"}`;
-  const defTxt = r => `${r.tk} · ${cadTxt(r)} · ${famTxt(r)} · ${r.fam === "cc" ? `call ${r.cd}Δ${r.puts ? `, put ${r.pd}Δ` : ""} · ${r.lev.toFixed(2)}x` : `put ${r.pd}Δ / call ${r.cd}Δ · ${Math.round(r.use * 100)}% of margin`}${r.wcd || r.wpd ? ` · wings ${[r.wpd ? r.wpd + "Δ put" : "", r.wcd ? r.wcd + "Δ call" : ""].filter(Boolean).join(" / ")}` : ""}`;
+  // the run's words come from the engine (one source with the Compounding page)
+  const famTxt = r => COMPOUND_ENGINE.WORDS.fam(r), cadTxt = r => COMPOUND_ENGINE.WORDS.cad(r), modusTxt = m => COMPOUND_ENGINE.WORDS.modus(m), defTxt = r => COMPOUND_ENGINE.WORDS.def(r);
   const BDIFFW = { strategy: "strategy", ticker: "ticker", cadence: "cadence", strikes: "strikes", size: "size", modus: "modus operandi", vol: "IV and moves", any: "anything" };
   const runsOf = res => [["A", res && res.A], ["B", res && res.B]].filter(x => x[1]);
 
   function ySecRuns(ys, res) {
     const rows = runsOf(res).map(([w, R]) => [w, defTxt(R.run), modusTxt(R.run.modus)]);
-    return para("## Runs", res.B ? `B differs from A in: ${BDIFFW[ys.bDiff] || ys.bDiff}.` : "One run (no B).", table(["Run", "What is sold", "Modus operandi (credit · margin call · during a move)"], rows, ["l", "l", "l"]));
+    return para("## Runs", res.B ? `Change in B: ${BDIFFW[ys.bDiff] || ys.bDiff}.` : "One run (no B).", table(["Run", "What is sold", "Modus operandi (credit · margin call · during a move)"], rows, ["l", "l", "l"]));
   }
   function ySecBase(ys, res) {
     const sc = ys.sc, p = sc.path, W = sc.W, tks = [...new Set(runsOf(res).map(([, R]) => R.run.tk))], tkA = res.A.run.tk;
@@ -346,14 +359,16 @@ const EXPORT9 = (() => {
     const ivp = ys.ivp, ivA = sc.iv[tkA];
     const ivpTxt = ivp.mode === "flat" ? "flat, IV stays at the input throughout" : `${ivp.mode === "line" ? `a line to ${Math.round(ivp.end * ivA)}% at week ${W}` : ivp.mode === "growth" ? `${ivp.g}% over the ${W} weeks` : `${ivp.pts.length} points (${ivp.pts.map(x => `wk ${x[0]} ${Math.round(x[1] * ivA)}%`).join(", ")})`}; ${ivp.rule === "gap" ? "realized moves keep their gap to IV" : "realized moves stay constant"}`;
     return para("## Base", bullets([`Start $${fInt(sc.cap0)}, ${W} weeks${start}.`, `Price path (${tkA}, typical price each week, never falls): ${pathTxt}.`, `IV path ${ivpTxt}.`]),
-      table(["Ticker", "Implied vol (prices every option)", "Realized moves around the path"], vol), "The gap between implied vol and realized moves is the edge: premium is priced at IV, payouts settle over moves at the realized number. Realized moves are each ticker's period vol, shared with Compare A vs B (a run's own while B differs in vol).");
+      table(["Ticker", "Implied vol (prices every option)", "Realized moves around the path"], vol), "The gap between implied vol and realized moves is the edge: premium is priced at IV, payouts settle over moves at the realized number. Realized moves are each ticker's period vol, shared with Compare A vs B (a run's own while B has its own vol).");
 
   }
-  function ySecStrip(ys, res) {
+  // callSafe(who): the Compounding tab's sentence for the size that keeps the margin-call odds at 10% or less
+  /** @param {any} ys @param {any} res @param {(who: string) => string} [callSafe] */
+  function ySecStrip(ys, res, callSafe) {
     const typ = ys.view.reading === "typ", cap0 = ys.sc.cap0, W = ys.sc.W;
     const rows = runsOf(res).map(([w, R]) => {
       const z = R.main.end, ex = R.exact.end, cc = R.run.fam === "cc", big = typ ? z.med : z.avg;
-      return [w, `${f$(big)} ${fX(big / cap0)}`, `${f$(z.c10)} – ${f$(z.c90)}`, z.called > 0.0005 ? `${fPc(z.called, 0)} (${cc ? "on drops" : "either way"})` : "none",
+      return [w, `${f$(big)} ${fX(big / cap0)}`, `${f$(z.c10)} – ${f$(z.c90)}`, z.called > 0.0005 ? `${fPc(z.called, 0)} (${cc ? "on drops" : "either way"})${z.called >= 0.25 ? " · high" : z.called >= 0.1 ? " · notable" : ""}${z.called >= 0.1 && callSafe ? ` · ${callSafe(w)}` : ""}` : "none",
         cc ? `${fInt(z.shMed)} shares · ${Math.min(z.lots, ys.costs.liq || 1e9)} lots` : `${Math.floor(z.kMed + 1e-9)} contracts`, f$(typ ? z.avg : z.med), f$(ex.med)];
     });
     return para("## Result", `NAV at week ${W} from $${fInt(cap0)}. The main number is the ${typ ? "typical (median)" : "average"} outcome.`,
@@ -380,11 +395,11 @@ const EXPORT9 = (() => {
     const rows = runs.map(([w, o]) => {
       const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
       let used = "";
-      if (typeof COMPOUND_STRESS !== "undefined" && COMPOUND_STRESS.margin) { const u = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter); used = `${fPc(u.req / Math.max(1, u.elv), 0)} of margin`; }
-      const before = `${f$(nb)}${cc ? ` · ${(sn.n * sn.S / Math.max(1, nb)).toFixed(2)}x` : ""}${used ? " · " + used : ""}`;
-      const room = o.room ? `margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"}` : "–";
+      if (typeof COMPOUND_STRESS !== "undefined" && COMPOUND_STRESS.margin) { const u = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter); used = `${fPc(u.req / Math.max(1, u.elv), 0)} of margin used`; }
+      const before = `${f$(nb)}${cc ? ` · ${(sn.n * sn.S / Math.max(1, nb)).toFixed(2)}× leverage` : ""}${used ? " · " + used : ""}`;
+      const room = o.room ? `margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"}${o.room.zeroUp != null ? ` or ${fPs(o.room.zeroUp, 0)}` : ""}` : "–";
       return [w, before, `${fPs(-r.lossLow / nb)} (${f$(-r.lossLow)})`, `${fPs(-r.lossEnd / nb)} (${f$(-r.lossEnd)})`,
-        c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none",
+        typeof COMPOUND_STRESS !== "undefined" ? COMPOUND_STRESS.callWords(r, cc, fKs) : c ? `day ${c.day} at ${fKs(c.x)}` : "none",
         r.ev.deficit > 0 ? `you owe IBKR ${f$(r.ev.deficit)}` : "none", o.given > 1 ? f$(o.given) : "–", room];
     });
     // the deficit and upside-given-up columns only when a run has one, as the strip shows them
@@ -415,7 +430,7 @@ const EXPORT9 = (() => {
       opts.code ? `View code (paste into ⋯ → Load a view code, or append to the lab's address): #${opts.code}` : ""));
     if (on.runs) out.push(ySecRuns(ys, res));
     if (on.base) out.push(ySecBase(ys, res));
-    if (on.strip) out.push(ySecStrip(ys, res));
+    if (on.strip) out.push(ySecStrip(ys, res, opts.callSafe));
     if (on.kept && opts.kept) out.push(secReadingTable("## Credit kept", opts.kept));
     if (on.weeks) out.push(ySecWeeks(ys, res));
     if (on.stress && stress) out.push(ySecStress(ys, opts.sres));
@@ -432,7 +447,7 @@ const EXPORT9 = (() => {
     if (state.tab === Tab.Compounding) {
       const y = COMPOUND._state(), r = COMPOUND._res();
       const kept = COMPOUND.exportKept ? COMPOUND.exportKept() : null;
-      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, kept, code: H.code() }), name: "compounding" };
+      return { md: EXPORT9.toMarkdownCompounding(y, r, { sections: readSections(Tab.Compounding), sres: COMPOUND._sres ? COMPOUND._sres() : null, mc: COMPOUND._mc ? COMPOUND._mc() : null, kept, callSafe: COMPOUND.describeCallSafeSize, code: H.code() }), name: "compounding" };
     }
     const C = CTX.ctx9(state), capture = typeof CAPTURE_VIEW !== "undefined" ? CAPTURE_VIEW.exportTable(C) : null, lens = typeof VIEWS !== "undefined" ? VIEWS.exportLens() : null;
     return { md: EXPORT9.toMarkdownCompare(C, state, { sections: readSections(Tab.Compare), capture, lens, code: H.code() }), name: "compare" };

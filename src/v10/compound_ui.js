@@ -20,6 +20,14 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
 
   // ---------------------------------------------------------- formats
   const f$ = v => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + "$" + (Math.abs(v) >= 1e9 ? (Math.abs(v) / 1e9).toFixed(2) + "B" : Math.abs(v) >= 1e6 ? (Math.abs(v) / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? (Math.abs(v) / 1e3).toFixed(1) + "k" : Math.round(Math.abs(v)).toLocaleString("en-US"));
+  // a dollar axis: one scale for every tick ($k from $10,000, $M from $1M) and the decimals its step needs
+  // a date tick near either end of the plot is anchored inward, so its text is never cut at the edge
+  const tickAnchor = (x, left, right) => x > right - 26 ? "end" : x < left + 26 ? "start" : "middle";
+  const axis$ = ticks => {
+    const top = Math.max(...ticks.map(Math.abs)), step = ticks.length > 1 ? Math.abs(ticks[1] - ticks[0]) : top, div = top >= 1e6 ? 1e6 : top >= 1e4 ? 1e3 : 1, unit = div === 1e6 ? "M" : div === 1e3 ? "k" : "";
+    let d = 0; while (d < 2 && Math.abs(Math.round(step / div * 10 ** d) - step / div * 10 ** d) > 1e-6) d++;
+    return t => +Math.abs(t / div).toFixed(d) === 0 ? "$0" : (t < 0 ? MIN : "") + "$" + Math.abs(t / div).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) + unit;
+  };
   const fPc = (v, d = 1) => !Number.isFinite(v) ? "–" : (v < 0 ? MIN : "") + Math.abs(v * 100).toFixed(d) + "%";
   const fPs = (v, d = 1) => !Number.isFinite(v) ? "–" : (v > 0 ? "+" : v < 0 ? MIN : "") + Math.abs(v * 100).toFixed(d) + "%";
   const fX = v => "×" + (v >= 10 ? v.toFixed(1) : v.toFixed(2));
@@ -222,25 +230,30 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   }
 
   // ---------------------------------------------------------- sticky bar
-  const famTxt = r => r.fam === "cc" ? (r.puts ? "covered strangle" : r.cd >= 50 ? "ITM covered calls" : "covered calls") : (r.pd > 50 && r.cd > 50 ? "short guts" : r.cd === 50 && r.pd === 50 ? "straddle" : "strangle") + (r.wcd || r.wpd ? " + wings" : "");
-  const cadTxt = r => r.cad === "wk" ? "weekly" : "monthly";
-  function runName(r, other) {
-    let s = `${r.tk} ${cadTxt(r)} ${famTxt(r)}`;
-    if (!other) return s;
-    const ex = [];
-    if (r.cd !== other.cd || r.pd !== other.pd) ex.push(r.fam === "cc" ? `${r.cd}Δ` : `${r.pd}/${r.cd}Δ`);
-    if (r.fam === "cc" && r.lev !== other.lev) ex.push(`${r.lev.toFixed(2)}x`);
-    if (r.fam === "str" && r.use !== other.use) ex.push(`${Math.round(r.use * 100)}% margin`);
-    if (r.modus.credit !== other.modus.credit) ex.push({ reinvest: "reinvest", rebal: "rebalance", cash: "keep cash" }[r.modus.credit]);
-    if (r.modus.call !== other.modus.call) ex.push(r.modus.call === "ibkr" ? "IBKR min" : `back to ${r.modus.target}x`);
-    return s + (ex.length ? ` <small>${ex.join(" · ")}</small>` : "");
+  const { modus: modusTxt, name: runName } = COMPOUND_ENGINE.WORDS;
+  // the chip's second line: strikes and size, plus any modus that differs; what differs from the other run is in stronger ink
+  function runKeys(r, other) {
+    const diff = [], same = [], add = (txt, isSame) => (other && !isSame ? diff : same).push(other && !isSame ? `<b>${txt}</b>` : txt);
+    if (r.fam === "cc") {
+      add(`${r.cd}Δ calls${r.puts ? `, ${r.pd}Δ puts` : ""}`, other && r.cd === other.cd && (!(r.puts || other.puts) || r.pd === other.pd) && !!r.puts === !!other.puts);
+      add(`${r.lev.toFixed(2)}× leverage`, other && r.lev === other.lev);
+    } else {
+      add(`${r.pd}/${r.cd}Δ`, other && r.cd === other.cd && r.pd === other.pd);
+      add(`${Math.round(r.use * 100)}% of margin`, other && r.use === other.use);
+    }
+    if (other && r.modus.credit !== other.modus.credit) add(COMPOUND_ENGINE.WORDS.credit(r.modus.credit), false);
+    const callOf = m => m.call === "ibkr" ? "IBKR minimum on a call" : `back to ${(+m.target).toFixed(2)}× on a call`;
+    if (other && callOf(r.modus) !== callOf(other.modus)) add(callOf(r.modus), false);
+    if (other && r.modus.move !== other.modus.move) add(r.modus.move === "keep" ? "keeps trading" : "stops", false);
+    return [...diff, ...same].join(" · "); // what tells the runs apart comes first, so a cut never hides it
   }
+  const chipHtml = (who, r, other) => `<span class="key ${who.toLowerCase()}">${who}</span><span class="nm">${runName(r)}</span><span class="dif">${runKeys(r, other)}</span>`;
   function renderBar() {
     const A = runA(), B = runB();
-    q("#y-chipA").innerHTML = `<span class="key a">A</span><span class="nm">${runName(A, B)}</span>`;
+    q("#y-chipA").innerHTML = chipHtml("A", A, B);
     q("#y-chipA").title = defTxt(A);
     const cb = q("#y-chipB");
-    if (B) { cb.innerHTML = `<span class="key b">B</span><span class="nm">${runName(B, A)}</span><span class="sz y-dropb" title="Drop B" style="cursor:pointer">×</span>`; cb.title = defTxt(B); }
+    if (B) { cb.innerHTML = chipHtml("B", B, A); cb.title = defTxt(B); }
     else { cb.innerHTML = `<span class="nm muted">+ compare with a second run</span>`; cb.title = "Add run B to compare with A"; }
     q("#ybar").classList.toggle("single", !B);
     q("#y-bmore").classList.toggle("on", BDIFF2.some(([v]) => v === ys.bDiff));
@@ -250,7 +263,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const sig = tks.join() + ys.bDiff + ys.sc.volOverride.run + JSON.stringify(tks.map(tk => port.periodVol.refs(tk)));
     if (host.dataset.sig !== sig) {
       host.dataset.sig = sig; SYV.length = 0;
-      host.innerHTML = `<span class="lbl">IV / moves</span>` + tks.map(tk => volHTML(tk, "")).join(" ") + (B && ys.bDiff === RunDiff.Vol ? volHTML(B.tk, "B") : "");
+      host.innerHTML = `<span class="lbl" title="The IV the options are priced at, then the realized moves of the price around your path">IV · realized</span>` + tks.map(tk => volHTML(tk, "")).join(" ") + (B && ys.bDiff === RunDiff.Vol ? volHTML(B.tk, "B") : "");
       for (const tk of tks) wireVol(tk, ""); if (B && ys.bDiff === RunDiff.Vol) wireVol(B.tk, "B");
     }
     for (const f of SYV) f();
@@ -260,15 +273,14 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     if (notes.length) w.push(...notes.slice(0, 2));
     if (RES && RES.A.main.note) w.push("A: " + RES.A.main.note);
     q("#y-warn").hidden = !w.length; q("#y-warn").innerHTML = w.map(s => `<span class="w">${s}</span>`).join("");
-    q("#y-readsum").innerHTML = `Reading <b>${ys.view.reading === "typ" ? "typical" : "average"}</b>`;
+    q("#y-readsum").innerHTML = `Outcome: <b>${ys.view.reading === "typ" ? "typical" : "average"}</b> ▾`;
   }
-  const defTxt = r => `${r.tk} · ${cadTxt(r)} · ${famTxt(r)} · ${r.fam === "cc" ? `call ${r.cd}Δ${r.puts ? `, put ${r.pd}Δ` : ""} · ${r.lev.toFixed(2)}x` : `put ${r.pd}Δ / call ${r.cd}Δ · ${Math.round(r.use * 100)}% of margin`} · ${modusTxt(r.modus)}`;
-  const modusTxt = m => `${{ reinvest: "reinvest", rebal: "rebalance", cash: "keep as cash" }[m.credit]} · ${m.call === "ibkr" ? "IBKR minimum" : `back to ${(+m.target).toFixed(2)}x`} · ${m.move === "keep" ? "keeps trading" : "stops"}`;
+  const defTxt = r => `${COMPOUND_ENGINE.WORDS.def(r)} · ${modusTxt(r.modus)}`;
   const SYV = [];
   // what a pair's moves field edits: the shared period vol, or the run's own moves while it carries the override
   /** @param {{ tk: string, slot: string }} input */
   function describeMoves({ tk, slot }) {
-    if (carriesOverride(slot)) { return { title: `${slot}'s own realized moves around your path, %, while B differs in vol (Compare A vs B keeps the ${tk} period vol)`, label: `Realized moves around your path, % (${slot}'s own: B differs in vol)` }; }
+    if (carriesOverride(slot)) { return { title: `${slot}'s own realized moves around your path, %, while B has its own vol (Compare A vs B keeps the ${tk} period vol)`, label: `Realized moves around your path, % (${slot}'s own, while B has its own vol)` }; }
     return { title: `${tk} period vol: realized moves around your path, %, shared with Compare A vs B; 0 = exactly on the path`, label: "Realized moves around your path, % (the period vol, shared with Compare A vs B)" };
   }
   // the pair's name on the bar: B's pair in B's colour; the pair that carries a run's own moves (B differs in vol) is
@@ -276,7 +288,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   /** @param {{ tk: string, slot: string, isBPair: boolean }} input */
   function nameVolPair({ tk, slot, isBPair }) {
     const isOwn = carriesOverride(slot), run = isBPair || isOwn ? `${slot} ` : "";
-    const own = isOwn ? `<span class="own" title="${slot}'s own moves while B differs in vol; the other pair is the ${tk} period vol, shared with Compare A vs B">own</span>` : "";
+    const own = isOwn ? `<span class="own" title="${slot}'s own moves while B has its own vol; the other pair is the ${tk} period vol, shared with Compare A vs B">own</span>` : "";
     const colour = isBPair ? "b" : isOwn ? "a" : "";
     return `<span class="tk ${colour}">${run}${tk}${own}</span>`;
   }
@@ -352,7 +364,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const sig = p.mode + p.gUnit + tk;
     if (host.dataset.sig !== sig) {
       host.dataset.sig = sig;
-      if (p.mode === "line") { host.innerHTML = ` to $<input type="number" id="y-pend" step="0.5" min="0" style="width:62px">`; }
+      if (p.mode === "line") { host.innerHTML = ` ending at $<input type="number" id="y-pend" step="0.5" min="0" style="width:62px">`; }
       else if (p.mode === "growth") { host.innerHTML = ` <input type="number" id="y-pg" step="0.1" min="0" style="width:56px">% <select id="y-pgu"><option value="wk">per week</option><option value="span">over the weeks shown</option></select>`; }
       else host.innerHTML = ` <span class="vv" id="y-pinfo"></span>`;
       const e = q("#y-pend"); if (e) e.onchange = () => { let v = parseFloat(e.value) / ys.sc.S0[ys.A.tk]; if (!Number.isFinite(v)) return; if (v < 1) { port.showNotice("The path cannot fall: an end below the start becomes flat"); v = 1; } ys.sc.path.end = v; schedule(30); };
@@ -494,6 +506,63 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   }
 
   // ---------------------------------------------------------- result strip
+  // margin-call odds are said loudly from 10% (notable) and 25% (high), with the size that keeps them at 10% or less:
+  // read off the leverage (covered calls) or margin-used (strangle) sweep once it has run for that run
+  const CALL_BANDS = Object.freeze({ note: 0.10, high: 0.25 });
+  const callTone = p => p >= CALL_BANDS.high ? "risk-high" : p >= CALL_BANDS.note ? "risk-note" : "";
+  // the size that keeps the margin-call odds at 10% or less, found for each run that needs one (not just the run the
+  // sweep chart shows): the run's own policy over the sweep's sizes up to the first that breaks 10%, then one step
+  // between the last size that keeps it and that one; sliced so the page stays live; cached per run and inputs
+  /** @type {{ key: Object<string, string>, result: Object<string, any>, job: Object<string, number> }} */
+  const SAFE = { key: {}, result: {}, job: {} };
+  const safeKey = who => JSON.stringify([who, RES[who].run, ys.sc, ys.costs, ys.rates, readRunVolPath({ run: RES[who].run, slot: who })]);
+  /** @param {string} who */
+  function readSafeSizeSpec(who) {
+    const run = RES[who].run;
+    if (run.fam === "cc") { const top = 1 / ys.costs.mOvr[run.tk]; return { kind: "lev", xs: [...new Set([0.5, 0.75, 1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, top].filter(x => x <= top + 1e-9).map(x => +x.toFixed(4)))].sort((a, b) => a - b) }; }
+    return { kind: "use", xs: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] };
+  }
+  // the search itself, one size at a time (a yield after each run, so the caller can slice it): the sizes up to the
+  // first that breaks 10%, then one step between the last size that keeps it and that one
+  /** @param {string} kind @param {number[]} xs @param {(x: number) => number} calledAt */
+  function* searchSafeSize(kind, xs, calledAt) {
+    const points = [];
+    for (const x of xs) { const called = calledAt(x); points.push({ x, called }); yield; if (called > CALL_BANDS.note) { break; } }
+    let safe = null, over = null;
+    for (const p of points) { if (p.called <= CALL_BANDS.note) { safe = p; } else { over = p; break; } }
+    if (safe && over) { const mid = +((safe.x + over.x) / 2).toFixed(2), called = calledAt(mid); if (called <= CALL_BANDS.note) { safe = { x: mid, called }; } }
+    return { kind, safe, first: points[0] };
+  }
+  /** @param {string} who @param {{ sync?: boolean }} [options] sync: run to the end now (the export), else sliced */
+  function findSafeSize(who, { sync = false } = {}) {
+    const key = safeKey(who);
+    if (SAFE.key[who] === key && (SAFE.result[who] || !sync)) { return; }
+    SAFE.key[who] = key; SAFE.result[who] = null;
+    const job = (SAFE.job[who] || 0) + 1; SAFE.job[who] = job;
+    const { kind, xs } = readSafeSizeSpec(who), base = RES[who].run;
+    const calledAt = x => runFor({ run: kind === "lev" ? { ...base, lev: x } : { ...base, use: x }, slot: who }).end.called;
+    const search = searchSafeSize(kind, xs, calledAt);
+    const finish = result => { SAFE.result[who] = result; refreshCallSafeSize(); };
+    if (sync) { let n = search.next(); while (!n.done) { n = search.next(); } finish(n.value); return; }
+    const step = () => {
+      if (SAFE.job[who] !== job) { return; }
+      const t0 = performance.now();
+      let n = search.next();
+      while (!n.done) { if (performance.now() - t0 >= 25) { setTimeout(step, 0); return; } n = search.next(); }
+      finish(n.value);
+    };
+    setTimeout(step, 30);
+  }
+  /** @param {string} who @param {{ sync?: boolean }} [options] */
+  function describeCallSafeSize(who, { sync = false } = {}) {
+    if (sync) { findSafeSize(who, { sync: true }); }
+    const res = SAFE.key[who] === safeKey(who) ? SAFE.result[who] : null;
+    if (!res) { findSafeSize(who); return "finding the size that keeps the odds at 10% or less…"; }
+    const sizeTxt = x => res.kind === "lev" ? `${x.toFixed(2)}× leverage` : `${Math.round(x * 100)}% of margin used`;
+    const oddsTxt = p => fPc(p, p > 0 && p < 0.01 ? 1 : 0);
+    if (!res.safe) { return `no size tried keeps the odds at 10% or less: ${oddsTxt(res.first.called)} even at ${sizeTxt(res.first.x)}`; }
+    return `odds at 10% or less: ${sizeTxt(res.safe.x)} or lower (${oddsTxt(res.safe.called)} there)`;
+  }
   function renderStrip(live) {
     const host = q("#y-strip"); host.classList.toggle("live", !!live);
     const rows = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean);
@@ -503,9 +572,9 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
       const callTxt = z.called > 0.0005 ? `${fPc(z.called, 0)}<small>${cc ? "on drops" : "either way"}</small>` : "none";
       const label = (text, id, title, body) => KNOBS.label(text, { id: `yr-${id}`, title, body });
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
-        <span class="cell big"><span class="l">${label(`${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}`, "nav", "Typical and average NAV", "Typical: the median outcome at the last week, half the outcomes end above it. Average: the mean, pulled up by the best outcomes. ×n is the multiple of the starting capital. Outcomes spread from the realized moves around your price path, at the moves vol.")}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
+        <span class="cell big"><span class="l">${label(`${ys.view.reading === "typ" ? "Typical" : "Average"} NAV, week ${ys.sc.W}`, "nav", "Typical and average NAV", "Typical: the median outcome at the last week, half the outcomes end above it. Average: the mean, pulled up by the best outcomes. ×n is the multiple of the starting capital. Outcomes spread from the realized moves around your price path, at the realized vol.")}</span><span class="v">${f$(big)}<small>${fX(big / cap0)}</small></span></span>
         <span class="cell c2"><span class="l">${label(`10%–90%`, "band", "The 10%–90% band", "One outcome in ten ends below the first number and one in ten above the second: the range a plan should survive, not the worst case.")}</span><span class="v" style="font-size:14px">${f$(z.c10)} – ${f$(z.c90)}</span></span>
-        <span class="cell c3"><span class="l">${label(`Margin call within ${ys.sc.W} wk`, "call", "Margin call odds", "The share of outcomes with at least one margin call by the last week. On drops: the calls come from falls (covered calls hold the shares on margin). Either way: from falls or rallies (a strangle is short both sides). What the account does then follows the run's modus operandi: IBKR's own liquidation to the minimum, or back to the target leverage.")}</span><span class="v" style="font-size:14px">${callTxt}</span></span>
+        <span class="cell c3"><span class="l">${label(`Margin call within ${ys.sc.W} wk`, "call", "Margin call odds", "The share of outcomes with at least one margin call by the last week. On drops: the calls come from falls (covered calls hold the shares on margin). Either way: from falls or rallies (a strangle is short both sides). What the account does then follows the run's modus operandi: IBKR's own liquidation to the minimum, or back to the target leverage.")}</span><span class="v ${callTone(z.called)}" style="font-size:14px">${callTxt}</span>${callTone(z.called) ? `<span class="rk" data-safe="${who}">${describeCallSafeSize(who)}</span>` : ""}</span>
         <span class="cell c4"><span class="l">${label(`${cc ? "Shares · lots (typical)" : "Contracts (typical)"}`, "size", "Size at the end", "What the typical account carries at the last week: shares and 100-share lots for covered calls, contracts for a strangle. It grows as credit is reinvested.")}</span><span class="v" style="font-size:14px">${cc ? `${fInt(z.shMed)} · ${Math.min(z.lots, ys.costs.liq || 1e9)}` : Math.floor(z.kMed + 1e-9)}</span></span>
         <span class="cell sm"><span class="l">${label(`${ys.view.reading === "typ" ? "Average" : "Typical"} · exactly on the path`, "path", "Exactly on the path", "The NAV if the price followed your path exactly, with no realized moves around it: every credit kept, no assignment from noise. An upper reference, not a forecast.")}</span><span class="v">${f$(ys.view.reading === "typ" ? z.avg : z.med)} · ${f$(ex.med)}</span></span>
         <span class="bd">${defTxt(R.run)}</span></span>`;
@@ -539,7 +608,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad; const Y1 = yLin(lo, hi, 6, H1 - 6);
     const ax1 = sv("g", { class: "yax" }, s1);
     for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: G.l, x2: G.l + G.pw, y1: Y1(t), y2: Y1(t) }, ax1); st_(ax1, G.l - 6, Y1(t) + 3.5, unitMult ? "×" + (+t.toFixed(2)) : "$" + (+t.toFixed(2)), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, G.pw)) st_(ax1, G.x(w), H1 + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, G.pw)) st_(ax1, G.x(w), H1 + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": tickAnchor(G.x(w), G.l, G.l + G.pw) });
     if (ys.view.wiggle) { const rs = RES.A.main.rows, k = unitMult ? 1 / ys.sc.S0[tkA] : 1; let d = `M${G.x(0)},${Y1(pv(0))}`; for (const r of rs) d += `L${G.x(r.w1)},${Y1(r.S1 * Math.exp(r.sigma) * k)}`; for (let i = rs.length - 1; i >= 0; i--) d += `L${G.x(rs[i].w1)},${Y1(rs[i].S1 * Math.exp(-rs[i].sigma) * k)}`; d += `L${G.x(0)},${Y1(pv(0))}Z`; sv("path", { d, fill: "var(--ink-3)", opacity: 0.12 }, s1); }
     for (const [cls, R] of runs) { const k = unitMult ? 1 / ys.sc.S0[R.run.tk] : 1;
       for (const r of R.main.rows) {
@@ -766,14 +835,18 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
 
   // ---------------------------------------------------------- sweep (stage 2, sliced)
   let SW = { key: "", data: null, job: 0 };
+  // the strip's safe-size lines, once the sweep has an answer
+  function refreshCallSafeSize() { for (const node of document.querySelectorAll("#y-strip [data-safe]")) { node.innerHTML = describeCallSafeSize(/** @type {HTMLElement} */ (node).dataset.safe || "A"); } }
   function sweepSpec() { const who = RES.B && ys.view.sweepRun === "B" ? "B" : "A", run = RES[who].run, m = ys.costs.mOvr[run.tk];
     if (run.fam === "cc") { const top = 1 / m, xs = [...new Set([0.5, 0.75, 1, 1.1, 1.2, 1.25, 1.3, top, run.lev].filter(x => x <= top + 1e-9).map(x => +x.toFixed(4)))].sort((a, b) => a - b);
-      return { who, run, kind: "lev", xs, pols: ["reinvest", "rebal"] }; }
+      // the run's own credit policy first (the solid line), then the one it is most often weighed against
+      const own = run.modus.credit, other = own === "reinvest" ? "rebal" : "reinvest";
+      return { who, run, kind: "lev", xs, pols: [own, other] }; }
     const xs = [...new Set([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, run.use].map(x => +x.toFixed(2)))].sort((a, b) => a - b); return { who, run, kind: "use", xs, pols: [run.modus.credit] }; }
   function renderSweep() {
     const host = q("#y-sweep"), S = sweepSpec(), key = JSON.stringify([S, ys.sc, ys.costs, ys.rates, readRunVolPath({ run: S.run, slot: S.who })]);
     const seg2 = RES.B ? `<span class="seg" id="y-swrun" style="float:right"><button type="button" data-v="A" class="${S.who === "A" ? "on" : ""}">A</button><button type="button" data-v="B" class="${S.who === "B" ? "on" : ""}">B</button></span>` : "";
-    host.innerHTML = `<h3>${S.kind === "lev" ? "Leverage" : "Margin used"} sweep<span class="sub">typical NAV at week ${ys.sc.W}; strip = odds of a margin call${S.kind === "lev" ? ` · solid = ${S.run.modus.credit === "rebal" ? "rebalance" : "reinvest"} (this run), dashed = ${S.run.modus.credit === "rebal" ? "reinvest" : "rebalance"}` : ""}</span>${seg2}</h3><span id="y-swb"><span class="cap">computing…</span></span>`;
+    host.innerHTML = `<h3>${S.kind === "lev" ? "Leverage" : "Margin used"} sweep<span class="sub">typical NAV at week ${ys.sc.W}; strip = odds of a margin call${S.pols.length > 1 ? ` · solid = ${COMPOUND_ENGINE.WORDS.credit(S.pols[0])} (this run), dashed = ${COMPOUND_ENGINE.WORDS.credit(S.pols[1])}` : ""}</span>${seg2}</h3><span id="y-swb"><span class="cap">computing…</span></span>`;
     const sg = q("#y-swrun"); if (sg) sg.onclick = e => { const b = e.target.closest("button"); if (!b) return; ys.view.sweepRun = b.dataset.v; renderSweep(); };
     if (SW.key === key && SW.data) return drawSweep(S, SW.data);
     const job = ++SW.job, out = []; const todo = []; for (const pol of S.pols) for (const x of S.xs) todo.push([pol, x]);
@@ -788,11 +861,11 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const xlo = S.xs[0], xhi = S.xs[S.xs.length - 1], X = x => l + (x - xlo) / (xhi - xlo || 1) * pw;
     const meds = data.map(d => d.med), lo = Math.min(...meds, ys.sc.cap0) * 0.95, hi = Math.max(...meds) * 1.05, Y = yLin(lo, hi, 6, H - 18), Yc = yLin(0, 1, H + 10, H2 - 4);
     const ax = sv("g", { class: "yax" }, s);
-    for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
+    { const TK = niceTicks(lo, hi, 4), fa = axis$(TK); for (const t of TK) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fa(t), { "text-anchor": "end" }); } }
     for (const t of [0, 0.5, 1]) { sv("line", { x1: l, x2: l + pw, y1: Yc(t), y2: Yc(t) }, ax); st_(ax, l - 6, Yc(t) + 3.5, fPc(t, 0), { "text-anchor": "end" }); }
     let lastX = -1e9; for (const x of S.xs) { if (X(x) - lastX < 38 && x !== S.xs[S.xs.length - 1]) continue; if (x === S.xs[S.xs.length - 1] && X(x) - lastX < 38) continue; lastX = X(x); st_(ax, X(x), H + H2 + 24, S.kind === "lev" ? x.toFixed(2) + "x" : Math.round(x * 100) + "%", { "text-anchor": "middle" }); }
     const cls = S.who.toLowerCase();
-    S.pols.forEach((pol, k) => { const pts = data.filter(d => d.pol === pol).sort((a, b) => a.x - b.x), mine = pol === S.run.modus.credit || S.pols.length === 1;
+    S.pols.forEach((pol, k) => { const pts = data.filter(d => d.pol === pol).sort((a, b) => a.x - b.x), mine = k === 0; // the run's own policy is pols[0]
       let d = "", dc = ""; pts.forEach((p, i) => { d += (i ? "L" : "M") + X(p.x) + "," + Y(p.med); dc += (i ? "L" : "M") + X(p.x) + "," + Yc(p.called); });
       sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 2 : 1.4, "stroke-dasharray": mine ? "" : "5 4" }, s);
       sv("path", { d: dc, fill: "none", stroke: `var(--${cls})`, "stroke-width": mine ? 1.6 : 1.1, "stroke-dasharray": mine ? "" : "5 4" }, s);
@@ -801,7 +874,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const xLabel = x => S.kind === "lev" ? x.toFixed(2) + "x" : Math.round(x * 100) + "% of margin";
     attachCursor({ svg: s, left: l, width: pw, top: 6, bottom: H + H2 + 8, xs: S.xs, toPx: X,
       tipAt: x => `<span class="h">${S.who} at ${xLabel(x)}</span>` + S.pols.map(pol => { const p = data.find(d => d.pol === pol && Math.abs(d.x - x) < 1e-9); if (!p) { return ""; }
-        const name = S.pols.length > 1 ? `${pol === "rebal" ? "rebalance" : "reinvest"} · ` : "";
+        const name = S.pols.length > 1 ? `${COMPOUND_ENGINE.WORDS.credit(pol)} · ` : "";
         return tipRow(cls, `${name}typical NAV`, f$(p.med)) + tipRow(cls, `${name}margin call within ${ys.sc.W} wk`, fPc(p.called, 1)) + (p.sh ? tipRow(cls, `${name}shares (typical)`, fInt(p.sh)) : ""); }).join("") });
     if (S.kind === "lev") { const top = S.xs[S.xs.length - 1]; sv("line", { x1: X(top), x2: X(top), y1: 6, y2: H + H2 + 8, stroke: "var(--warn)", "stroke-dasharray": "2 3" }, s); st_(s, X(top) - 3, H - 16, "ceiling", { "text-anchor": "end", class: "yhalo", fill: "var(--warn)", "font-size": 10.5 }); }
   }
@@ -837,8 +910,8 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     let lo = y0 ?? Infinity, hi = y1 ?? -Infinity; if (y0 == null || y1 == null) for (const S of series) for (const p of S.pts) { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); }
     if (y0 == null) lo = Math.min(lo, 0); if (!(hi > lo)) hi = lo + 1; const Y = yLin(lo, hi * 1.04, 6, H - 8);
     const ax = sv("g", { class: "yax" }, s);
-    for (const t of niceTicks(lo, hi, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fmt(t), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
+    { const TK = niceTicks(lo, hi, 4), fa = fmt === f$ ? axis$(TK) : fmt; for (const t of TK) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fa(t), { "text-anchor": "end" }); } }
+    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": tickAnchor(X(w), l, l + pw) });
     for (const S of series) { let d = ""; S.pts.forEach((p, i) => d += (i ? "L" : "M") + X(p[0]) + "," + Y(p[1])); sv("path", { d, fill: "none", stroke: `var(--${S.cls})`, "stroke-width": 2 }, s);
       const lp = S.pts[S.pts.length - 1]; st_(s, X(lp[0]) - 2, Y(lp[1]) - 6, `${S.cls.toUpperCase()} ${fmt(lp[1])}`, { "text-anchor": "end", class: "yhalo", fill: `var(--${S.cls})`, "font-size": 11, "font-weight": 600 }); }
     // the value of a stepped series at week w: its last point at or before w
@@ -892,10 +965,10 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   // Options and shares only: no margin calls, interest or assignment mechanics; the full model is the Weeks view.
   const KEPT_PRESETS = Object.freeze([
     { id: CAPTURE.Preset.Fixed, tex: String.raw`c = x`, name: "Fixed share", line: "an assumption: {x} of the maximum kept every cycle", knob: "A typed assumption, not a reading: the rule of thumb ‘expect half the credit’. Under it: how often cycle 1 actually keeps that much. Its NAV is the average NAV the plan implies if it held (the shares averaged over the same price spread as Expected, so the two compare)." },
-    { id: CAPTURE.Preset.Expected, tex: String.raw`\bar c = \frac{\mathbb{E}[\text{P\&L}]}{M} \approx 1 - \frac{\sigma_{\text{period}}}{\sigma_{\text{IV}}}`, name: "Expected", line: "the average outcome of each cycle, held to expiry", knob: "Each cycle's expected option P&L over its maximum payoff, with the price spread at the run's moves vol around the path. Pricing IV above the moves vol makes it positive; below, negative. Compounded cycle by cycle (the shares averaged over the same spread) it gives the average NAV, which the few best runs pull up; the typical NAV is the Growth row." },
+    { id: CAPTURE.Preset.Expected, tex: String.raw`\bar c = \frac{\mathbb{E}[\text{P\&L}]}{M} \approx 1 - \frac{\sigma_{\text{period}}}{\sigma_{\text{IV}}}`, name: "Expected", line: "the average outcome of each cycle, held to expiry", knob: "Each cycle's expected option P&L over its maximum payoff, with the price spread at the run's realized vol around the path. Pricing IV above the realized vol makes it positive; below, negative. Compounded cycle by cycle (the shares averaged over the same spread) it gives the average NAV, which the few best runs pull up; the typical NAV is the Growth row." },
     { id: CAPTURE.Preset.Median, tex: String.raw`\tilde c = \frac{\operatorname{median}(\text{P\&L})}{M} \approx 1 - 0.845\,\frac{\sigma_{\text{period}}}{\sigma_{\text{IV}}}`, name: "Median", line: "what a typical cycle keeps", knob: "Half the cycles keep more, half less. It sits above the average because short premium wins small and often and loses large and rarely; out of the money it is often the whole credit. A median per cycle does not compound to the median NAV (the product of medians is not a median): the Growth row is the typical NAV." },
     { id: CAPTURE.Preset.OddsAtLeast, tex: String.raw`P(c \ge x) \approx 2\,\Phi\!\Big(0.80\,(1-x)\,\frac{\sigma_{\text{IV}}}{\sigma_{\text{period}}}\Big) - 1`, name: "Odds of keeping at least x", line: "how often cycle 1 keeps {x} or more", knob: "The share of outcomes of cycle 1 whose option P&L is at least x of the maximum payoff. Shown as odds, so its NAV column is empty." },
-    { id: CAPTURE.Preset.Managed, tex: String.raw`\frac{\mathbb{E}[\text{P\&L}_{\tau}]}{M},\quad \tau = \min(t_{\text{TP}},\, t_{\text{stop}},\, T)`, name: "Managed", line: "closed at the take profit or the stop above, else held", knob: "Seeded daily paths at the moves vol for cycle 1, centred on the path like every other row and marked at the pricing IV; the cycle closes when its P&L reaches the take profit or the stop. ± is the Monte Carlo error. The same share is assumed for every cycle; the days a take profit frees are not reinvested here." },
+    { id: CAPTURE.Preset.Managed, tex: String.raw`\frac{\mathbb{E}[\text{P\&L}_{\tau}]}{M},\quad \tau = \min(t_{\text{TP}},\, t_{\text{stop}},\, T)`, name: "Managed", line: "closed at the take profit or the stop above, else held", knob: "Seeded daily paths at the realized vol for cycle 1, centred on the path like every other row and marked at the pricing IV; the cycle closes when its P&L reaches the take profit or the stop. ± is the Monte Carlo error. The same share is assumed for every cycle; the days a take profit frees are not reinvested here." },
     { id: CAPTURE.Preset.TimePath, tex: String.raw`c(t) = \frac{V(S_0,T) - V(S_0,T-t)}{M} \approx 1 - \sqrt{1 - t/T}`, name: "Time path", line: "kept half-way through cycle 1 if the price does not move", knob: "Time decay alone: the cycle's own mark at an unchanged price. For an at-the-money position about 29% half-way; half the maximum only after about three quarters of the cycle. Not a cycle outcome, so its NAV column is empty." },
     { id: CAPTURE.Preset.Growth, tex: String.raw`g = \mathbb{E}\,\ln\!\Big(1 + \frac{\text{P\&L}}{C}\Big),\qquad c_{\text{eq}} = \frac{(e^{g}-1)\,C}{M}`, name: "Growth", line: "the fixed share that compounds like the real outcomes", knob: "Compounding multiplies outcomes, so the rate that compounds is each cycle's average of ln(1 + the account's return), shares included for covered calls. Shown as the fixed share of the credit that, kept every cycle, compounds to the same; its NAV is the log-average (typical) NAV of the options and shares alone. For covered calls the growth includes the levered shares' own swings, which compounding penalises, so the equivalent share can sit well below Expected (even below zero) while the account still grows. With any chance of losing the whole account in one cycle it ends at zero; with the credit kept as cash nothing compounds." },
     { id: CAPTURE.Preset.Empirical, tex: String.raw`\bar c = \frac{1}{n}\sum_{i} \frac{\text{P\&L}\big(S_0\,S_{i+h}/S_i\big)}{M}`, name: "Empirical", line: "the ticker's own past moves over a cycle", knob: "Every overlapping window of daily closes as long as a cycle, applied to cycle 1. Needs daily price history: paste closes under Compare A vs B → Capture, or they arrive with the data feed." },
@@ -1047,13 +1120,17 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     if (preset.id === CAPTURE.Preset.Growth) {
       if (K.isFixed) { return { text: "–", sub: "the credit is kept as cash: the size stays fixed and nothing compounds", nav: "" }; }
       if (!c1.growth) { return { text: "–", nav: "" }; }
-      if (c1.growth.isRuinous) { return { text: "ends at zero", tone: "neg", sub: `the account is wiped out in ${fPc(c1.growth.ruin, 2)} of cycles`, nav: "" }; }
+      if (c1.growth.isRuinous) { return { text: "ends at zero", tone: "neg", alert: describeKeptSurvival(c1.growth.survivalScale, K.R.run), sub: `at this size the account is wiped out in ${fPc(c1.growth.ruin, 2)} of cycles`, nav: "" }; }
       return { text: fPs(share), sub: `${fPs(Math.exp(c1.growth.logMean) - 1, 2)} a cycle on the account`, nav };
     }
     if (preset.id === CAPTURE.Preset.Median) { return { text: fPs(share), sub: `average ${fPs(c1.measured.mean)}`, nav: `<span class="cps">does not compound: see Growth</span>` }; }
     if (preset.id === CAPTURE.Preset.Custom && !end) { return { text: fPs(share), sub: "", nav: `<span class="cps">a ${ys.ck.read === "median" ? "median" : "percentile"} does not compound</span>` }; }
     return { text: fPs(share), sub: "", nav };
   }
+  // the next step after a wipe-out: the size per dollar of the account that survives (CAPTURE's survivalScale)
+  // in the run's own size unit: margin used for a strangle, leverage for covered calls
+  const describeKeptSurvival = (scale, run) => SURVIVAL.line({ scale, test: `with wipe-out odds under ${SURVIVAL.oddsWords(CAPTURE.CONFIG.ruinShown)}`,
+    size: !(scale > 0) || !Number.isFinite(scale) ? "" : run.fam === "cc" ? `≤ ${SURVIVAL.floor2(scale * run.lev)}× leverage` : `≤ ${Math.floor(scale * run.use * 100)}% of margin used` });
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
   const keptTone = v => !Number.isFinite(v) ? "" : v > 0.0005 ? "pos" : v < -0.0005 ? "neg" : "";
   function renderKeptTable(kepts) {
@@ -1064,11 +1141,12 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     const shownIds = KEPT_SHOWN.map(k => k[0]);
     const rows = KEPT_PRESETS.map(p => {
       const name = `<b>${esc(p.name)}</b>${KNOBS.html({ id: `kept-${p.id}`, title: p.name, body: p.knob })}<span class="cap">${esc(p.line.replace(/\{x\}/g, `${ys.ck.x}%`))}</span>${p.tex ? `<span class="ftex">${TEX.html(p.tex)}</span>` : ""}`;
-      const cells = runs.map(({ K }) => { const c = describeKeptCell(p, K), share = K.cycles[0] && !K.cycles[0].na ? keptShare(p.id, K.cycles[0], K.first) : NaN; return `<td><span class="cv ${c.tone || (p.id === CAPTURE.Preset.OddsAtLeast || p.id === CAPTURE.Preset.TimePath ? "" : keptTone(share))}">${c.text}</span>${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td><td class="knav">${c.nav}</td>`; }).join("");
+      const cells = runs.map(({ K }) => { const c = describeKeptCell(p, K), share = K.cycles[0] && !K.cycles[0].na ? keptShare(p.id, K.cycles[0], K.first) : NaN; return `<td><span class="cv ${c.tone || (p.id === CAPTURE.Preset.OddsAtLeast || p.id === CAPTURE.Preset.TimePath ? "" : keptTone(share))}">${c.text}</span>${c.alert ? `<span class="cpa">${c.alert}</span>` : ""}${c.sub ? `<span class="cps">${c.sub}</span>` : ""}</td><td class="knav">${c.nav}</td>`; }).join("");
       const isShown = shownIds.includes(p.id);
       return `<tr data-preset="${p.id}" class="${p.id === ys.ck.show ? "kon" : ""}${isShown ? " kpick" : ""}"${isShown ? ` title="Show this preset on the NAV chart"` : ""}><td>${name}</td>${cells}</tr>`;
     }).join("");
     const reference = (label, pick) => `<tr class="kref"><td>${label}</td>${runs.map(({ K }) => `<td></td><td class="knav">${pick(K.R)}</td>`).join("")}</tr>`;
+    q("#y-ktable").classList.toggle("one", runs.length === 1);
     q("#y-ktable").innerHTML = `<thead>${head}</thead><tbody>${rows}${reference("<b>Full model</b><span class=\"cap\">the Weeks view: moves, margin calls, assignment, interest and costs</span>", R => `${f$(R.main.end.med)}<span class="cps">typical · log-average ${f$(R.main.end.geo)}</span>`)}${reference("<b>Exactly on the path</b><span class=\"cap\">no moves around the path: every credit kept</span>", R => f$(R.exact.end.med))}</tbody>`;
   }
   // NAV by week for the shown preset (A and B), with the full model's typical NAV faint behind
@@ -1080,8 +1158,8 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     if (!values.length) { host.innerHTML = `<span class="cap">This preset has no share per cycle to compound.</span>`; return; }
     const lo = Math.log(Math.min(...values) * 0.95), hi = Math.log(Math.max(...values) * 1.05), Y = v => 8 + (hi - Math.log(Math.max(v, 1e-9))) / (hi - lo) * (H - 30);
     const s = sv("svg", { width: Wd, height: H, viewBox: `0 0 ${Wd} ${H}` }, host), ax = sv("g", { class: "yax" }, s);
-    for (const t of niceTicks(Math.exp(lo), Math.exp(hi), 4)) { if (t <= 0) { continue; } sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, pw)) { st_(ax, X(w), H - 6, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" }); }
+    { const TK = niceTicks(Math.exp(lo), Math.exp(hi), 4), fa = axis$(TK); for (const t of TK) { if (t <= 0) { continue; } sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fa(t), { "text-anchor": "end" }); } }
+    for (const w of weekTicks(W, pw)) { st_(ax, X(w), H - 6, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": tickAnchor(X(w), l, l + pw) }); }
     const path = pts => pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
     for (const L of lines) { sv("path", { d: path(L.model), fill: "none", stroke: `var(--${L.cls})`, "stroke-width": 1.2, "stroke-opacity": .35, "stroke-dasharray": "4 3" }, s); }
     for (const L of lines) {
@@ -1096,7 +1174,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     AXES.attach({ svg: s, orient: "x", band: { x: l, y: H - 22, width: pw, height: 22 }, guide: { from: 8, to: H - 22 }, toValue: px => Math.round(Math.min(W, Math.max(0, (px - l) / pw * W))), toPx: X, describe: describeWeekOnAxis });
   }
   function describeKeptCustom(kepts) {
-    const ck = ys.ck, vol = ck.src === "iv" ? "each cycle's pricing IV" : ck.src === "typed" ? `${ck.vol}% vol` : "the run's moves vol";
+    const ck = ys.ck, vol = ck.src === "iv" ? "each cycle's pricing IV" : ck.src === "typed" ? `${ck.vol}% vol` : "the run's realized vol";
     const gap = ck.gapP > 0 && ck.gapS > 0 ? `, plus a ${ck.gapP}% chance a cycle of a ${ck.gapS}% gap ${ck.gapSide === CAPTURE.GapSide.Either ? "either way" : "down"}` : "";
     const reading = ck.read === CAPTURE.Reading.Median ? "the median" : ck.read === CAPTURE.Reading.Percentile ? `the ${ordinal(ck.pct)} percentile` : "the average";
     const out = kepts.map(([who, K]) => { const c1 = K.cycles[0], end = K.nav[CAPTURE.Preset.Custom]; return !c1 || c1.na ? "" : `<span class="ccv"><span class="key ${who.toLowerCase()}">${who}</span><b class="${keptTone(c1.custom)}">${fPs(c1.custom)}</b><span class="muted"> cycle 1 · NAV week ${ys.sc.W} ${end ? f$(end[end.length - 1][1]) : "– (does not compound)"}</span></span>`; }).join("");
@@ -1105,7 +1183,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
   function renderKept() {
     const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
     q("#y-kp").classList.toggle("nodetail", !ys.ck.details);
-    q("#y-kdet").textContent = ys.ck.details ? "hide details ▾" : "show details ▸";
+    q("#y-kdet").textContent = ys.ck.details ? "hide formulas and details ▾" : "show formulas and details ▸";
     renderKeptTable(kepts); renderKeptChart(kepts);
     q("#y-kcout").innerHTML = describeKeptCustom(kepts);
     q("#y-kchartt").textContent = `NAV if every cycle kept: ${(KEPT_SHOWN.find(k => k[0] === ys.ck.show) || KEPT_SHOWN[0])[1].toLowerCase()}`;
@@ -1116,7 +1194,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     numY(q("#y-ktp"), () => ys.ck.tp, v => { ys.ck.tp = v; }, { min: 0, max: 95 });
     numY(q("#y-ksl"), () => ys.ck.sl, v => { ys.ck.sl = v; }, { min: 0, max: 1000 });
     segY(q("#y-kshow"), KEPT_SHOWN.map(([v, l]) => [v, l]), () => ys.ck.show, v => { ys.ck.show = v; });
-    segY(q("#y-ksrc"), [["rv", "moves vol"], ["iv", "pricing IV"], ["typed", "typed"]], () => ys.ck.src, v => { ys.ck.src = v; });
+    segY(q("#y-ksrc"), [["rv", "realized vol"], ["iv", "pricing IV"], ["typed", "typed"]], () => ys.ck.src, v => { ys.ck.src = v; });
     numY(q("#y-kvol"), () => ys.ck.vol, v => { ys.ck.vol = v; }, { min: 1, max: 400 });
     numY(q("#y-kgapp"), () => ys.ck.gapP, v => { ys.ck.gapP = v; }, { min: 0, max: 100 });
     numY(q("#y-kgaps"), () => ys.ck.gapS, v => { ys.ck.gapS = v; }, { min: 0, max: 95 });
@@ -1213,25 +1291,33 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     q("#y-smod").textContent = ["A", "B"].filter(w => RES[w]).map(w => `${w}: ${modusTxt(RES[w].run.modus)}`).join("; ");
     const runs = [["A", SRES.A], SRES.B ? ["B", SRES.B] : null].filter(Boolean), wk = SRES.week;
     // strip
-    q("#y-sstrip").innerHTML = runs.map(([who, o]) => { const r = o.cur, c = r.ev.call, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
+    // one grid for both rows, so A and B line up; the deficit and upside-given-up columns appear for both rows when
+    // either run has one ("–" for the other), and every label is one line (cut with …, full text in its title)
+    const hasDef = runs.some(([, o]) => o.cur.ev.deficit > 0), hasGiven = runs.some(([, o]) => o.given > 1);
+    const strip = q("#y-sstrip");
+    strip.style.setProperty("--scols", ["24px", "minmax(226px,1.3fr)", "minmax(124px,.85fr)", "minmax(124px,.85fr)", "minmax(196px,1.6fr)", ...(hasDef ? ["minmax(130px,1fr)"] : []), ...(hasGiven ? ["minmax(130px,1fr)"] : [])].join(" "));
+    strip.innerHTML = runs.map(([who, o]) => { const r = o.cur, nb = r.navBefore, cc = o.R.run.fam === "cc", sn = o.snaps[wk - 1];
       const used = COMPOUND_STRESS.margin(sn, sn.S, sn.iv, sn.el0 || 0, o.rules.mAfter), lev = cc ? sn.n * sn.S / Math.max(1, nb) : null;
-      const label = (text, id, title, body) => KNOBS.label(text, { id: `ys-${id}`, title, body });
+      const label = (text, id, title, body) => `<span class="l" title="${esc(text)}">${KNOBS.label(text, { id: `ys-${id}`, title, body })}</span>`;
+      const cell = (l, v, cls = "") => `<span class="cell ${cls}">${l}${v}</span>`;
+      const pair = (frac, usd, tone) => `<span class="v ${tone}">${fPs(frac)} <small>${f$(usd)}</small></span>`;
+      const callTxt = COMPOUND_STRESS.callWords(r, cc, fKs);
       return `<span class="sr"><span class="key ${who.toLowerCase()}">${who}</span>
-        <span class="cell big"><span class="l">${label(`Before, week ${wk} · ${cc ? lev.toFixed(2) + "x · " : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin`, "before", "Before the move", "The typical NAV at the start of the hit week, before the move. For covered calls the leverage is share value over NAV; the share of margin is the requirement over what the account may borrow against.")}</span><span class="v">${f$(nb)}</span></span>
-        <span class="cell c2"><span class="l">${label("At the low", "low", "At the low", "The change in NAV at the worst price of the move, the options marked at the shocked IV. Margin calls are tested here.")}</span><span class="v ${r.lossLow > 0 ? "neg" : ""}" style="font-size:14px">${fPs(-r.lossLow / nb)} <small>${f$(-r.lossLow)}</small></span></span>
-        <span class="cell c2"><span class="l">${label("End of the move", "end", "End of the move", "The change in NAV once the move is over, marked at the price it ends on. It sits above the low when the price comes back part of the way; a cut at the bottom locks the low in.")}</span><span class="v ${r.lossEnd > 0 ? "neg" : "pos"}" style="font-size:14px">${fPs(-r.lossEnd / nb)} <small>${f$(-r.lossEnd)}</small></span></span>
-        <span class="cell c3" style="width:200px"><span class="l">${label("Margin call", "call", "Margin call in the move", "The day and price of the first margin call inside the move, and how much the broker sells under the run's modus operandi. Closed: the account was shut.")}</span><span class="v" style="font-size:13px">${c ? `day ${c.day} at ${fKs(c.x)}, sold ${fPc(r.ev.sold / Math.max(1, r.ev.n0), 0)} of shares${r.ev.closedAt ? " · closed" : ""}` : "none"}</span></span>
-        ${r.ev.deficit > 0 ? `<span class="cell"><span class="l">Deficit</span><span class="v neg" style="font-size:14px">you owe IBKR ${f$(r.ev.deficit)}</span></span>` : ""}
-        ${o.given > 1 ? `<span class="cell"><span class="l">Upside given up (not a loss)</span><span class="v" style="font-size:14px">${f$(o.given)}</span></span>` : ""}
-        <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"} (index ${o.room.callDown != null ? fPs(o.room.callDown / COMPOUND_ENGINE.LEV[o.R.run.tk], 1) : "–"} for the call)</span></span>`; }).join("");
+        ${cell(label(`Before the move, week ${wk}`, "before", "Before the move", "The typical NAV at the start of the hit week, before the move. For covered calls the leverage is share value over NAV; the share of margin is the requirement over what the account may borrow against."), `<span class="v">${f$(nb)}</span><span class="sub">${cc ? `${lev.toFixed(2)}× leverage · ` : ""}${fPc(used.req / Math.max(1, used.elv), 0)} of margin used</span>`, "big")}
+        ${cell(label("At the low", "low", "At the low", "The change in NAV at the worst price of the move, the options marked at the shocked IV. Margin calls are tested here."), pair(-r.lossLow / nb, -r.lossLow, r.lossLow > 0 ? "neg" : ""))}
+        ${cell(label("End of the move", "end", "End of the move", "The change in NAV once the move is over, marked at the price it ends on. It sits above the low when the price comes back part of the way; a cut at the bottom locks the low in."), pair(-r.lossEnd / nb, -r.lossEnd, r.lossEnd > 0 ? "neg" : "pos"))}
+        ${cell(label("Margin call", "call", "Margin call in the move", "The day and price of the first margin call inside the move, and what the broker does under the run's modus operandi: covered calls sell part of the shares (and the calls on them); strangles buy contracts back and sell any assigned shares."), `<span class="v two" title="${esc(callTxt)}">${callTxt}</span>`, "call")}
+        ${hasDef ? cell(`<span class="l">Deficit</span>`, r.ev.deficit > 0 ? `<span class="v neg">you owe IBKR ${f$(r.ev.deficit)}</span>` : `<span class="v">–</span>`) : ""}
+        ${hasGiven ? cell(`<span class="l" title="Upside given up (not a loss)">Upside given up (not a loss)</span>`, `<span class="v">${o.given > 1 ? f$(o.given) : "–"}</span>`) : ""}
+        <span class="bd">${scenTxt()} · room this week: margin call at ${o.room.callDown != null ? fPs(o.room.callDown, 0) : "no drop"}${o.room.callUp != null ? ` or ${fPs(o.room.callUp, 0)}` : cc ? " (no call on rallies: the calls are covered)" : ""}, NAV 0 at ${o.room.zeroDown != null ? fPs(o.room.zeroDown, 0) : "no drop"}${o.room.zeroUp != null ? ` or ${fPs(o.room.zeroUp, 0)}` : ""} (the index ${o.room.callDown != null ? fPs(o.room.callDown / COMPOUND_ENGINE.LEV[o.R.run.tk], 1) : "–"} for the margin call)</span></span>`; }).join("");
     q("#y-sbwsub").textContent = `${scenTxt()} · click a week to inspect it`;
     // loss by week: $ and % stacked
     const host = q("#y-sbw"); host.innerHTML = ""; const Wd = Math.max(600, host.parentElement.clientWidth - 30), l = 62, rM = 110, pw = Wd - l - rM, W = ys.sc.W, X = w => l + (w - 1) / Math.max(1, W - 1) * pw;
     const mkChart = (H, valOf, fmt, title) => { const s = sv("svg", { width: Wd, height: H + 26, viewBox: `0 0 ${Wd} ${H + 26}` }, host); let lo = 0, hi = 0;
       for (const [, o] of runs) for (const b of o.by) { const v = valOf(b); lo = Math.min(lo, v); hi = Math.max(hi, v); } if (hi - lo < 1e-9) hi = lo + 1; const pad = (hi - lo) * 0.08; const Y = yLin(lo - pad, hi + pad, 16, H - 16);
       const ax = sv("g", { class: "yax" }, s); st_(s, l, 10, title, { "font-size": 11, fill: "var(--ink-2)" });
-      for (const t of niceTicks(lo - pad, hi + pad, 4)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fmt(t), { "text-anchor": "end" }); }
-      for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": "middle" });
+      { const TK = niceTicks(lo - pad, hi + pad, 4), fa = fmt === f$ ? axis$(TK) : fmt; for (const t of TK) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fa(t), { "text-anchor": "end" }); } }
+      for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": tickAnchor(X(w), l, l + pw) });
       for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.by.forEach((b, i) => d += (i ? "L" : "M") + X(b.w) + "," + Y(valOf(b))); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, s);
         for (const b of o.by) { if (b.wiped) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3.2, fill: "var(--neg)" }, s); else if (b.call) sv("circle", { cx: X(b.w), cy: Y(valOf(b)), r: 3, fill: "none", stroke: "var(--shade)", "stroke-width": 1.4 }, s); }
         const lb = o.by[o.by.length - 1]; st_(s, l + pw + 6, Y(valOf(lb)) + 4, `${who} ${fmt(valOf(lb))}`, { class: "yhalo", fill: `var(--${cls})`, "font-size": 11, "font-weight": 600 }); }
@@ -1251,7 +1337,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     let lo = -1, hi = 0; for (const [, o] of runs) for (const r of o.rooms) for (const k of ["callUp", "zeroUp"]) if (r[k] != null) hi = Math.max(hi, Math.min(r[k], 2));
     hi = Math.max(hi, 0.2); const Y = yLin(lo, hi * 1.05, 8, H - 12), ax = sv("g", { class: "yax" }, s);
     for (const t of niceTicks(lo, hi, 6)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, fPs(t, 0), { "text-anchor": "end" }); st_(ax, l + pw + 6, Y(t) + 3.5, "index " + fPs(t / COMPOUND_ENGINE.LEV[ys.A.tk], 0), {}); }
-    for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, pw)) if (w >= 1) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w - 1)), { "text-anchor": tickAnchor(X(w), l, l + pw) });
     sv("line", { x1: l, x2: l + pw, y1: Y(0), y2: Y(0), stroke: "var(--ink-3)" }, s);
     if (ys.A.tk === "KORU") for (const [v, t] of [[-0.353, "worst open gap, 3 Mar 26: −35.3%"], [-0.514, "worst week low: −51.4%"]]) { sv("line", { x1: l, x2: l + pw, y1: Y(v), y2: Y(v), stroke: "var(--warn)", "stroke-dasharray": "1 3" }, s); st_(s, l + 4, Y(v) - 3, t, { class: "yhalo", fill: "var(--warn)", "font-size": 10 }); }
     for (const [who, o] of runs) { const cls = who.toLowerCase();
@@ -1263,7 +1349,7 @@ const COMPOUND = ((COMPOUND_ENGINE, COMPOUND_STRESS) => {
     // curve at the chosen week + breakdown
     const ch = q("#y-scurve"); ch.innerHTML = `<h3>Loss against the size of a gap<span class="sub">week ${wk}, one-session gap in the ETF</span></h3>`; const Wc = Math.max(320, ch.getBoundingClientRect().width), Hc = 230, lc = 56, pc = Wc - lc - 16, sc_ = sv("svg", { width: Wc, height: Hc + 26, viewBox: `0 0 ${Wc} ${Hc + 26}` }, ch);
     let clo = 0, chi = 0; for (const [, o] of runs) for (const c of o.curve) { clo = Math.min(clo, c[1]); chi = Math.max(chi, c[1]); } const Xc = m => lc + (m + 0.9) / 1.9 * pc, Yc = yLin(clo * 1.05, chi * 1.1 + 1, 8, Hc - 12), axc = sv("g", { class: "yax" }, sc_);
-    for (const t of niceTicks(clo, chi, 4)) { sv("line", { x1: lc, x2: lc + pc, y1: Yc(t), y2: Yc(t) }, axc); st_(axc, lc - 6, Yc(t) + 3.5, f$(t), { "text-anchor": "end" }); }
+    { const TK = niceTicks(clo, chi, 4), fa = axis$(TK); for (const t of TK) { sv("line", { x1: lc, x2: lc + pc, y1: Yc(t), y2: Yc(t) }, axc); st_(axc, lc - 6, Yc(t) + 3.5, fa(t), { "text-anchor": "end" }); } }
     for (const t of [-0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]) st_(axc, Xc(t), Hc + 14, fPs(t, 0), { "text-anchor": "middle" });
     sv("line", { x1: Xc(0), x2: Xc(0), y1: 8, y2: Hc - 12, stroke: "var(--ink-3)" }, sc_); sv("line", { x1: lc, x2: lc + pc, y1: Yc(0), y2: Yc(0), stroke: "var(--ink-3)" }, sc_);
     for (const [who, o] of runs) { const cls = who.toLowerCase(); let d = ""; o.curve.forEach((c, i) => d += (i ? "L" : "M") + Xc(c[0]) + "," + Yc(c[1])); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2 }, sc_);
@@ -1323,7 +1409,7 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     let lo = Infinity, hi = -Infinity; for (const b of bands) for (const c of b) { lo = Math.min(lo, c[0]); hi = Math.max(hi, c[4]); } lo = Math.max(lo * 0.9, 500); hi *= 1.1;
     const Y = v => 8 + (Math.log(hi) - Math.log(Math.max(v, lo))) / (Math.log(hi) - Math.log(lo)) * (H - 16), ax = sv("g", { class: "yax" }, s);
     for (const t of logTicks(lo, hi)) { sv("line", { x1: l, x2: l + pw, y1: Y(t), y2: Y(t) }, ax); st_(ax, l - 6, Y(t) + 3.5, f$(t), { "text-anchor": "end" }); }
-    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": "middle" });
+    for (const w of weekTicks(W, pw)) st_(ax, X(w), H + 14, fD(COMPOUND_ENGINE.weekDate(w)), { "text-anchor": tickAnchor(X(w), l, l + pw) });
     parts.forEach((P, k) => { const cls = P.who.toLowerCase(), b = bands[k], xs = b.map((_, w) => X(w + 1));
       for (const [i0, i1, op] of [[0, 4, 0.08], [1, 3, 0.16]]) { let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[i1])}`); for (let w = b.length - 1; w >= 0; w--) d += `L${xs[w]},${Y(b[w][i0])}`; sv("path", { d: d + "Z", fill: `var(--${cls})`, opacity: op }, s); }
       let d = `M${X(0)},${Y(ys.sc.cap0)}`; b.forEach((c, w) => d += `L${xs[w]},${Y(c[2])}`); sv("path", { d, fill: "none", stroke: `var(--${cls})`, "stroke-width": 2.2 }, s);
@@ -1427,7 +1513,8 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     segY(q("#y-bdiff"), BDIFF.map(([v, l]) => [v, l]), () => ys.bDiff, v => { ys.bOn = true; setBDiff(v); });
     segY(q("#y-bdiff2"), BDIFF2.map(([v, l]) => [v, l]), () => ys.bDiff, v => { ys.bOn = true; setBDiff(v); q("#y-bmore").open = false; });
     q("#y-swap").onclick = swapRuns;
-    q("#y-chipB").onclick = e => { if (e.target.closest(".y-dropb")) { ys.bOn = false; schedule(10); return; } if (!ys.bOn) { ys.bOn = true; schedule(10); } };
+    q("#y-chipB").onclick = () => { if (!ys.bOn) { ys.bOn = true; schedule(10); } };
+    q("#y-dropb").onclick = () => { ys.bOn = false; schedule(10); };
     numY(q("#y-cap0"), () => ys.sc.cap0, v => ys.sc.cap0 = v, { min: 1000 });
     numY(q("#y-W"), () => ys.sc.W, v => { ys.sc.W = Math.round(v); ys.view.pin = Math.min(ys.view.pin, ys.sc.W); }, { min: 4, max: 104 });
     q("#y-pmode").onchange = e => { ys.sc.path.mode = e.target.value; if (ys.sc.path.mode === "pts" && !ys.sc.path.pts.length) ys.sc.path.pts = [[Math.round(ys.sc.W / 2), 1.2], [ys.sc.W, 1.5]]; schedule(10); };
@@ -1447,8 +1534,9 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     compute();
     renderBar(); renderPathCtl(); renderDock(); syncAll();
     const stress = ys.view.v === "stress", kept = ys.view.v === "kept";
-    q("#y-yearv").hidden = stress || kept; q("#y-stressv").hidden = !stress; q("#y-keptv").hidden = !kept; q("#y-srow").hidden = !stress; q("#y-row2").hidden = stress;
-    q("#y-sbase").textContent = `Base: ${f$(ys.sc.cap0)} · ${ys.sc.W} wk · ${ys.sc.path.mode === "flat" ? "flat" : ys.sc.path.mode} · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} ${ys.sc.iv[t]}/${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}`).join(" · ");
+    q("#y-yearv").hidden = stress || kept; q("#y-stressv").hidden = !stress; q("#y-keptv").hidden = !kept; for (const id of ["#y-srow", "#y-srow2", "#y-srow3"]) { q(id).hidden = !stress; } for (const id of ["#y-row2", "#y-row2b", "#y-row3"]) { q(id).hidden = stress; } q("#y-read").hidden = stress;
+    const baseTxt = `Base: ${f$(ys.sc.cap0).replace(".0k", "k")} · ${ys.sc.W} wk · ${{ flat: "flat", line: "line", pts: "points", growth: "growth" }[ys.sc.path.mode]} path · ` + [...new Set([ys.A.tk, ys.bOn && runB() ? runB().tk : null].filter(Boolean))].map(t => `${t} IV ${ys.sc.iv[t]}%, realized ${Math.round(readMovesPct({ tk: t, slot: RunSlot.A }))}%`).join(" · ");
+    q("#y-sbase").textContent = baseTxt; q("#y-sbase").title = `${baseTxt}. Click to edit the base in the Weeks view.`;
 
     if (stress) { renderStress(); renderMCTools(); PANELS.decorate(q("#tab-yr")); saveSoon(); return; }
     if (kept) { renderKept(); PANELS.decorate(q("#tab-yr")); saveSoon(); return; }
@@ -1464,9 +1552,10 @@ NAV after           ${f$(r.navEnd).padStart(10)}  (${fPs((r.navEnd - nb) / nb)})
     const plain = html => String(html || "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
     const kepts = [["A", RES.A], RES.B ? ["B", RES.B] : null].filter(Boolean).map(([who, R]) => [who, readKept(R)]);
     const head = ["Preset", ...kepts.flatMap(([who]) => [`${who} kept a cycle`, `${who} NAV week ${ys.sc.W}`])];
-    const rows = KEPT_PRESETS.map(p => [p.name, ...kepts.flatMap(([, K]) => { const c = describeKeptCell(p, K); return [plain(c.sub ? `${c.text} (${c.sub})` : c.text), plain(c.nav)]; })]);
+    const rows = KEPT_PRESETS.map(p => [p.name, ...kepts.flatMap(([, K]) => { const c = describeKeptCell(p, K); return [plain([c.text, c.alert, c.sub].filter(Boolean).join(" · ")), plain(c.nav)]; })]);
     rows.push(["Full model (Weeks view)", ...kepts.flatMap(([, K]) => ["", f$(K.R.main.end.med)])]);
-    return { intro: kepts.map(([who, K]) => `${who}: ${runName(K.R.run)}`).join(" · ") + `. Share x = ${ys.ck.x}%; managed: take profit ${ys.ck.tp}%, stop ${ys.ck.sl}%.`, head, rows, note: "Cycle 1's own legs at its pricing IV; the price spread at the run's moves vol around the path. NAV: the options and shares alone (no margin calls, interest or assignment)." };
+    return { intro: kepts.map(([who, K]) => `${who}: ${runName(K.R.run)}`).join(" · ") + `. Share x = ${ys.ck.x}%; managed: take profit ${ys.ck.tp}%, stop ${ys.ck.sl}%.`, head, rows, note: "Cycle 1's own legs at its pricing IV; the price spread at the run's realized vol around the path. NAV: the options and shares alone (no margin calls, interest or assignment)." };
   }
-  return { init, render, getState, setState, reset, exportKept, _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
+  // describeCallSafeSize is the export's: it runs the search to the end, so the document never carries the progress text
+  return { init, render, getState, setState, reset, exportKept, describeCallSafeSize: who => RES && RES[who] ? describeCallSafeSize(who, { sync: true }) : "", _state: () => ys, _res: () => RES, _sres: () => SRES, _mc: () => (MC.res ? { parts: MC.res, stale: MC.key !== mcKey() } : null) };
 })(COMPOUND_ENGINE, COMPOUND_STRESS);

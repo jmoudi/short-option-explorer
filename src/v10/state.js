@@ -10,7 +10,7 @@
 const STATE = (() => {
   const ASSUMPTIONS_DEF = Object.freeze({ unit: MoveUnit.Sigma, rlo: 2, rhi: 2, rlink: true, wl: WorstLossRange.View, wlo: 2, whi: 2, dist: Odds.Implied, ivs: 0, svs: 0, svd: true, align: Align.Fraction });
   const PREFS_DEF = Object.freeze({
-    units: ReadingUnit.Percent, ovm: "cr", ovv: "chart", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
+    units: ReadingUnit.Usd, ovm: "cr", ovv: "table", gview: "heat", gval: "pnl", gtab: "D", nm: 13, nd: 7, gl: false, ct: "zero", cts: 5,
     ovk: true, ovc: true, ovb: false, ovs: true, ovo: true, pso: true, pss: true, payLeft: 0, cs: "comp", cr: "auto", crx: 20, shared: true,
     sweep: "both", sweepSmoothing: 0, mgTp: 50, mgSl: 200, jday: -1, pins: Object.freeze([]), dock: true, theme: "auto",
     rdHit: HitBasis.Move, rdK: 2, rdDir: HitSide.Worse, rdL: 60, rdBase: "nav", rdCap: Capital.Margin, rdG: GrowthRate.IfNoSuchHit, rdGc: 2,

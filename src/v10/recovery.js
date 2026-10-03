@@ -213,5 +213,7 @@ const RECOVERY = (() => {
     }
     return Result.ok((lo + hi) / 2);
   }
-  return Object.freeze({ computeRecovery, ratesFor, measureHit, cyclesToRecover, expectedPnl, findBreakEvenVol, CONFIG: RECOVERY_CONFIG });
+  // the growth rates in words: one set for the Recovery panel, its readings and the export
+  const RATE_WORDS = Object.freeze({ [GrowthRate.IfNoSuchHit]: "if no repeat", [GrowthRate.Average]: "average", [GrowthRate.BestCase]: "best case", [GrowthRate.Typed]: "typed" });
+  return Object.freeze({ computeRecovery, ratesFor, measureHit, cyclesToRecover, expectedPnl, findBreakEvenVol, RATE_WORDS, CONFIG: RECOVERY_CONFIG });
 })();

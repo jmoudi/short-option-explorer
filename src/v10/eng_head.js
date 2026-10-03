@@ -79,4 +79,22 @@ function ticks(lo, hi, n) {
   for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
   return out;
 }
-
+// the size that survives a test, in words, one form for Capture, Recovery, Credit kept and the export:
+// "survives this 2σ hit at ≤ 0.61× this size (at least $1,118 of capital a RAM contract, 1.6× its margin)"
+const SURVIVAL = (() => {
+  const floor2 = v => (Math.floor(v * 100) / 100).toFixed(2);
+  // the wipe-out odds the growth readings test, in words: "1 in 20,000 a cycle"
+  const oddsWords = odds => `1 in ${Math.round(1 / odds).toLocaleString("en-US")} a cycle`;
+  // the capital a contract needs at the surviving size, and that as a multiple of the base it is measured on (rounded
+  // up, so the printed multiple is never below what it takes)
+  /** @param {{ usd: number, tk: string, multiple?: number, base?: string }} input */
+  const capital = ({ usd, tk, multiple, base }) => !Number.isFinite(usd) ? "" :
+    `at least $${Math.ceil(usd).toLocaleString("en-US")} of capital a ${tk} contract${Number.isFinite(multiple) && base ? `, ${(Math.ceil(multiple * 10 - 1e-9) / 10).toFixed(1)}× its ${base}` : ""}`;
+  /** @param {{ scale: number, test: string, size?: string, capital?: string, plain?: boolean }} input */
+  function line({ scale, test, size, capital, plain }) {
+    if (!(scale > 0) || !Number.isFinite(scale)) { return `no size survives ${test}`; }
+    const at = size || `≤\u00a0${floor2(scale)}×\u00a0this size`;
+    return `survives ${test} at ${plain ? at : `<b>${at}</b>`}${capital ? ` (${capital})` : ""}`;
+  }
+  return Object.freeze({ line, floor2, oddsWords, capital });
+})();

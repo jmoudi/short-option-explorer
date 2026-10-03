@@ -6,7 +6,9 @@
 // comparer's 1%); every EV reading (C.statsAtPeriodVol) uses it whatever the odds switch says; C.stats / C.d follow the
 // switch (assumptions.dist). σ stays implied everywhere (the move axis, sizing, placement).
 const CTX = (() => {
-  const SIZES = Object.freeze([["auto", "Auto"], ["notional", "Equal notional"], ["credit", "Equal credit"], ["vega", "Equal vega"], ["loss", "Equal worst loss"], ["margin", "Equal margin (approx.)"], ["custom", "Custom h"]]);
+  // the scale of B's line on A's notional is kept inside this range (a custom size is clamped to it)
+  const H_RANGE = Object.freeze([0.05, 20]);
+  const SIZES = Object.freeze([["auto", "Auto"], ["notional", "Equal notional"], ["credit", "Equal credit"], ["vega", "Equal vega"], ["loss", "Equal worst loss"], ["margin", "Equal margin (approx.)"], ["custom", "Custom"]]);
   // h = B contracts per A contract under each rule (v8 hRatio, h passed in instead of read from the state)
   function hRatio(rule, A, B, sa, sb, h) {
     switch (rule) {
@@ -132,11 +134,12 @@ const CTX = (() => {
     const sa = sFor(A, toSA), sb = sFor(B, toSB);
     const rule = comparison.sizing.rule === "auto" ? (same ? "notional" : "vega") : comparison.sizing.rule;
     let h = 1, hNote = "";
-    if (rule === "custom") h = clamp(+comparison.sizing.h || 1, 0.05, 20);
-    else if (!A.na && !B.na) { const r = hRatio(rule, A, B, sa, sb, comparison.sizing.h); if (Number.isFinite(r) && r > 0) h = r; else hNote = rule === "loss" ? "one side has no loss inside the worst-loss range; using h = 1" : "rule undefined here; using h = 1"; }
-    else if (rule !== "notional") hNote = "a position is n/a; using h = 1";
+    if (rule === "custom") h = clamp(+comparison.sizing.h || 1, H_RANGE[0], H_RANGE[1]);
+    else if (!A.na && !B.na) { const r = hRatio(rule, A, B, sa, sb, comparison.sizing.h); if (Number.isFinite(r) && r > 0) h = r; else hNote = rule === "loss" ? "one side has no loss inside the worst-loss range, so B falls back to equal notional" : "the rule cannot be computed here, so B falls back to equal notional"; }
+    else if (rule !== "notional") hNote = "a position is n/a, so there is no pair sizing";
     const sameExp = A.dte === B.dte, cal = assumptions.align === Align.Calendar || sameExp;
-    const Hd = cal ? Math.max(A.dte, B.dte) : null;
+    const liveDte = [A, B].filter(b => !b.na && Number.isFinite(b.dte)).map(b => b.dte); // a side that is n/a has no clock
+    const Hd = cal ? (liveDte.length ? Math.max(...liveDte) : 0) : null;
     const d = distOf(A), dB = distOf(B);
     // values on the shared move axis u, in units of A's notional (B scaled by h)
     const vA = (u, tau) => POS.val(A, toSA(u), tau, shock) / A.S;
@@ -148,24 +151,51 @@ const CTX = (() => {
     // % of margin rescales the one page scale by A's margin at entry (fixed, so the payoff divides by a constant); under
     // "Equal margin" sizing B's line is then B's own return on its margin
     const units = prefs.units, crOK = !A.na && A.tv > 0, marginOK = !A.na && A.margin > 0;
-    function fU(v, dd) {
+    // the display scale of the reading unit: display units per internal unit (a fraction of A's notional)
+    const uScale = units === ReadingUnit.Usd ? A.S * 100 : units === ReadingUnit.Credit && crOK ? A.S / A.tv : units === ReadingUnit.Margin && marginOK ? A.S / A.margin * 100 : 100;
+    // a value in the reading unit with `digits` decimals (null: the unit's own rule); a value that rounds to zero at
+    // the printed precision (pinning noise is ~1e-9 of notional) prints as 0, unsigned
+    function formatUnit(v, digits, axis = false) {
       if (!Number.isFinite(v)) return "–";
-      // a value that rounds to zero at the printed precision (pinning noise is ~1e-9 of notional) prints as 0, unsigned
       const sg = n => +n === 0 ? n : (v < 0 ? MINUS : "+") + n;
-      if (units === ReadingUnit.Usd) { const x = Math.abs(v * A.S * 100); return sg(x.toFixed(dd ?? (x < 10 ? 2 : 0))).replace(/^([−+]?)/, "$1$$"); }
-      if (units === ReadingUnit.Credit && crOK) { const x = Math.abs(v / (A.tv / A.S)); const k = dd != null && x >= 1 ? dd : x >= 10 ? 1 : x >= 1 ? 2 : Math.min(4, Math.max(2, 1 - Math.floor(Math.log10(x || 1e-9)))); return sg(x.toFixed(k)) + "×"; }
-      if (units === ReadingUnit.Margin && marginOK) { const x = Math.abs(v * A.S / A.margin * 100); return sg(x.toFixed(dd ?? (x < 1 ? 2 : 1))) + "% m"; }
-      const x = Math.abs(v * 100); return sg(x.toFixed(dd ?? (x < 1 ? 2 : 1))) + "%";
+      // a zero is "$0", "0×", "0%" whatever the precision (an axis step of $0.5 would print "$0.0")
+      // dollars: 2 decimals under $10, whole dollars above, thousands separated ($1,117, the same as the survival lines)
+      if (units === ReadingUnit.Usd) {
+        const x = Math.abs(v * A.S * 100), d = digits ?? (x < 10 ? 2 : 0), n = x.toFixed(d);
+        if (+n === 0) return "$0";
+        return sg(+n >= 1000 ? (+n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : n).replace(/^([−+]?)/, "$1$$");
+      }
+      // multiples of A's credit: an axis passes its step's decimals; a zero is "0×" like the dollar zero
+      if (units === ReadingUnit.Credit && crOK) {
+        const x = Math.abs(v / (A.tv / A.S)), d = digits != null && (x >= 1 || axis) ? digits : (x >= 10 ? 1 : x >= 1 ? 2 : Math.min(4, Math.max(2, 1 - Math.floor(Math.log10(x || 1e-9))))), n = x.toFixed(d);
+        return +n === 0 ? "0×" : sg(n) + "×";
+      }
+      if (units === ReadingUnit.Margin && marginOK) { const x = Math.abs(v * A.S / A.margin * 100), n = x.toFixed(digits ?? (x < 1 ? 2 : 1)); return +n === 0 ? "0% m" : sg(n) + "% m"; }
+      const x = Math.abs(v * 100), n = x.toFixed(digits ?? (x < 1 ? 2 : 1)); return +n === 0 ? "0%" : sg(n) + "%";
     }
+    // readings: dollars always follow the dollar rule (2 decimals under $10, else whole dollars); the digits a caller
+    // asks for are for the % and margin units
+    function fU(v, dd) { return formatUnit(v, units === ReadingUnit.Usd ? null : dd); }
+    // an axis label: the decimals the tick step needs in display units (a 0.25 step prints 2, a 0.5 step 1, $500 none)
     function fUt(t, step) {
-      let s = step * 100;
-      if (units === ReadingUnit.Usd) s = step * A.S * 100; else if (units === ReadingUnit.Credit && crOK) s = step / (A.tv / A.S);
-      else if (units === ReadingUnit.Margin && marginOK) s = step * A.S / A.margin * 100;
-      return fU(t, s >= 1 ? 0 : s >= 0.1 ? 1 : s >= 0.01 ? 2 : 3);
+      const s = Math.abs(step * uScale);
+      let d = 0; while (d < 3 && Math.abs(Math.round(s * 10 ** d) - s * 10 ** d) > 1e-6 * Math.max(1, s * 10 ** d)) d++;
+      return formatUnit(t, d, true);
     }
     const unitName = () => units === ReadingUnit.Usd ? "$ per A contract" : units === ReadingUnit.Margin && marginOK ? "% of A's margin" : units === ReadingUnit.Credit && crOK ? (A.intr > 0 ? "multiples of A's time value" : "multiples of A's credit") : "% of A's notional";
     const unitsNote = units === ReadingUnit.Margin && !marginOK ? "A has no margin figure, so values show % of A's notional" : units === ReadingUnit.Credit && !crOK ? (A.na ? "A is n/a, so values show % of A's notional" : "A's time value is not positive, so values show % of A's notional instead of multiples of it") : "";
-    const hTxt = () => Math.abs(h - 1) < 0.005 ? "B" : `${h.toFixed(2)}·B`;
+    // B's size is stated once, in contracts: k B contracts per A contract (k = h · S_A / S_B). Every chart and table
+    // labels B plainly ("B", "A − B"); h stays the scale of B's line on A's notional, internal to the readings
+    const hTxt = () => "B";
+    const k = A.na || B.na ? NaN : h * A.S / B.S;
+    // the rule in sentence words; a rule that cannot be met here falls back to equal notional (hNote) and says so
+    const RULE_WORDS = Object.freeze({ notional: "equal notional", credit: "equal credit", vega: "equal vega", loss: "equal worst loss", margin: "equal margin", custom: "your size" });
+    const ruleWords = hNote && !A.na && !B.na ? `equal notional: ${RULE_WORDS[rule] || rule} cannot be matched here` : RULE_WORDS[rule] || rule;
+    // nothing to say when B is the same instrument one for one
+    const isOneForOne = instA === instB && Math.abs(k - 1) < 0.005;
+    const sizeWords = () => !Number.isFinite(k) || isOneForOne ? "" : `B is sized at ${k.toFixed(2)} ${B.tk} contract${Math.abs(k - 1) < 0.005 ? "" : "s"} per ${A.tk} contract (${ruleWords})`;
+    // the size in every case, for the places that always state it (export assumptions, dock, method note)
+    const sizeStatement = () => !Number.isFinite(k) ? `${RULE_WORDS[rule] || rule}, not applied while ${A.na ? "A" : "B"} is n/a` : sizeWords() || `B is held one contract per A contract (${ruleWords})`;
     const diff = CMP.diff(comparison, A, B);
     const labels = Object.freeze({ A: A.label, B: B.label, title: `${A.label.tab} vs ${B.label.tab}` });
     const tag = (f, side) => Object.freeze(Object.assign({}, f, { side }, f.fix ? { fix: Object.freeze(Object.assign({}, f.fix, { side })) } : {}));
@@ -176,9 +206,9 @@ const CTX = (() => {
     return {
       state, comparison, assumptions, prefs, Ap, Bp, A, B, instA, instB, sa, sb, sFor, stats, statsAtPeriodVol, volOf, periodVolRefs, volOddsText, oddsText, worstIn9, distOf, h, hNote, rule, same, unit,
       ax, axis, sA, sB, toSA, toSB, uOfSA, uOfSB, lo, hi, wlo, whi, sameExp, cal, Hd, d, dB, clampNote, shock,
-      vA, vB, pA, pB, xA, xB, fU, fUt, unitName, unitsNote, hTxt, hRatio, uStep: STATE.uStep, uRound: STATE.uRound, rangeCaps: STATE.rangeCaps, uLab: STATE.uLab,
+      vA, vB, pA, pB, xA, xB, fU, fUt, uScale, unitName, unitsNote, hTxt, k, sizeWords, sizeStatement, ruleWords, hRatio, uStep: STATE.uStep, uRound: STATE.uRound, rangeCaps: STATE.rangeCaps, uLab: STATE.uLab,
       UNAME: STATE.UNAME, SIZES, diff, labels, flags, sigAxisLabel, sigOwnSuffix
     };
   }
-  return Object.freeze({ ctx9, hRatio, makeAxis, readTickerVol, listPeriodVolRefs, describeVolOdds, SIZES });
+  return Object.freeze({ ctx9, hRatio, makeAxis, readTickerVol, listPeriodVolRefs, describeVolOdds, SIZES, H_RANGE });
 })();

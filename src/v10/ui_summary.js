@@ -67,7 +67,7 @@ const SUM9 = (() => {
     return m;
   }
   // B contracts per A contract: h is B's notional as a multiple of A's, so k = h · S_A / S_B (= h on one instrument)
-  const contractsK = C => C.h * C.A.S / C.B.S;
+  const contractsK = C => C.k;
   const tok = (cls, html, title) => `<span class="s9tok ${cls || ""}"${title ? ` title="${tipEsc(title)}"` : ""}>${html}</span>`;
 
   // ---------------------------------------------------------- the three lines of one card
@@ -105,15 +105,9 @@ const SUM9 = (() => {
     h += `<span class="s9t">`;
     // B's line 2 sits beside $ per contract, so its multiplier is B contracts per A contract (k = h · S_A / S_B);
     // h (B's share of A's notional) is what the charts use, and it stays in the ⓘ
-    if (side === "B" && !C.A.na) {
-      const k = contractsK(C), rn = (CTX.SIZES.find(s => s[0] === C.rule) || ["", C.rule])[1].toLowerCase();
-      const auto = C.comparison.sizing.rule === "auto" ? "auto: " : "";
-      const nm = I => I ? I.name || I.id : "", twin = nm(C.instA) === nm(C.instB);
-      h += `<span class="s9h"> · ×${k.toFixed(2)}</span><span class="info" tabindex="0" data-tip="${tipEsc(`B contracts per A contract · ${auto}${rn} (${k.toFixed(2)} ${twin ? "B" : nm(C.instB)} contract${Math.abs(k - 1) < 0.005 ? "" : "s"} per ${twin ? "A" : nm(C.instA)} contract); the charts show B at h = ${C.h.toFixed(3)} × A's notional.${C.hNote ? " " + C.hNote + "." : ""} Change it under Pair sizing.`)}">i</span>`;
-    }
+    // B's sizing is said once, in words, on the note row under the cards (C.sizeWords)
     if (side === "A") {
-      const k = !C.B.na ? ` before the ×${contractsK(C).toFixed(2)} contract sizing` : "";
-      h += `<span class="info" tabindex="0" data-tip="${tipEsc(`$ per contract (100 shares): + credit for a short leg, − debit for a long protective leg. B's figures are per B contract,${k}.`)}">i</span>`;
+      h += `<span class="info" tabindex="0" data-tip="${tipEsc("$ per contract (100 shares): + credit for a short leg, − debit for a long protective leg. Each card is per one of its own contracts; the line under the cards says how many B contracts the readings set against one A contract.")}">i</span>`;
     }
     return h + `</span>`;
   }
@@ -230,6 +224,7 @@ const SUM9 = (() => {
     if (d.identical) notes.push("A and B are the same trade");
     else if (d.onlyTypedFill) notes.push("same contracts, only the fill differs (typed prices)");
     else if (d.onlyInstrument) notes.push("same position, only the instrument differs");
+    if (!d.identical && C.sizeWords()) notes.push(C.sizeWords());
     const any = Object.keys(L).some(a => a !== "inst" && !L[a]);
     return { list, notes, any };
   }

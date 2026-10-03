@@ -8,10 +8,10 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   // B's headline row carries the b key; A's label text (e.g. Shares · lots for covered calls) says nothing about B
   const rowsB = () => p.evaluate(() => !!document.querySelector('#y-strip .key.b'));
   console.log('B result row before drop:', await rowsB());
-  await p.click('#y-chipB .y-dropb'); await p.waitForTimeout(2500);
+  await p.click('#y-dropb'); await p.waitForTimeout(2500);
   console.log('after drop: B row', await rowsB(), '| bar single', await p.evaluate(() => document.querySelector('#ybar').classList.contains('single')));
   await p.screenshot({ path: "drop_b_single.png", clip: { x: 0, y: 0, width: 1440, height: 620 } });
-  for (let i = 0; i < 3; i++) { await p.click('#y-chipB'); await p.waitForTimeout(1500); await p.click('#y-chipB .y-dropb'); await p.waitForTimeout(1500); }
+  for (let i = 0; i < 3; i++) { await p.click('#y-chipB'); await p.waitForTimeout(1500); await p.click('#y-dropb'); await p.waitForTimeout(1500); }
   await p.click('#y-A-fam button[data-v=cc]'); await p.waitForTimeout(2000);
   console.log('after 3 add/drop cycles + strategy change: B row', await rowsB(), '| title', await p.title());
   await p.click('#y-chipB'); await p.waitForTimeout(2500);

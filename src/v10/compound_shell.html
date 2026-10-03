@@ -1,29 +1,21 @@
 <div class="wrap">
+  <!-- the bar is a fixed grid: the runs' chips stacked on the left, one-line rows on the right; each row is sized to
+       fit the narrowest page, so no row ever appears because a label grew -->
   <div class="cbar ybar" id="ybar">
-    <span class="crow">
-      <span class="pchip" id="y-chipA" tabindex="0"></span><span class="vs yb-only">vs</span><span class="pchip" id="y-chipB" tabindex="0"></span>
-      <button type="button" class="btn ib yb-only" id="y-swap" title="Swap A and B">⇄</button>
-      <span class="sep yb-only"></span>
-      <span class="ctl yb-only"><span class="lbl">B differs in</span><span class="seg" id="y-bdiff"></span></span>
-      <details class="menu yb-only" id="y-bmore"><summary>More</summary><span class="mb" style="width:220px"><span class="mt">B also differs in</span><span class="seg eq" id="y-bdiff2" style="width:100%"></span><span class="cap" style="display:block;margin-top:6px">“Anything” gives B its own full editor in the panel on the right.</span></span></details>
+    <!-- each chip is two designed lines: the run's name, then its key settings (the ones that differ from the other
+         run in stronger ink); swap and drop sit in their own column so the names keep the full width -->
+    <span class="ychips">
+      <span class="pchip" id="y-chipA" tabindex="0"></span><button type="button" class="btn ib yb-only" id="y-swap" title="Swap A and B">⇄</button>
+      <span class="pchip" id="y-chipB" tabindex="0"></span><button type="button" class="btn ib yb-only" id="y-dropb" title="Drop run B">×</button>
     </span>
-    <span class="crow" id="y-row2">
-      <span class="ctl"><span class="lbl">Start</span>$<input type="number" id="y-cap0" min="1000" step="1000" style="width:78px"></span>
-      <span class="ctl"><span class="lbl">Weeks</span><input type="number" id="y-W" min="4" max="104" step="1" style="width:52px"></span>
-      <span class="ctl"><span class="lbl">Path</span><select id="y-pmode"><option value="flat">Flat</option><option value="line">Line</option><option value="pts">Points</option><option value="growth">Growth</option></select><span id="y-pnum"></span></span>
-      <details class="menu left" id="y-pmenu"><summary>Path</summary><span class="mb" style="width:300px" id="y-pmb"></span></details>
-      <span class="sep"></span>
-      <span class="ctl" id="y-vol"></span>
-      <details class="menu" id="y-read"><summary id="y-readsum">Reading</summary><span class="mb" style="width:300px" id="y-readmb"></span></details>
-    </span>
-    <span class="crow" id="y-srow" hidden>
-      <span class="ctl"><button type="button" class="btn" id="y-sbase" title="Edit the base in the Weeks view" style="padding:1px 8px"></button></span>
-      <span class="ctl"><span class="lbl">Move</span><span class="seg" id="y-sshape"></span></span>
-      <span class="ctl"><input type="number" id="y-sX" step="1" style="width:56px">% <span class="seg" id="y-sunit"></span> <span class="vv" id="y-seq"></span></span>
-      <span class="ctl" id="y-sshp"></span>
-      <span class="ctl"><span class="lbl">Hits in week</span><input type="range" id="y-sw" min="1" step="1" style="width:110px"> <output id="y-swo"></output> <button type="button" class="btn" id="y-sworst" style="padding:1px 7px">worst</button></span>
-      <details class="menu" id="y-siv"><summary id="y-sivsum">IV</summary><span class="mb" style="width:300px" id="y-sivmb"></span></details>
-      <details class="menu" id="y-srules"><summary>Rules</summary><span class="mb" style="width:330px" id="y-srulesmb"></span></details>
+    <span class="yrows">
+      <span class="crow" id="y-row1"><span class="ctl yb-only"><span class="lbl">Change in B</span><span class="seg" id="y-bdiff"></span></span><details class="menu yb-only" id="y-bmore"><summary>More</summary><span class="mb" style="width:220px"><span class="mt">Also change in B</span><span class="seg eq" id="y-bdiff2" style="width:100%"></span><span class="cap" style="display:block;margin-top:6px">“Anything” gives B its own full editor in the panel on the right.</span></span></details><details class="menu" id="y-read"><summary id="y-readsum">Outcome</summary><span class="mb" style="width:300px" id="y-readmb"></span></details></span>
+      <span class="crow" id="y-row2"><span class="ctl"><span class="lbl">Start</span>$<input type="number" id="y-cap0" min="1000" step="1000" style="width:78px"></span><span class="ctl"><span class="lbl">Weeks</span><input type="number" id="y-W" min="4" max="104" step="1" style="width:52px"></span></span>
+      <span class="crow" id="y-row2b"><span class="ctl"><span class="lbl">Price path</span><select id="y-pmode"><option value="flat">Flat</option><option value="line">Line</option><option value="pts">Points</option><option value="growth">Growth</option></select><span id="y-pnum"></span></span><details class="menu left" id="y-pmenu"><summary>More</summary><span class="mb" style="width:300px" id="y-pmb"></span></details></span>
+      <span class="crow" id="y-row3"><span class="ctl" id="y-vol"></span></span>
+      <span class="crow" id="y-srow" hidden><span class="ctl ybase"><button type="button" class="btn" id="y-sbase" style="padding:1px 8px"></button></span><span class="ctl"><span class="lbl">Move</span><span class="seg" id="y-sshape"></span></span></span>
+      <span class="crow" id="y-srow2" hidden><span class="ctl"><input type="number" id="y-sX" step="1" style="width:56px">% <span class="seg" id="y-sunit"></span> <span class="vv" id="y-seq"></span></span><span class="ctl" id="y-sshp"></span><details class="menu" id="y-siv"><summary id="y-sivsum">IV</summary><span class="mb" style="width:300px" id="y-sivmb"></span></details><details class="menu" id="y-srules"><summary>Rules</summary><span class="mb" style="width:330px" id="y-srulesmb"></span></details></span>
+      <span class="crow" id="y-srow3" hidden><span class="ctl"><span class="lbl">Hits in week</span><input type="range" id="y-sw" min="1" step="1" style="width:110px"> <output id="y-swo"></output> <button type="button" class="btn" id="y-sworst" style="padding:1px 7px">worst</button></span></span>
     </span>
     <span class="crow warnrow" id="y-warn" hidden></span>
   </div>
@@ -32,7 +24,7 @@
   <section class="panel ystrip" id="y-strip"></section>
 
   <section class="panel" id="y-stackp">
-    <div class="ph"><h2 id="y-stackh">Over 52 weeks</h2><span class="sub" id="y-stacksub"></span>
+    <div class="ph phc"><h2 id="y-stackh">Over 52 weeks</h2><span class="sub" id="y-stacksub"></span>
       <span class="tools"><details class="menu" id="y-stackmenu"><summary>⚙</summary><span class="mb" style="width:270px" id="y-stackmb"></span></details></span></div>
     <span class="ystack" id="y-stack"></span>
   </section>
@@ -52,11 +44,11 @@
   </span>
   <span id="y-keptv" hidden>
   <section class="panel" id="y-kp">
-    <div class="ph"><h2>Credit kept per cycle</h2><span class="sub">what each cycle keeps of its maximum payoff (the credit), weighed by the odds at the run's moves vol, and what that compounds to</span>
+    <div class="ph ph2 phc"><h2>Credit kept per cycle</h2><span class="sub">what each cycle keeps of its maximum payoff (the credit), weighed by the odds at the run's realized vol, and what that compounds to</span>
       <span class="tools"><button type="button" class="xbtn phx" id="y-kdet"></button><span class="ctl"><span class="lbl">Share x</span><input type="number" id="y-kx" step="5" style="width:56px" aria-label="Share x, %">%</span><span class="ctl"><span class="lbl">Managed</span>take profit <input type="number" id="y-ktp" step="5" style="width:48px" aria-label="Take profit, % of the credit">% · stop <input type="number" id="y-ksl" step="25" style="width:56px" aria-label="Stop, % of the credit">%</span></span></div>
     <span class="capmax" id="y-khead"></span>
     <span class="ytab"><table class="cmp cpt kpt" id="y-ktable"></table></span>
-    <span class="cap xdet">Cycle 1's own legs priced flat at its IV; the price spread at the run's moves vol around the path. The NAV column compounds each cycle's own share: the option P&amp;L on the account plus, for covered calls, the shares along the path. No margin calls, interest or assignment here: the full model row is the Weeks view.</span>
+    <span class="cap xdet">Cycle 1's own legs priced flat at its IV; the price spread at the run's realized vol around the path. The NAV column compounds each cycle's own share: the option P&amp;L on the account plus, for covered calls, the shares along the path. No margin calls, interest or assignment here: the full model row is the Weeks view.</span>
   </section>
   <section class="panel" id="y-kchartp">
     <div class="ph"><h2 id="y-kchartt">NAV if every cycle kept</h2><span class="tools"><span class="seg" id="y-kshow"></span></span></div>
@@ -64,19 +56,19 @@
     <span class="cap">Solid: the chosen preset, compounded cycle by cycle. Dashed, faint: the full model's typical NAV (Weeks view). Log scale.</span>
   </section>
   <section class="panel" id="y-kcustom">
-    <div class="ph"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
+    <div class="ph phc"><h2>Your variant</h2><span class="sub">a basic adjuster to pin the idea down; the named presets are the workhorses</span></div>
     <span class="ccrow">
       <span class="ctl"><span class="lbl">Odds from</span><span class="seg" id="y-ksrc"></span> <span class="ccu" id="y-kvolw"><input type="number" id="y-kvol" step="1" style="width:52px" aria-label="Typed vol, %">%</span></span>
       <span class="ctl"><span class="lbl">Gap</span><input type="number" id="y-kgapp" step="1" style="width:46px" aria-label="Gap chance a cycle, %">% a cycle of <input type="number" id="y-kgaps" step="5" style="width:46px" aria-label="Gap size, %">% <span class="seg" id="y-kgapside"></span></span>
-      <span class="ctl"><span class="lbl">Reading</span><span class="seg" id="y-kread"></span> <span class="ccu" id="y-kpctw"><input type="number" id="y-kpct" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
+      <span class="ctl"><span class="lbl">Read as</span><span class="seg" id="y-kread"></span> <span class="ccu" id="y-kpctw"><input type="number" id="y-kpct" step="1" style="width:46px" aria-label="Percentile"> percentile</span></span>
     </span>
     <span class="ccout" id="y-kcout"></span>
   </section>
   </span>
   <span id="y-stressv" hidden>
   <section class="panel ystrip" id="y-sstrip"></section>
-  <section class="panel"><div class="ph"><h2>Loss by the week the move hits</h2><span class="sub" id="y-sbwsub"></span></div><span id="y-sbw"></span></section>
-  <section class="panel"><div class="ph"><h2>Room before a margin call and before NAV 0</h2><span class="sub">largest one-session gap in the ETF the account takes, by week · solid = margin call, dashed = NAV 0 · below 0 = drops, above = rallies</span></div><span id="y-sroom"></span></section>
+  <section class="panel"><div class="ph phc"><h2>Loss by the week the move hits</h2><span class="sub" id="y-sbwsub"></span></div><span id="y-sbw"></span></section>
+  <section class="panel"><div class="ph phc"><h2>Room before a margin call and before NAV 0</h2><span class="sub">largest one-session gap in the ETF the account takes, by week · solid = margin call, dashed = NAV 0 · below 0 = drops, above = rallies</span></div><span id="y-sroom"></span></section>
   <section class="panel ytwo"><span class="yhalf" id="y-scurve"></span><span class="yhalf" id="y-sbreak"></span></section>
   <details class="panel ydet" id="y-mc"><summary><h2>Random paths</h2><span class="sub">seeded random daily moves around your path at the realized-moves input; opt-in</span></summary><span class="ytools" id="y-mctools"></span><span id="y-mcb"></span></details>
   <details class="panel ydet" id="y-snotes"><summary><h2>Method and caveats (stress)</h2></summary><span id="y-snotesb"></span></details>

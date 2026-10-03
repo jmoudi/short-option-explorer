@@ -357,11 +357,29 @@ const DOCK9 = (() => {
     for (const sync of SIZING_SYNCS) { sync(C.state); }
     const sz = C.comparison.sizing, rn = r => (CTX.SIZES.find(s => s[0] === r) || ["", r])[1].toLowerCase();
     q("#d9-rhc").hidden = sz.rule !== "custom";
-    const hc = q("#d9-hc"); if (document.activeElement !== hc) hc.value = +(+sz.h).toFixed(3);
-    const k = C.A.na || C.B.na ? NaN : C.h * C.A.S / C.B.S, nm = I => I ? I.name || I.id : "";
-    q("#d9-sizesv").textContent = `${sz.rule === "auto" ? `auto: ${rn(C.rule)}` : rn(C.rule)}, B ×${C.h.toFixed(2)}`;
+    // the custom size is typed in contracts (B contracts per A contract); the state keeps h = k · S_B / S_A, inside
+    // CTX.H_RANGE, so the box's bounds are that range in contracts for this pair
+    const k = C.k, nm = I => I ? I.name || I.id : "", hc = q("#d9-hc"), kBounds = sizeBounds();
+    if (kBounds) { hc.min = kBounds[0].toFixed(2); hc.max = kBounds[1].toFixed(2); }
+    if (document.activeElement !== hc) hc.value = Number.isFinite(k) ? k.toFixed(2) : String(+(+sz.h).toFixed(3));
+    q("#d9-sizesv").textContent = `${sz.rule === "auto" ? "auto: " : ""}${C.ruleWords}`; // the rule only: the dock defines, the size sentence below states the result
     q("#d9-oh").innerHTML = (sz.rule === "auto" ? `Auto uses equal notional when A and B are the same instrument at the same spot and IV, equal vega otherwise (${INST.list().map(x => `${esc(x.name || x.id)} ${x.lev}×`).join(", ")} leveraged). ` : "") +
-      `B is held at h = ${C.h.toFixed(3)} × A's notional${C.same || !Number.isFinite(k) ? "." : nm(C.instA) === nm(C.instB) ? `, about ${k.toFixed(2)} B contracts per A contract.` : `, about ${k.toFixed(2)} ${esc(nm(C.instB))} contracts per ${esc(nm(C.instA))} contract.`}` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
+      `${esc(C.sizeStatement().replace(/^./, ch => ch.toUpperCase()))}.` + (C.hNote ? `<br><span class="badge">${esc(C.hNote)}</span>` : "");
+  }
+  // the custom size's bounds in contracts (B per A) for this pair, from the notional range; null while A or B is n/a
+  function sizeBounds() {
+    if (!(Number.isFinite(C.k) && C.k > 0 && C.h > 0)) return null;
+    const perH = C.k / C.h;
+    // two decimals, rounded inward, so the bounds the box and the notice print are sizes the range allows
+    return [Math.ceil(CTX.H_RANGE[0] * perH * 100) / 100, Math.floor(CTX.H_RANGE[1] * perH * 100) / 100];
+  }
+  function setCustomSize(/** @type {HTMLInputElement} */ hc) {
+    const v = parseFloat(hc.value), b = sizeBounds();
+    if (!(Number.isFinite(v) && v > 0) || !b) { askFrame(); return; }
+    const kv = clamp(v, b[0], b[1]);
+    if (kv !== v) page.bus.emit(createNoticeEnvelope({ text: `B's size is held between ${b[0].toFixed(2)} and ${b[1].toFixed(2)} ${C.instB.name || C.instB.id} contracts per ${C.instA.name || C.instA.id} contract for this pair; set to ${kv.toFixed(2)}` }));
+    hc.value = kv.toFixed(2);
+    run({ type: Command.SetSizing, patch: { h: kv * C.h / C.k } });
   }
 
   // ---------------------------------------------------------- events
@@ -474,7 +492,7 @@ const DOCK9 = (() => {
     q("#dockBtn").addEventListener("click", () => setPref({ dock: false }));
     q("#dockOpen").addEventListener("click", () => setPref({ dock: true }));
     bindSelect({ input: "#d9-size", options: CTX.SIZES, read: state => state.comparison.sizing.rule, command: v => ({ type: Command.SetSizing, patch: { rule: v } }), syncList: SIZING_SYNCS });
-    const hc = q("#d9-hc"); hc.addEventListener("change", () => { const v = parseFloat(hc.value); if (Number.isFinite(v) && v > 0) run({ type: Command.SetSizing, patch: { h: clamp(v, 0.05, 20) } }); else askFrame(); });
+    const hc = /** @type {HTMLInputElement} */ (q("#d9-hc")); hc.addEventListener("change", () => setCustomSize(hc));
   }
   // one box: rebuilt when its component keys change; otherwise each component is refreshed in place, except that a
   // slider keeps its input element (a drag must survive the render) and a component holding the focused input or

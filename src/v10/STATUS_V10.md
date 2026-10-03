@@ -260,9 +260,27 @@
   −$579. The straddle at 2.90 stays negative either way.
 - On the payoff's "now" curve, an early move hurts the straddle more than the strangle.
 
+## Round 9: the pit-trader report, items 1 to 8 (three fix loops, a critique between each)
+
+- B's size in words everywhere: "B is sized at 0.71 KORU contracts per RAM contract (equal vega)"; one statement for
+  every case (sized, one for one, a side n/a) in the dock, the method note and the export. A custom size is typed and
+  clamped in contracts; a rule that cannot be met says it falls back to equal notional, without "h".
+- Greeks now (delta, dollar delta, gamma, dollar gamma, theta, vega) per contract, with the pair rule across tickers.
+- $ is the default unit; dollars print thousands separated ($1,117), zeros print as $0, 0×, 0%; axes take their
+  decimals from the tick step.
+- Loud risk: survival lines name the test and the size that survives, then "at least $X of capital a TK contract,
+  N× its margin"; Compounding finds the size that keeps margin-call odds at 10% or less per run (also for the export).
+- Green/red P&L validated for colour blindness in light and dark.
+- Plain labels; formulas behind the details chip; Overview opens on the table with the best cell per expiry lit (ties
+  at the printed precision light every equal cell).
+- Layout rule: a row exists by design only. Panel heads are three fixed tracks; legends are two designed lines under
+  the head; the Compounding bar is a grid of one-line rows with two-line run chips; the stress strip is one grid for
+  both runs; any text cut with … shows its full text on hover. tools_checks/layout_rows.js checks rows, heights,
+  overlaps, edges and hover titles across lenses, replay stops, views and the states that lengthen text.
+
 ## Still open
 
-1. Say what "×0.68" is on the card (B contracts per A contract).
+1. Pit-trader report items 9 to 15 (the second half).
 2. Compare tab: a single-position mode (B off), as the Compounding tab has.
 3. Skew at the chosen strikes (put IV − call IV).
 4. Random paths: the A and B end labels overlap when the medians are close. The sweep's ring can sit on the "ITM leg"
@@ -271,4 +289,7 @@
    in Weeks" switch would need an engine hook.
 6. The empirical presets wait for daily closes from the data feed (`D.u[id].closes`); paste works for now.
 7. The stored key and tab value "yr" in saved views and links (invisible) stay until there is a format migration.
-8. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.
+8. From critique pass 3, minor and left for later: the stress room chart's "worst week low" note can sit on a line;
+   Credit collected's A end label can hide under B's; Credit kept mixes "+50%" and "+100.0%" in a column; under
+   "back to target" with puts, the margin-call words do not mention the puts bought back.
+9. Step 3 to 5 (options-object signatures, panels as classes, TypeScript), and the R3-1 to R3-8 cleanups above.

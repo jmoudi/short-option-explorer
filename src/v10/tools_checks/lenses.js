@@ -7,7 +7,7 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   const set = patch => p.evaluate(x => page.executor.execute({ type: 'prefs.set', patch: x }), patch).then(() => p.waitForTimeout(350));
   const read = () => p.evaluate(() => ({
     title: document.querySelector('#pay-h').textContent,
-    badge: !!document.querySelector('#pay-lgd .ybadge'), hint: !document.querySelector('#pay-xhint').hidden,
+    badge: !!document.querySelector('#pay-lgd .ybadge'), hint: document.querySelector('#c-lensdesc').classList.contains('hint'),
     extDisabled: document.querySelector('#c-extra').disabled, zones: document.querySelectorAll('#pay .mzones rect').length,
     read: document.querySelector('#pay-read').innerText.slice(0, 90), payAt: !document.querySelector('#c-payatw').hidden
   }));
